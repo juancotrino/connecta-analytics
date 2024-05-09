@@ -1,0 +1,6 @@
+[theme]
+base="dark"
+primaryColor="#F78E1E"
+
+[server]
+runOnSave = true
