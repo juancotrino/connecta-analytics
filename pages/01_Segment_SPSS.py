@@ -7,7 +7,7 @@ import streamlit as st
 from modules.styling import apply_default_style
 from modules.help import help_segment_spss
 from modules.segment_spss import segment_spss
-from modules.validations import validate_segmentation_spss_jobs
+from modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
 
 # -------------- SETTINGS --------------
 page_title = "Segment SPSS"
@@ -51,7 +51,11 @@ jobs_validated = validate_segmentation_spss_jobs(jobs_df)
 # Add section to upload a file
 uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
 
-if jobs_validated and not jobs_df.empty:
+db_validated = False
+if uploaded_file:
+    db_validated = validate_segmentation_spss_db(jobs_df, uploaded_file)
+
+if jobs_validated and db_validated and not jobs_df.empty:
     if uploaded_file:
         results = segment_spss(jobs_df, uploaded_file)
 
