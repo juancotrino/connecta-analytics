@@ -16,10 +16,17 @@ page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www
 
 apply_default_style(
     page_title,
-    page_icon
+    page_icon,
+    initial_sidebar_state='expanded'
 )
 
 st.sidebar.markdown("# Transformation to Belcorp")
+st.sidebar.markdown("""
+This tool helps to convert Connecta's databases (SPSS) into the defualt format used by client Belcorp.
+
+Write the study name and upload an excel file with required sheets `MAPEO` and `ESPECIFICACIONES`.
+Upload the `.sav` database of the study to be processed.
+""")
 
 st.title(page_title)
 st.header('Study information')

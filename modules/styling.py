@@ -5,6 +5,7 @@ import streamlit as st
 def apply_default_style(
     page_title: str,
     page_icon: Image | None = None,
+    initial_sidebar_state='collapsed',
     page_type: str = 'service',
     layout: str = 'wide'
 ):
@@ -13,7 +14,7 @@ def apply_default_style(
         page_title=page_title,
         page_icon=page_icon,
         layout=layout,
-        initial_sidebar_state='collapsed'
+        initial_sidebar_state=initial_sidebar_state
     )
 
     if page_type == 'login':

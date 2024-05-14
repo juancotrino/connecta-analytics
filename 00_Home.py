@@ -15,6 +15,9 @@ apply_default_style(
 )
 
 st.sidebar.markdown("# Home")
+st.sidebar.markdown("""
+© Copyright 2024 Connecta SAS. All Rights Reserved
+""")
 
 container = st.container()
 

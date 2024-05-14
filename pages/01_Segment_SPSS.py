@@ -17,10 +17,17 @@ page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www
 
 apply_default_style(
     page_title,
-    page_icon
+    page_icon,
+    initial_sidebar_state='expanded'
 )
 
 st.sidebar.markdown("# Segment SPSS")
+st.sidebar.markdown("""
+This tool helps to segment Connecta's databases (SPSS) to allow easy
+manipulation and particular analysis of different scenarios like the Chi2.
+
+Find more help info on how to use the tool in the `Help` collapsable section.
+""")
 
 st.title(page_title)
 st.header('Scenarios for segmentation')
