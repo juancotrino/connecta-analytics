@@ -201,7 +201,10 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
         for _, job in jobs.iterrows():
             if job['variables']:
-                variables = [variable.strip() for variable in job['variables'].split(',')]
+                if ',' in job['variables']:
+                    variables = [variable.strip() for variable in job['variables'].split(',')]
+                else:
+                    variables = [variable.strip() for variable in job['variables'].split('\n')]
             else:
                 variables = survey_data.columns.to_list()
 
