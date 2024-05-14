@@ -14,4 +14,5 @@ Create a scenario by filling up the columns in the table below.
 
     _Hint: Note that the symbols `&` and `|` mean `and` and `or` clauses respectively._
 - Cross Variable (Chi2): If you want to generate a Chi2 report, write in this field the Cross Variable. If no Chi2 is needed, leave it empty.
+
 """
