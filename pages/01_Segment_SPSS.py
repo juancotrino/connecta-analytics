@@ -41,6 +41,7 @@ config = {
     'variables': st.column_config.TextColumn('Variables', required=False),
     'condition': st.column_config.TextColumn('Condition', required=False),
     'cross_variable': st.column_config.TextColumn('Cross Variable (Chi2)', width='small', required=False),
+    'chi2_mode': st.column_config.SelectboxColumn('Mode', options=['T2B', 'TB'], default='T2B'),
 }
 
 jobs = st.data_editor(
