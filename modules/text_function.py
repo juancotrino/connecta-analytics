@@ -5,11 +5,10 @@ import re
 def questionFinder(txtC):
     questions=""
     for line in txtC.splitlines():
-        if re.search("^[A-Z][1-9].*",line):
+        if re.search("^\s*[A-Z][1-9].*\..*",line):
             qu=re.search("¿.*\?",line)
             numques=line.split()[0]
-            print(numques)
-            if re.match("\.$",numques):
+            if re.search("[^.]$",numques):
                 numques+="."
             if qu:
                 questions+=numques+" "+qu.group()+"\n"
@@ -18,7 +17,12 @@ def questionFinder(txtC):
                 if qu2:
                     questions+=numques+" "+qu2.group()+"\n"
                 else:
+                    flag=True
+                    questions+=numques+" "
                     for word in line.split():
+                        if flag:
+                            flag=False
+                            continue
                         if re.search("^[A-ZÁÉÍÓÚ].*[A-ZÁÉÍÓÚ.]$",word):
                             continue
                         else:
