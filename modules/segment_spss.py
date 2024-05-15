@@ -20,9 +20,16 @@ from scipy.stats import chi2_contingency
 
 
 scales = {
-    'regular': {5: 1, 4: 1, 3: 0, 2: 0, 1: 0},
-    'inverted': {1: 1, 2: 1, 3: 0, 4: 0, 5: 0},
-    'just_right': {1: 0, 2: 0, 3: 1, 4: 0, 5: 0}
+    'T2B':{
+        'regular': {5: 1, 4: 1, 3: 0, 2: 0, 1: 0},
+        'inverted': {1: 1, 2: 1, 3: 0, 4: 0, 5: 0},
+        'just_right': {1: 0, 2: 0, 3: 1, 4: 0, 5: 0}
+    },
+    'TB': {
+        'regular': {5: 1, 4: 0, 3: 0, 2: 0, 1: 0},
+        'inverted': {1: 1, 2: 0, 3: 0, 4: 0, 5: 0},
+        'just_right': {1: 0, 2: 0, 3: 1, 4: 0, 5: 0}
+    }
 }
 
 keywords_inverted_scale = ('pegajosidad', 'transferencia', 'grasitud', 'pegajos', 'grasos')
@@ -41,7 +48,7 @@ def chi_square_test(column1, column2, correction: bool = False):
     else:
         return chi2, p_value, np.sqrt(phi2 / (k - 1)) if k > 1 else 0
 
-def process_chi2(file_path: str, cross_variable: str, correction: bool = False):
+def process_chi2(file_path: str, cross_variable: str, chi2_mode: str, correction: bool = False):
     data, study_metadata = pyreadstat.read_sav(
         file_path,
         apply_value_formats=False
@@ -82,7 +89,7 @@ def process_chi2(file_path: str, cross_variable: str, correction: bool = False):
 
     for column in filtered_data:
         scale_type = variables_scale_info[variables_scale_info['code'] == column]['scale_type'].values[0]
-        filtered_data_bool.loc[:, column] = filtered_data.loc[:, column].map(scales[scale_type])
+        filtered_data_bool.loc[:, column] = filtered_data.loc[:, column].map(scales[chi2_mode][scale_type])
 
     # Dictionary to store results
     results = {}
@@ -224,7 +231,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
             if job['cross_variable']:
                 correction = False
-                chi2_df = process_chi2(sav_temp_file.name, job['cross_variable'], correction)
+                chi2_df = process_chi2(sav_temp_file.name, job['cross_variable'], job['chi2_mode'], correction)
 
                 # Create a new workbook object and select the active worksheet
                 wb.create_sheet(job['scenario_name'])
