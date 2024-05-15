@@ -5,6 +5,8 @@ from modules.styling import apply_default_style
 from modules.help import help_segment_spss
 from modules.transform_to_belcorp import transform_to_belcorp
 from modules.text_function import questionFinder
+from modules.text_function import genRecodes
+from modules.text_function import genLabels
 
 # -------------- SETTINGS --------------
 page_title = "Juan Stiven Service"
@@ -24,20 +26,32 @@ This tool helps Juan to create something
 """)
 
 st.title(page_title)
-st.header('My first argument')
-textinput1=st.empty()
-textinput1.text_area("Complete Text:",height=10)
-btn1 =st.button("Process",help="Press this button")
-text2=st.text_input("Inputttttt:")
-text3=st.text_area("Test text:", height=20)
-num=0
-if(btn1):
-    st.write(text3.title())
-    textinput1.text_area("Cambioooo",value=text2.title())
-st.text("Hola")
+st.header('Tools')
 
 with st.expander("Question Finder"):
-    entryText=st.text_area("Text Entry:")
+    entryText=st.text_area("Text Entry:",placeholder="Copy and paste the entire text of the questionnaire")
     btnFinder=st.button("Find")
     if btnFinder:
         st.text_area("Questions:",questionFinder(entryText))
+        st.success("Copy to clipboard")
+
+
+with st.expander("Generate Recodes"):
+    entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars column from the base")
+    btnFinder=st.button("Generate Recodes")
+    if btnFinder:
+        st.text_area("Recodes:",genRecodes(entryText))
+        st.success("Copy to clipboard")
+        st.download_button(
+            label="Download Sintaxis",
+            data=genRecodes(entryText),
+            file_name=f'Sintaxis1.sps'
+        )
+
+with st.expander("Generate Labels"):
+    entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars column from the base ")
+    entryText2=st.text_area("Options:",placeholder="Copy and paste the Values options column from the base ")
+    btnFinder=st.button("Generate Labels")
+    if btnFinder:
+        st.text_area("Labels:",genLabels(entryText,entryText2))
+        st.success("Copy to clipboard")
