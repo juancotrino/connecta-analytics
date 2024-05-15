@@ -7,9 +7,10 @@ from modules.transform_to_belcorp import transform_to_belcorp
 from modules.text_function import questionFinder
 from modules.text_function import genRecodes
 from modules.text_function import genLabels
+from modules.text_function import genIncludesList
 
 # -------------- SETTINGS --------------
-page_title = "Juan Stiven Service"
+page_title = "Tools"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
 # --------------------------------------
@@ -54,4 +55,14 @@ with st.expander("Generate Labels"):
     btnFinder=st.button("Generate Labels")
     if btnFinder:
         st.text_area("Labels:",genLabels(entryText,entryText2))
+        st.success("Copy to clipboard")
+
+
+with st.expander("Generate List of Includes"):
+    entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars from the GeneraAxis")
+    entryText2=st.text_area("Nums:",placeholder="Copy and paste the num column from the includes Excel")
+    entryText3=st.text_area("Table:",placeholder="Copy and paste the Al table from the includes Excel")
+    btnFinder=st.button("Generate Includes List")
+    if btnFinder:
+        st.text_area("Labels:",genIncludesList(entryText,entryText2,entryText3))
         st.success("Copy to clipboard")

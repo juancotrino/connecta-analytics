@@ -1,5 +1,6 @@
 import re
 import pyperclip
+from unidecode import unidecode
 
 def questionFinder(txtC):
     questions=""
@@ -90,3 +91,58 @@ def genLabels(txtVars,txtOpt):
         labels+=".\n\n"
     pyperclip.copy(labels)
     return labels
+
+def genIncludesList(txtVars,txtNums,txtC):
+    nums=[]
+    ffirst=True
+    num2=0
+    for num in txtNums.splitlines():
+        if ffirst:
+            ffirst=False
+        else:
+            if int(num)==1:
+               nums.append(int(num2))
+            num2=int(num)
+    vars=txtVars.splitlines()
+    base=[]
+    textall=txtC.splitlines()
+    count=0
+    for n in nums:
+        opt=""
+        for i in range(n):
+            opt+=textall[count]
+            count+=1
+        preg=opt.split()
+        numpreg=""
+        textopt=""
+        for tx in preg:
+            if numpreg=="":
+                numpreg=tx
+            else:
+                textopt+=unidecode(tx)
+        base.append([numpreg,textopt.lower()])
+    result=""
+    for ele in base:
+        numpreg=ele[0]
+        contain=False
+        option=ele[1].strip().lower()
+        for x in vars:
+            if numpreg==x:
+                contain=True
+                break
+        if contain:
+            if option=="1si2no":
+                result+="sino\n"
+            else:
+                for question in base:
+                    if option==question[1]:
+                        contain=False
+                        for x in vars:
+                            if question[0]==x:
+                                contain=True
+                                break
+                        if contain:
+                            result+=question[0]+"\n"
+                            break
+    pyperclip.copy(result)
+    return result
