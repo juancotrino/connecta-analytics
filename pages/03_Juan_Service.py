@@ -4,7 +4,7 @@ import streamlit as st
 from modules.styling import apply_default_style
 from modules.help import help_segment_spss
 from modules.transform_to_belcorp import transform_to_belcorp
-from modules.text_function import questionFinder
+from modules.text_function import categoryFinder, questionFinder
 from modules.text_function import genRecodes
 from modules.text_function import genLabels
 from modules.text_function import genIncludesList
@@ -65,4 +65,11 @@ with st.expander("Generate List of Includes"):
     btnFinder=st.button("Generate Includes List")
     if btnFinder:
         st.text_area("Labels:",genIncludesList(entryText,entryText2,entryText3))
+        st.success("Copy to clipboard")
+
+with st.expander("Category Question Finder"):
+    entryText=st.text_area("Text Entry:",placeholder="Copy and paste the entire text of the questionnaire ")
+    btnFinder=st.button("Find Categories")
+    if btnFinder:
+        st.text_area("Questions:",categoryFinder(entryText))
         st.success("Copy to clipboard")

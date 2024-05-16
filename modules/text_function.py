@@ -11,7 +11,11 @@ def questionFinder(txtC):
             if re.search("[^.]$",numques):
                 numques+="."
             if qu:
-                questions+=numques+" "+qu.group()+"\n"
+                qutrim=qu.group()[:-1]
+                if re.search("¿.*\?",qutrim):
+                    questions+=numques+" "+re.search("¿.*\?",qutrim).group()+"\n"
+                else:
+                    questions+=numques+" "+qu.group()+"\n"
             else:
                 qu2=re.search("¿.*",line)
                 if qu2:
@@ -145,4 +149,36 @@ def genIncludesList(txtVars,txtNums,txtC):
                             result+=question[0]+"\n"
                             break
     pyperclip.copy(result)
+    return result
+
+def categoryFinder(txtC):
+    result=""
+    count=0
+    lines=txtC.splitlines()
+    c=0
+    for line in lines:
+        if re.search("^\s*[A-Z][1-9].*\..*",line):
+            numques=line.split()[0]
+            if re.search("[^.]$",numques):
+                numques+="."
+            if lines[count-1]!="":
+                if re.search("¿.*\?",line):
+                    result+=numques+" "+lines[count-1]+ "\n"+re.search("¿.*\?",line).group()+"\n\n"
+                else:
+                    result+=numques+" "+lines[count-1]+ "\n"+ re.search("\s.*",line).group()+"\n\n"
+            else:
+                if re.search("¿.*\?",line):
+                    result+=numques+" "+ re.search("¿.*\?",line).group()+"\n\n"
+                else:
+                    result+=numques+" "
+                    for word in line.split():
+                        if c==0:
+                            c=1
+                            continue
+                        if re.search("^[A-ZÁÉÍÓÚ].*[A-ZÁÉÍÓÚ.]$",word):
+                            continue
+                        else:
+                            result+=word+" "
+                    result+="\n\n"
+        count+=1
     return result
