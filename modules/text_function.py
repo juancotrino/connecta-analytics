@@ -181,4 +181,5 @@ def categoryFinder(txtC):
                             result+=word+" "
                     result+="\n\n"
         count+=1
+    pyperclip.copy(result)
     return result
