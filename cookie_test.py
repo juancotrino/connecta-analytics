@@ -17,7 +17,7 @@ apply_default_style(
 
 st.write("# Cookie Manager")
 
-# @st.cache_resource(experimental_allow_widgets=True)
+@st.cache_resource(experimental_allow_widgets=True)
 def get_manager():
     return stx.CookieManager()
 

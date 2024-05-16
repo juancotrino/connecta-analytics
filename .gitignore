@@ -8,6 +8,7 @@ notebooks/
 login.py
 test.py
 test_1.py
+chat_gpt.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
