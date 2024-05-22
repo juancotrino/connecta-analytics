@@ -4,7 +4,7 @@ import pandas as pd
 from PIL import Image
 import streamlit as st
 
-from modules.styling import apply_default_style
+from modules.styling import apply_default_style, apply_404_style
 from modules.help import help_segment_spss
 from modules.segment_spss import segment_spss
 from modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
@@ -15,81 +15,89 @@ page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www
 
 # --------------------------------------
 
-apply_default_style(
-    page_title,
-    page_icon,
-    initial_sidebar_state='expanded'
-)
+role = st.session_state.get("role")
+auth_status = st.session_state.get("authentication_status")
 
-st.sidebar.markdown("# Segment SPSS")
-st.sidebar.markdown("""
-This tool helps to segment Connecta's databases (SPSS) to allow easy
-manipulation and particular analysis of different scenarios like the Chi2.
+if role not in ('connecta-ds',) or auth_status is not True:
+    apply_404_style()
 
-Find more help info on how to use the tool in the `Help` collapsable section.
-""")
+else:
 
-st.title(page_title)
-st.header('Scenarios for segmentation')
-st.write("Fill the parameters for the segmentation")
+    apply_default_style(
+        page_title,
+        page_icon,
+        initial_sidebar_state='expanded'
+    )
 
-with st.expander("Help"):
-    st.markdown(help_segment_spss)
+    st.sidebar.markdown("# Segment SPSS")
+    st.sidebar.markdown("""
+    This tool helps to segment Connecta's databases (SPSS) to allow easy
+    manipulation and particular analysis of different scenarios like the Chi2.
 
-config = {
-    'scenario_name': st.column_config.TextColumn('Scenario Name', width='small', required=True),
-    'variables': st.column_config.TextColumn('Variables', required=False),
-    'condition': st.column_config.TextColumn('Condition', required=False),
-    'cross_variable': st.column_config.TextColumn('Cross Variable (Chi2)', width='small', required=False),
-    'chi2_mode': st.column_config.SelectboxColumn('Mode', options=['T2B', 'TB'], default='T2B'),
-}
+    Find more help info on how to use the tool in the `Help` collapsable section.
+    """)
 
-jobs = st.data_editor(
-    pd.DataFrame(columns=[k for k in config.keys()]),
-    num_rows="dynamic",
-    use_container_width=True,
-    key="edit_set_of_strings",
-    column_config=config
-)
+    st.title(page_title)
+    st.header('Scenarios for segmentation')
+    st.write("Fill the parameters for the segmentation")
 
-jobs_df = pd.DataFrame(jobs)
+    with st.expander("Help"):
+        st.markdown(help_segment_spss)
 
-jobs_validated = validate_segmentation_spss_jobs(jobs_df)
+    config = {
+        'scenario_name': st.column_config.TextColumn('Scenario Name', width='small', required=True),
+        'variables': st.column_config.TextColumn('Variables', required=False),
+        'condition': st.column_config.TextColumn('Condition', required=False),
+        'cross_variable': st.column_config.TextColumn('Cross Variable (Chi2)', width='small', required=False),
+        'chi2_mode': st.column_config.SelectboxColumn('Mode', options=['T2B', 'TB'], default='T2B'),
+    }
 
-# Add section to upload a file
-uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
+    jobs = st.data_editor(
+        pd.DataFrame(columns=[k for k in config.keys()]),
+        num_rows="dynamic",
+        use_container_width=True,
+        key="edit_set_of_strings",
+        column_config=config
+    )
 
-db_validated = False
-if uploaded_file:
-    db_validated = validate_segmentation_spss_db(jobs_df, uploaded_file)
+    jobs_df = pd.DataFrame(jobs)
 
-if jobs_validated and db_validated and not jobs_df.empty:
+    jobs_validated = validate_segmentation_spss_jobs(jobs_df)
+
+    # Add section to upload a file
+    uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
+
+    db_validated = False
     if uploaded_file:
-        results = segment_spss(jobs_df, uploaded_file)
+        db_validated = validate_segmentation_spss_db(jobs_df, uploaded_file)
 
-        # Offer the zip file for download
-        st.download_button(
-            label="Generate Segmented Data",
-            data=results.getvalue(),
-            file_name='segmented_data.zip',
-            mime='application/zip'
-        )
+    if jobs_validated and db_validated and not jobs_df.empty:
+        if uploaded_file:
+            results = segment_spss(jobs_df, uploaded_file)
 
-                # # Send POST request
-                # response = requests.post("your_endpoint_url", json=data)
+            # Offer the zip file for download
+            st.download_button(
+                label="Generate Segmented Data",
+                data=results.getvalue(),
+                file_name='segmented_data.zip',
+                mime='application/zip'
+            )
 
-                # # Check if request was successful
-                # if response.status_code == 200:
-                #     # Perform action to send scenarios
-                #     st.write("Scenarios sent!")
+                    # # Send POST request
+                    # response = requests.post("your_endpoint_url", json=data)
 
-                #     # Offer the zip file for download
-                #     st.download_button(
-                #         label="Download Segmented Data",
-                #         data=response.content,
-                #         file_name=f"segmented_data_{uploaded_file.name}.zip",
-                #         mime="application/zip"
-                #     )
+                    # # Check if request was successful
+                    # if response.status_code == 200:
+                    #     # Perform action to send scenarios
+                    #     st.write("Scenarios sent!")
 
-                # else:
-                #     st.write("Error occurred while processing the request.")
+                    #     # Offer the zip file for download
+                    #     st.download_button(
+                    #         label="Download Segmented Data",
+                    #         data=response.content,
+                    #         file_name=f"segmented_data_{uploaded_file.name}.zip",
+                    #         mime="application/zip"
+                    #     )
+
+                    # else:
+                    #     st.write("Error occurred while processing the request.")
