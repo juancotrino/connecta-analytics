@@ -13,12 +13,15 @@ from modules.validations import validate_segmentation_spss_jobs, validate_segmen
 page_title = "Segment SPSS"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
+authorized_roles = (
+    'connecta-ds',
+)
 # --------------------------------------
 
 role = st.session_state.get("role")
 auth_status = st.session_state.get("authentication_status")
 
-if role not in ('connecta-ds',) or auth_status is not True:
+if role not in authorized_roles or auth_status is not True:
     apply_404_style()
 
 else:

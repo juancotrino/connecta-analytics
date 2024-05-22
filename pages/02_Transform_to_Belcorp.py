@@ -12,12 +12,15 @@ from modules.transform_to_belcorp import transform_to_belcorp
 page_title = "Transformation to Belcorp"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
+authorized_roles = (
+    'connecta-ds',
+)
 # --------------------------------------
 
 role = st.session_state.get("role")
 auth_status = st.session_state.get("authentication_status")
 
-if role not in ('connecta-ds',) or auth_status is not True:
+if role not in authorized_roles or auth_status is not True:
     apply_404_style()
 
 else:
