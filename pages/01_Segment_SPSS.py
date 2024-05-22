@@ -18,10 +18,10 @@ authorized_roles = (
 )
 # --------------------------------------
 
-role = st.session_state.get("role")
+roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
-if role not in authorized_roles or auth_status is not True:
+if not roles or any(role not in authorized_roles for role in roles) or auth_status is not True:
     apply_404_style()
 
 else:
