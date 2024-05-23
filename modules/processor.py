@@ -44,6 +44,7 @@ def getCodeProcess(spss_file: BytesIO,colvars):
         temp_file_name,
         apply_value_formats=False
     )
+
     for var,scale in study_metadata.variable_value_labels.items():
         if re.search("ABIERTAS",var):
             break
