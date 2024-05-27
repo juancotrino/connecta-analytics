@@ -4,7 +4,7 @@ import streamlit as st
 
 from streamlit_option_menu import option_menu
 
-from modules.styling import apply_default_style, apply_404_style
+from modules.styling import apply_default_style, apply_403_style, footer
 from modules.noel_dashboard import (
     get_data,
     to_excel_bytes,
@@ -25,7 +25,7 @@ roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
 if not roles or any(role not in authorized_roles for role in roles) or auth_status is not True:
-    apply_404_style()
+    apply_403_style()
 
 else:
 
@@ -141,3 +141,5 @@ else:
             file_name=f'jr_{"_".join(total_filters)}.xlsx',
             mime='application/xlsx'
         )
+
+footer()

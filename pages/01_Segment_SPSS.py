@@ -4,7 +4,7 @@ import pandas as pd
 from PIL import Image
 import streamlit as st
 
-from modules.styling import apply_default_style, apply_404_style
+from modules.styling import apply_default_style, apply_403_style, footer
 from modules.help import help_segment_spss
 from modules.segment_spss import segment_spss
 from modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
@@ -22,7 +22,7 @@ roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
 if not roles or any(role not in authorized_roles for role in roles) or auth_status is not True:
-    apply_404_style()
+    apply_403_style()
 
 else:
 
@@ -104,3 +104,5 @@ else:
 
                     # else:
                     #     st.write("Error occurred while processing the request.")
+
+footer()

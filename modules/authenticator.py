@@ -1,18 +1,236 @@
-from datetime import datetime
+import math
+import time
 from contextlib import suppress
-import json
-import requests
-import jwt
-import streamlit as st
+from datetime import datetime, timedelta
+from functools import partial
+from typing import Sequence
+
 import extra_streamlit_components as stx
+import jwt
+import requests
+import streamlit as st
+from email_validator import EmailNotValidError, validate_email
+from firebase_admin import auth, firestore
+
+
+POST_REQUEST_URL_BASE = "https://identitytoolkit.googleapis.com/v1/accounts:"
+
 
 class Authenticator:
-    def __init__(self, config: dict) -> None:
-        self.api_key = config["apiKey"]
+    def __init__(
+        self,
+        firebase_api_key: str,
+        cookie_key: str,
+        cookie_expiry_days: int = 30,
+        cookie_name: str = "login_cookie",
+        preauthorized: str = "gmail.com"
+    ) -> None:
+        self.firebase_api_key = firebase_api_key
+        self.cookie_key = cookie_key
+        self.post_request_url_base = POST_REQUEST_URL_BASE
+        self.post_request = partial(
+            requests.post,
+            headers={"content-type": "application/json; charset=UTF-8"},
+            timeout=10,
+        )
+        self.success_message = partial(st.success, icon="✅")
+        self.error_message = partial(st.error, icon="🚨")
         self.cookie_manager = stx.CookieManager()
+        self.cookie_expiry_days = cookie_expiry_days
+        self.cookie_name = cookie_name
+        self.preauthorized = preauthorized
 
-    def cookie_is_valid(self, cookie_manager: stx.CookieManager, cookie_name: str) -> bool:
-        """Check if the reauthentication cookie is valid and, if it is, update the session state.
+    def parse_error_message(
+        self,
+        response: requests.Response
+    ) -> str:
+        """
+        Parses an error message from a requests.Response object and makes it look better.
+
+        Parameters:
+            response (requests.Response): The response object to parse.
+
+        Returns:
+            str: Prettified error message.
+
+        Raises:
+            KeyError: If the 'error' key is not present in the response JSON.
+        """
+        return (
+            response.json()["error"]["message"]
+            .casefold()
+            .replace("_", " ")
+            .replace("email", "e-mail")
+        )
+
+    def authenticate_user(
+        self,
+        email: str,
+        password: str,
+        require_email_verification: bool = True
+    ) -> dict[str, str | bool | int] | None:
+        """
+        Authenticates a user with the given email and password using the Firebase Authentication
+        REST API.
+
+        Parameters:
+            email (str): The email address of the user to authenticate.
+            password (str): The password of the user to authenticate.
+            require_email_verification (bool): Specify whether a user has to be e-mail verified to
+            be authenticated
+
+        Returns:
+            dict or None: A dictionary containing the authenticated user's ID token, refresh token,
+            and other information, if authentication was successful. Otherwise, None.
+
+        Raises:
+            requests.exceptions.RequestException: If there was an error while authenticating the user.
+        """
+
+        url = f"{self.post_request_url_base}signInWithPassword?key={self.firebase_api_key}"
+        payload = {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True,
+            "emailVerified": require_email_verification,
+        }
+        response = self.post_request(url, json=payload)
+        if response.status_code != 200:
+            self.error_message(f"Authentication failed: {self.parse_error_message(response)}")
+            return None
+        response = response.json()
+        if require_email_verification and "idToken" not in response:
+            self.error_message("Invalid e-mail or password.")
+            return None
+
+        return response
+
+    def get_user_roles(
+        self,
+        user_uid: str
+    ) -> tuple[str]:
+        db = firestore.client()
+        document = db.collection("users").document(user_uid).get()
+
+        if document.exists:
+            user_info = document.to_dict()
+            roles = tuple(user_info['roles'])
+        else:
+            roles = ('basic', )
+
+        return roles
+
+    @property
+    def forgot_password_form(self) -> None:
+        """Creates a Streamlit widget to reset a user's password. Authentication uses
+        the Firebase Authentication REST API.
+
+        Parameters:
+            preauthorized (Union[str, Sequence[str], None]): An optional domain or a list of
+            domains which are authorized to register.
+        """
+
+        with st.form("Forgot password"):
+            email = st.text_input("E-mail", key="forgot_password")
+            if not st.form_submit_button("Reset password"):
+                return None
+        if "@" not in email and isinstance(self.preauthorized, str):
+            email = f"{email}@{self.preauthorized}"
+
+        url = f"{self.post_request_url_base}sendOobCode?key={self.firebase_api_key}"
+        payload = {"requestType": "PASSWORD_RESET", "email": email}
+        response = self.post_request(url, json=payload)
+        if response.status_code == 200:
+            return self.success_message(f"Password reset link has been sent to {email}")
+        return self.error_message(f"Error sending password reset email: {self.parse_error_message(response)}")
+
+    @property
+    def register_user_form(self) -> None:
+        """Creates a Streamlit widget for user registration.
+
+        Password strength is validated using entropy bits (the power of the password alphabet).
+        Upon registration, a validation link is sent to the user's email address.
+
+        Parameters:
+            preauthorized (Union[str, Sequence[str], None]): An optional domain or a list of
+            domains which are authorized to register.
+        """
+
+        with st.form(key="register_form"):
+            email, name, password, confirm_password, register_button = (
+                st.text_input("E-mail"),
+                st.text_input("Name"),
+                st.text_input("Password", type="password"),
+                st.text_input("Confirm password", type="password"),
+                st.form_submit_button(label="Submit"),
+            )
+        if not register_button:
+            return None
+        # Below are some checks to ensure proper and secure registration
+        if password != confirm_password:
+            return self.error_message("Passwords do not match")
+        if not name:
+            return self.error_message("Please enter your name")
+        if "@" not in email and isinstance(self.preauthorized, str):
+            email = f"{email}@{self.preauthorized}"
+        if self.preauthorized and not email.endswith(self.preauthorized):
+            return self.error_message("Domain not allowed")
+        try:
+            validate_email(email, check_deliverability=True)
+        except EmailNotValidError as e:
+            return self.error_message(e)
+
+        # Need a password that has minimum 66 entropy bits (the power of its alphabet)
+        # I multiply this number by 1.5 to display password strength with st.progress
+        # For an explanation, read this -
+        # https://en.wikipedia.org/wiki/Password_strength#Entropy_as_a_measure_of_password_strength
+        alphabet_chars = len(set(password))
+        strength = int(len(password) * math.log2(alphabet_chars) * 1.5)
+        if strength < 100:
+            st.progress(strength)
+            return st.warning(
+                "Password is too weak. Please choose a stronger password.", icon="⚠️"
+            )
+        auth.create_user(
+            email=email, password=password, display_name=name, email_verified=False
+        )
+        # Having registered the user, send them a verification e-mail
+        token = self.authenticate_user(
+            email,
+            password,
+            require_email_verification=False
+        )["idToken"]
+        url = f"{POST_REQUEST_URL_BASE}sendOobCode?key={self.firebase_api_key}"
+        payload = {"requestType": "VERIFY_EMAIL", "idToken": token}
+        response = self.post_request(url, json=payload)
+        if response.status_code != 200:
+            return self.error_message(f"Error sending verification email: {self.parse_error_message(response)}")
+        self.success_message(
+            "Your account has been created successfully. To complete the registration process, "
+            "please verify your email address by clicking on the link we have sent to your inbox."
+        )
+        return st.balloons()
+
+    @property
+    def update_password_form(self) -> None:
+        """Creates a Streamlit widget to update a user's password."""
+        col1, _, _ = st.columns(3)
+        # Get the email and password from the user
+        new_password = col1.text_input("New password", key="new_password")
+        confirm_new_password = col1.text_input("Confirm new password", key="confirm_new_password")
+        # Attempt to log the user in
+        if not st.button("Update password"):
+            return None
+        if new_password != confirm_new_password:
+            return self.error_message("The passwords do not match.")
+        user = auth.get_user_by_email(st.session_state["username"])
+        auth.update_user(user.uid, password=new_password)
+        return self.success_message("Successfully updated user password.")
+
+    @property
+    def update_display_name_form(self) -> None:
+        """Creates a Streamlit widget to update a user's display name.
+
         Parameters
         ----------
         - cookie_manager : stx.CookieManager
@@ -21,10 +239,79 @@ class Authenticator:
             The name of the reauthentication cookie.
         - cookie_expiry_days: (optional) str
             An integer representing the number of days until the cookie expires
+        """
+        col1, _, _ = st.columns(3)
+
+        # Get the email and password from the user
+        new_name = col1.text_input("New name", key="new name")
+        # Attempt to log the user in
+        if not st.button("Update name"):
+            return None
+        user = auth.get_user_by_email(st.session_state["username"])
+        auth.update_user(user.uid, display_name=new_name)
+        st.session_state["name"] = new_name
+        # Update the cookie as well
+        exp_date = datetime.utcnow() + timedelta(days=self.cookie_expiry_days)
+        self.cookie_manager.set(
+            self.cookie_name,
+            self.token_encode(exp_date),
+            expires_at=exp_date,
+        )
+        return self.success_message("Successfully updated user display name.")
+
+
+    def token_encode(
+        self,
+        exp_date: datetime
+    ) -> str:
+        """Encodes a JSON Web Token (JWT) containing user session data for passwordless
+        reauthentication.
+
+        Parameters
+        ----------
+        exp_date : datetime
+            The expiration date of the JWT.
+
+        Returns
+        -------
+        str
+            The encoded JWT cookie string for reauthentication.
+
+        Notes
+        -----
+        The JWT contains the user's name, username, and the expiration date of the JWT in
+        timestamp format. The `os.getenv("COOKIE_KEY")` value is used to sign the JWT with
+        the HS256 algorithm.
+        """
+        return jwt.encode(
+            {
+                "name": st.session_state["name"],
+                "username": st.session_state["username"],
+                "roles": st.session_state["roles"],
+                "exp_date": exp_date.timestamp(),
+            },
+            self.cookie_key,
+            algorithm="HS256",
+        )
+
+    @property
+    def cookie_is_valid(self) -> bool:
+        """Check if the reauthentication cookie is valid and, if it is, update the session state.
+
+        Parameters
+        ----------
+        - cookie_manager : stx.CookieManager
+            A JWT cookie manager instance for Streamlit
+        - cookie_name : str
+            The name of the reauthentication cookie.
+        - cookie_expiry_days: (optional) str
+            An integer representing the number of days until the cookie expires
+
         Returns
         -------
         bool
             True if the cookie is valid and the session state is updated successfully; False otherwise.
+
         Notes
         -----
         This function checks if the specified reauthentication cookie is present in the cookies stored by
@@ -32,11 +319,18 @@ class Authenticator:
         state of the Streamlit app and authenticates the user.
         """
 
-        token = self.cookie_manager.get(cookie_name)
+        token = self.cookie_manager.get(self.cookie_name)
+
+        # In case of a first run, pre-populate missing session state arguments
+        for key in {"name", "authentication_status", "username", "logout", "roles"}.difference(
+            set(st.session_state)
+        ):
+            st.session_state[key] = None
+
         if token is None:
             return False
         with suppress(Exception):
-            token = jwt.decode(token, st.secrets["COOKIE_KEY"], algorithms=["HS256"])
+            token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
         if (
             token
             and not st.session_state["logout"]
@@ -45,200 +339,193 @@ class Authenticator:
         ):
             st.session_state["name"] = token["name"]
             st.session_state["username"] = token["username"]
+            st.session_state["roles"] = token["roles"]
             st.session_state["authentication_status"] = True
             return True
         return False
 
-    ## -------------------------------------------------------------------------------------------------
-    ## Firebase Auth API -------------------------------------------------------------------------------
-    ## -------------------------------------------------------------------------------------------------
 
-    def sign_in_with_email_and_password(self, email, password):
-        request_ref = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={0}".format(self.api_key)
-        headers = {"content-type": "application/json; charset=UTF-8"}
-        data = json.dumps({"email": email, "password": password, "returnSecureToken": True})
-        request_object = requests.post(request_ref, headers=headers, data=data)
-        self.raise_detailed_error(request_object)
-        return request_object.json()
+    def login_user(
+        self,
+        email: str,
+        password: str
+    ):
+        # Authenticate the user with Firebase REST API
+        login_response = self.authenticate_user(email, password)
+        if not login_response:
+            return None
 
-    def get_account_info(self, id_token):
-        request_ref = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key={0}".format(self.api_key)
-        headers = {"content-type": "application/json; charset=UTF-8"}
-        data = json.dumps({"idToken": id_token})
-        request_object = requests.post(request_ref, headers=headers, data=data)
-        self.raise_detailed_error(request_object)
-        return request_object.json()
-
-    def send_email_verification(self, id_token):
-        request_ref = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key={0}".format(self.api_key)
-        headers = {"content-type": "application/json; charset=UTF-8"}
-        data = json.dumps({"requestType": "VERIFY_EMAIL", "idToken": id_token})
-        request_object = requests.post(request_ref, headers=headers, data=data)
-        self.raise_detailed_error(request_object)
-        return request_object.json()
-
-    def send_password_reset_email(self, email):
-        request_ref = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key={0}".format(self.api_key)
-        headers = {"content-type": "application/json; charset=UTF-8"}
-        data = json.dumps({"requestType": "PASSWORD_RESET", "email": email})
-        request_object = requests.post(request_ref, headers=headers, data=data)
-        self.raise_detailed_error(request_object)
-        return request_object.json()
-
-    def create_user_with_email_and_password(self, email, password):
-        request_ref = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/signupNewUser?key={0}".format(self.api_key)
-        headers = {"content-type": "application/json; charset=UTF-8" }
-        data = json.dumps({"email": email, "password": password, "returnSecureToken": True})
-        request_object = requests.post(request_ref, headers=headers, data=data)
-        self.raise_detailed_error(request_object)
-        return request_object.json()
-
-    def delete_user_account(self, id_token):
-        request_ref = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/deleteAccount?key={0}".format(self.api_key)
-        headers = {"content-type": "application/json; charset=UTF-8"}
-        data = json.dumps({"idToken": id_token})
-        request_object = requests.post(request_ref, headers=headers, data=data)
-        self.raise_detailed_error(request_object)
-        return request_object.json()
-
-    def raise_detailed_error(self, request_object):
         try:
-            request_object.raise_for_status()
-        except requests.exceptions.HTTPError as error:
-            raise requests.exceptions.HTTPError(error, request_object.text)
+            decoded_token = auth.verify_id_token(login_response["idToken"])
+            user = auth.get_user(decoded_token["uid"])
+            if not user.email_verified:
+                return self.error_message("Please verify your e-mail address.")
+            return user
+        except Exception as e:
+            print(f'Error: {e}')
 
-    ## -------------------------------------------------------------------------------------------------
-    ## Authentication functions ------------------------------------------------------------------------
-    ## -------------------------------------------------------------------------------------------------
+    @property
+    def login_form(self) -> None:
+        """Creates a login widget using Firebase REST API and a cookie manager.
 
-    def sign_in(self, email:str, password:str) -> None:
+        Parameters
+        ----------
+        - cookie_manager : stx.CookieManager
+            A JWT cookie manager instance for Streamlit
+        - cookie_name : str
+            The name of the reauthentication cookie.
+        - cookie_expiry_days: (optional) str
+            An integer representing the number of days until the cookie expires
+
+        Notes
+        -----
+
+        If the user has already been authenticated, this function does nothing. Otherwise, it displays
+        a login form which prompts the user to enter their email and password. If the login credentials
+        are valid and the user's email address has been verified, the user is authenticated and a
+        reauthentication cookie is created with the specified expiration date.
+        """
+
+        if st.session_state["authentication_status"]:
+            return None
+        with st.form("Login"):
+            email = st.text_input("E-mail")
+            if "@" not in email and isinstance(self.preauthorized, str):
+                email = f"{email}@{self.preauthorized}"
+            st.session_state["username"] = email
+            password = st.text_input("Password", type="password")
+
+            if st.form_submit_button('Login'):
+                user = self.login_user(email, password)
+                if user:
+                    st.session_state["name"] = user.display_name
+                    st.session_state["username"] = user.email
+                    st.session_state["roles"] = self.get_user_roles(user.uid)
+                    st.session_state["authentication_status"] = True
+                    exp_date = datetime.utcnow() + timedelta(days=self.cookie_expiry_days)
+
+                    self.cookie_manager.set(
+                        self.cookie_name,
+                        self.token_encode(exp_date),
+                        expires_at=exp_date
+                    )
+
+                    time.sleep(0.08)
+
+    @property
+    def login_panel(self) -> None:
+        """Creates a side panel for logged-in users, preventing the login menu from
+        appearing.
+
+        Parameters
+        ----------
+        - cookie_manager : stx.CookieManager
+            A JWT cookie manager instance for Streamlit
+        - cookie_name : str
+            The name of the reauthentication cookie.
+        - cookie_expiry_days: (optional) str
+            An integer representing the number of days until the cookie expires
+
+        Notes
+        -----
+        If the user is logged in, this function displays two tabs for resetting the user's password
+        and updating their display name.
+
+        If the user clicks the "Logout" button, the reauthentication cookie and user-related information
+        from the session state is deleted, and the user is logged out.
+        """
+
         try:
-            # Attempt to sign in with email and password
-            id_token = self.sign_in_with_email_and_password(email,password)['idToken']
+            greeting_name = st.session_state['username'].split('@')[0] if st.session_state['name'] is None else st.session_state['name']
+            st.write(f"Welcome, *{greeting_name}*!")
+        except:
+            pass
 
-            # Get account information
-            user_info = self.get_account_info(id_token)["users"][0]
+        if st.button("Logout"):
+            self.cookie_manager.delete(self.cookie_name)
+            st.session_state["logout"] = True
+            st.session_state["name"] = None
+            st.session_state["username"] = None
+            st.session_state["roles"] = None
+            st.session_state["authentication_status"] = None
+            return None
 
-            # If email is not verified, send verification email and do not sign in
-            if not user_info["emailVerified"]:
-                self.send_email_verification(id_token)
-                st.session_state.auth_warning = 'Check your email to verify your account'
+        with st.expander("Account configurarion"):
 
-            # Save user info to session state and rerun
-            else:
-                st.session_state.user_info = user_info
-                st.rerun()
+            user_tab1, user_tab2 = st.tabs(["Reset password", "Update user details"])
+            with user_tab1:
+                self.update_password_form
+            with user_tab2:
+                self.update_display_name_form
 
-        except requests.exceptions.HTTPError as error:
-            error_message = json.loads(error.args[1])['error']['message']
-            if error_message in {"INVALID_EMAIL", "EMAIL_NOT_FOUND", "INVALID_PASSWORD", "MISSING_PASSWORD", "INVALID_LOGIN_CREDENTIALS"}:
-                st.session_state.auth_warning = 'Error: Use a valid email and password'
-            else:
-                print(error_message)
-                st.session_state.auth_warning = 'Error: Please try again later'
+        return None
 
-        except Exception as error:
-            print(error)
-            st.session_state.auth_warning = 'Error: Please try again later'
+    @property
+    def not_logged_in(self) -> bool:
+        """Creates a tab panel for unauthenticated, preventing the user control sidebar and
+        the rest of the script from appearing until the user logs in.
 
+        Parameters
+        ----------
+        - cookie_manager : stx.CookieManager
+            A JWT cookie manager instance for Streamlit
+        - cookie_name : str
+            The name of the reauthentication cookie.
+        - cookie_expiry_days: (optional) str
+            An integer representing the number of days until the cookie expires
 
-    def create_account(self, email:str, password:str) -> None:
-        try:
-            # Create account (and save id_token)
-            id_token = self.create_user_with_email_and_password(email,password)['idToken']
+        Returns
+        -------
+        Authentication status boolean.
 
-            # Create account and send email verification
-            self.send_email_verification(id_token)
-            st.session_state.auth_success = 'Check your inbox to verify your email'
+        Notes
+        -----
+        If the user is already authenticated, the login panel function is called to create a side
+        panel for logged-in users. If the function call does not update the authentication status
+        because the username/password does not exist in the Firebase database, the rest of the script
+        does not get executed until the user logs in.
+        """
 
-        except requests.exceptions.HTTPError as error:
-            error_message = json.loads(error.args[1])['error']['message']
-            if error_message == "EMAIL_EXISTS":
-                st.session_state.auth_warning = 'Error: Email belongs to existing account'
-            elif error_message in {"INVALID_EMAIL","INVALID_PASSWORD","MISSING_PASSWORD","MISSING_EMAIL","WEAK_PASSWORD"}:
-                st.session_state.auth_warning = 'Error: Use a valid email and password'
-            else:
-                st.session_state.auth_warning = 'Error: Please try again later'
+        early_return = True
+        # In case of a first run, pre-populate missing session state arguments
+        for key in {"name", "authentication_status", "username", "logout", "roles"}.difference(
+            set(st.session_state)
+        ):
+            st.session_state[key] = None
 
-        except Exception as error:
-            print(error)
-            st.session_state.auth_warning = 'Error: Please try again later'
+        # # Check authentication status
+        # auth_status = st.session_state["authentication_status"]
 
+        # # If the user is already authenticated or the authentication status is None, return False directly
+        # if auth_status is False:
 
-    def reset_password(self, email:str) -> None:
-        try:
-            self.send_password_reset_email(email)
-            st.session_state.auth_success = 'Password reset link sent to your email'
+        col1, col2, col3 = st.columns(3)
 
-        except requests.exceptions.HTTPError as error:
-            error_message = json.loads(error.args[1])['error']['message']
-            if error_message in {"MISSING_EMAIL","INVALID_EMAIL","EMAIL_NOT_FOUND"}:
-                st.session_state.auth_warning = 'Error: Use a valid email'
-            else:
-                st.session_state.auth_warning = 'Error: Please try again later'
+        login_tabs = col2.empty()
+        with login_tabs:
+            login_tab1, login_tab2 = st.tabs(
+                [
+                    "Login",
+                    "Forgot password"
+                ]
+            )
+            with login_tab1:
+                self.login_form
+            with login_tab2:
+                self.forgot_password_form
 
-        except Exception:
-            st.session_state.auth_warning = 'Error: Please try again later'
+        auth_status = st.session_state["authentication_status"]
 
+        if auth_status is False:
+            self.error_message("Username/password is incorrect")
+            return early_return
+        if auth_status is None:
+            return early_return
+        login_tabs.empty()
+        # A workaround for a bug in Streamlit -
+        # https://playground.streamlit.app/?q=empty-doesnt-work
+        # TLDR: element.empty() doesn't actually seem to work with a multi-element container
+        # unless you add a sleep after it.
+        time.sleep(0.01)
 
-    def sign_out(self) -> None:
-        st.session_state.clear()
-        st.session_state.auth_success = 'You have successfully signed out'
-
-
-    def delete_account(self, password:str) -> None:
-        try:
-            # Confirm email and password by signing in (and save id_token)
-            id_token = self.sign_in_with_email_and_password(st.session_state.user_info['email'],password)['idToken']
-
-            # Attempt to delete account
-            self.delete_user_account(id_token)
-            st.session_state.clear()
-            st.session_state.auth_success = 'You have successfully deleted your account'
-
-        except requests.exceptions.HTTPError as error:
-            error_message = json.loads(error.args[1])['error']['message']
-            print(error_message)
-
-        except Exception as error:
-            print(error)
-
-
-firebase_credentials = {
-    'apiKey': "AIzaSyBWZK134ehI9cuRj3SSSyi-JQJihKHgdvg",
-    'authDomain': "streamlit-test-a4b4b.firebaseapp.com",
-    'projectId': "streamlit-test-a4b4b",
-    'storageBucket': "streamlit-test-a4b4b.appspot.com",
-    'messagingSenderId': "442438202784",
-    'appId': "1:442438202784:web:0ada18316dc7e7542960c5",
-    'measurementId': "G-G04XCHFESB",
-    "databaseURL": ""
-}
-
-authenticator = Authenticator(firebase_credentials)
-
-def authentication():
-
-    _, col2, _ = st.columns([1, 2, 1])
-    col2.header('Login')
-    # Authentication form layout
-    # do_you_have_an_account = col2.selectbox(label='Do you have an account?',options=('Yes','No','I forgot my password'))
-    auth_form = col2.form(key='Authentication form', clear_on_submit=False)
-    email = auth_form.text_input(label='Email')
-    password = auth_form.text_input(label='Password', type='password')
-    auth_notification = col2.empty()
-
-    # Sign In
-    if auth_form.form_submit_button(label='Sign In',use_container_width=True,type='primary'):
-        with auth_notification, st.spinner('Signing in'):
-            authenticator.sign_in(email, password)
-
-        return st.session_state.user_info
-
-    # Authentication success and warning messages
-    if 'auth_success' in st.session_state:
-        auth_notification.success(st.session_state.auth_success)
-        del st.session_state.auth_success
-    elif 'auth_warning' in st.session_state:
-        auth_notification.warning(st.session_state.auth_warning)
-        del st.session_state.auth_warning
+        return not early_return

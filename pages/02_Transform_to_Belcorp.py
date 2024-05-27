@@ -4,7 +4,7 @@ import pandas as pd
 from PIL import Image
 import streamlit as st
 
-from modules.styling import apply_default_style, apply_404_style
+from modules.styling import apply_default_style, apply_403_style, footer
 # from modules.help import help_segment_spss
 from modules.transform_to_belcorp import transform_to_belcorp
 
@@ -21,7 +21,7 @@ roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
 if not roles or any(role not in authorized_roles for role in roles) or auth_status is not True:
-    apply_404_style()
+    apply_403_style()
 
 else:
 
@@ -64,3 +64,5 @@ else:
             file_name=f'BBDD NORMAS - {study}.sav',
             mime='application/sav'
         )
+
+footer()

@@ -1,7 +1,7 @@
 from PIL import Image
 import streamlit as st
 
-from modules.styling import apply_default_style, apply_404_style
+from modules.styling import apply_default_style, apply_403_style, footer
 from modules.new_proejct_initialization import create_directory_structure
 
 # -------------- SETTINGS --------------
@@ -17,7 +17,7 @@ roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
 if not roles or any(role not in authorized_roles for role in roles) or auth_status is not True:
-    apply_404_style()
+    apply_403_style()
 
 else:
 
@@ -58,3 +58,6 @@ else:
         import subprocess
         result = subprocess.run(['tree', id_project_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         st.code(result.stdout)
+
+
+footer()
