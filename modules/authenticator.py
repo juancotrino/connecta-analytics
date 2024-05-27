@@ -395,7 +395,7 @@ class Authenticator:
             st.session_state["username"] = email
             password = st.text_input("Password", type="password")
 
-            if st.form_submit_button('Login'):
+            if st.form_submit_button('Login', type="primary"):
                 user = self.login_user(email, password)
                 if user:
                     st.session_state["name"] = user.display_name
@@ -441,7 +441,7 @@ class Authenticator:
         except:
             pass
 
-        if st.button("Logout"):
+        if st.button("Logout", type="primary"):
             self.cookie_manager.delete(self.cookie_name)
             st.session_state["logout"] = True
             st.session_state["name"] = None
