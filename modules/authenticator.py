@@ -1,9 +1,9 @@
+import os
 import math
 import time
 from contextlib import suppress
 from datetime import datetime, timedelta
 from functools import partial
-from typing import Sequence
 
 import extra_streamlit_components as stx
 import jwt
@@ -410,7 +410,7 @@ class Authenticator:
                         expires_at=exp_date
                     )
 
-                    time.sleep(0.08)
+                    time.sleep(0.1)
 
     @property
     def login_panel(self) -> None:
@@ -485,7 +485,7 @@ class Authenticator:
         because the username/password does not exist in the Firebase database, the rest of the script
         does not get executed until the user logs in.
         """
-
+        time.sleep(0.1)
         early_return = True
         # In case of a first run, pre-populate missing session state arguments
         for key in {"name", "authentication_status", "username", "logout", "roles"}.difference(
@@ -493,13 +493,14 @@ class Authenticator:
         ):
             st.session_state[key] = None
 
-        # # Check authentication status
-        # auth_status = st.session_state["authentication_status"]
+        # Check authentication status
+        auth_status = st.session_state["authentication_status"]
 
-        # # If the user is already authenticated or the authentication status is None, return False directly
-        # if auth_status is False:
+        # If the user is already authenticated or the authentication status is None, return False directly
+        if auth_status is True:
+            return not early_return
 
-        col1, col2, col3 = st.columns(3)
+        _, col2, _ = st.columns(3)
 
         login_tabs = col2.empty()
         with login_tabs:
@@ -515,7 +516,6 @@ class Authenticator:
                 self.forgot_password_form
 
         auth_status = st.session_state["authentication_status"]
-
         if auth_status is False:
             self.error_message("Username/password is incorrect")
             return early_return
@@ -529,3 +529,13 @@ class Authenticator:
         time.sleep(0.01)
 
         return not early_return
+
+    def __str__(self) -> str:
+        return f'cookie is valid: {self.cookie_is_valid}, not logged in {self.not_logged_in}'
+
+@st.cache_resource(experimental_allow_widgets=True)
+def get_authenticator():
+    return Authenticator(
+        os.getenv('FIREBASE_API_KEY'),
+        os.getenv('COOKIE_KEY')
+    )

@@ -9,7 +9,7 @@ import streamlit as st
 import firebase_admin
 
 from modules.styling import apply_default_style, footer
-from modules.authenticator import Authenticator
+from modules.authenticator import get_authenticator
 
 load_dotenv()
 
@@ -25,10 +25,7 @@ apply_default_style(
 if 'sidebar_state' not in st.session_state:
     st.session_state.sidebar_state = 'collapsed'
 
-authenticator = Authenticator(
-    os.getenv('FIREBASE_API_KEY'),
-    os.getenv('COOKIE_KEY')
-)
+authenticator = get_authenticator()
 
 def home():
     _ = authenticator.login_panel
@@ -51,16 +48,18 @@ def main():
         cred = firebase_admin.credentials.Certificate(cred_json)
         firebase_admin.initialize_app(cred)
 
-    if not authenticator.cookie_is_valid and authenticator.not_logged_in:
-        st.markdown("""
-            <style>
-                [data-testid="collapsedControl"] {
-                    display: none
-                }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
+    if not authenticator.cookie_is_valid:
+        if authenticator.not_logged_in:
+            st.markdown("""
+                <style>
+                    [data-testid="collapsedControl"] {
+                        display: none
+                    }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            return None
         return None
 
     st.write(
@@ -69,7 +68,7 @@ def main():
     to see the available services.
         """
     )
-
+    # st.write(st.session_state)
     home()
 
     footer()
