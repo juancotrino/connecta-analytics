@@ -1,5 +1,7 @@
 import os
+from datetime import datetime
 import json
+import jwt
 from dotenv import load_dotenv
 
 from PIL import Image
@@ -59,6 +61,7 @@ def main():
                 """,
                 unsafe_allow_html=True,
             )
+            footer()
             return None
         return None
 

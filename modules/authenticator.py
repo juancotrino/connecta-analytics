@@ -318,7 +318,7 @@ class Authenticator:
         the cookie manager, and if it is valid. If the cookie is valid, this function updates the session
         state of the Streamlit app and authenticates the user.
         """
-
+        time.sleep(0.03)
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
@@ -443,7 +443,7 @@ class Authenticator:
 
         if st.button("Logout", type="primary"):
             self.cookie_manager.delete(self.cookie_name)
-            st.session_state["logout"] = True
+            st.session_state["logout"] = None
             st.session_state["name"] = None
             st.session_state["username"] = None
             st.session_state["roles"] = None
