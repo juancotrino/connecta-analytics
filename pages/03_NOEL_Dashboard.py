@@ -93,20 +93,29 @@ else:
 
     total_filters = [str(_filter) for _filter in list(itertools.chain.from_iterable(filters.values()))]
 
-    scale_type = option_menu(
-        menu_title=None,
+    # scale_type = option_menu(
+    #     menu_title=None,
+    #     options=[
+    #         "Regular Scales",
+    #         "JR Scales"
+    #     ],
+    #     icons=[
+    #         "align-end",
+    #         "align-middle"
+    #     ], # https://icons.getbootstrap.com/
+    #     orientation="horizontal",
+    #     styles={
+    #         "nav-link-selected": {"background-color": "#F78E1E"},
+    #     }
+    # )
+
+    scale_type = st.radio(
+        'Scale types:',
         options=[
             "Regular Scales",
             "JR Scales"
         ],
-        icons=[
-            "align-end",
-            "align-middle"
-        ], # https://icons.getbootstrap.com/
-        orientation="horizontal",
-        styles={
-            "nav-link-selected": {"background-color": "#F78E1E"},
-        }
+        horizontal=True
     )
 
     if scale_type == 'Regular Scales':

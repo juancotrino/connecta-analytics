@@ -318,7 +318,7 @@ class Authenticator:
         the cookie manager, and if it is valid. If the cookie is valid, this function updates the session
         state of the Streamlit app and authenticates the user.
         """
-        time.sleep(0.03)
+        time.sleep(0.3)
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
@@ -410,7 +410,7 @@ class Authenticator:
                         expires_at=exp_date
                     )
 
-                    time.sleep(0.1)
+                    time.sleep(0.12)
 
     @property
     def login_panel(self) -> None:
