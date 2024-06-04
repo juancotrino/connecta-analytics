@@ -12,6 +12,7 @@ import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 from firebase_admin import auth, firestore
 
+from settings import AUTHORIZED_PAGES_ROLES
 
 POST_REQUEST_URL_BASE = "https://identitytoolkit.googleapis.com/v1/accounts:"
 
@@ -529,6 +530,31 @@ class Authenticator:
         time.sleep(0.01)
 
         return not early_return
+
+    @property
+    def hide_unauthorized_pages(self):
+        user_roles = st.session_state.get("roles")
+
+        if user_roles:
+
+            pages_to_hide = [page for page, authorized_roles in AUTHORIZED_PAGES_ROLES.items() if not any(role in authorized_roles for role in user_roles)]
+
+            css_pages_to_hide = '\n\t'.join(
+                [
+                    (
+                        '.st-emotion-cache-j7qwjs.eczjsme12 a[data-testid="stSidebarNavLink"][href*="{page_name}"] > span.st-emotion-cache-1m6wrpk.eczjsme10 '
+                        .format(page_name=page_name)
+                    ) + '{display: none;}' for page_name in pages_to_hide
+                ]
+            )
+
+            st.markdown(f"""
+                <style>
+                    {css_pages_to_hide}
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
 
     def __str__(self) -> str:
         return f'cookie is valid: {self.cookie_is_valid}, not logged in {self.not_logged_in}'

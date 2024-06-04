@@ -1,3 +1,4 @@
+import time
 import requests
 
 import pandas as pd
@@ -8,14 +9,14 @@ from modules.authenticator import get_authenticator
 from modules.styling import apply_default_style, apply_403_style, footer
 # from modules.help import help_segment_spss
 from modules.transform_to_belcorp import transform_to_belcorp
+from settings import AUTHORIZED_PAGES_ROLES
 
 # -------------- SETTINGS --------------
 page_title = "Transformation to Belcorp"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
-authorized_roles = (
-    'connecta-ds',
-)
+page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
+authorized_roles = AUTHORIZED_PAGES_ROLES[page_name]
 
 apply_default_style(
     page_title,
@@ -32,10 +33,15 @@ if not authenticator.cookie_is_valid and authenticator.not_logged_in:
 roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
-if not roles or any(role not in authorized_roles for role in roles) or auth_status is not True:
+_ = authenticator.hide_unauthorized_pages
+
+if not roles or not any(role in authorized_roles for role in roles) or auth_status is not True:
     apply_403_style()
+    time.sleep(5)
+    st.switch_page("00_Home.py")
 
 else:
+
     st.sidebar.markdown("# Transformation to Belcorp")
     st.sidebar.markdown("""
     This tool helps to convert Connecta's databases (SPSS) into the defualt format used by client Belcorp.

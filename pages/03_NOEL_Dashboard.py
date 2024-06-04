@@ -1,3 +1,4 @@
+import time
 import itertools
 from PIL import Image
 import streamlit as st
@@ -12,14 +13,14 @@ from modules.noel_dashboard import (
     calculate_statistics_regular_scale,
     calculate_statistics_jr_scale
 )
+from settings import AUTHORIZED_PAGES_ROLES
 
 # -------------- SETTINGS --------------
 page_title = "Noel Dashboard"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
-authorized_roles = (
-    'connecta-ds',
-)
+page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
+authorized_roles = AUTHORIZED_PAGES_ROLES[page_name]
 
 apply_default_style(
     page_title,
@@ -36,8 +37,12 @@ if not authenticator.cookie_is_valid and authenticator.not_logged_in:
 roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
-if not roles or any(role not in authorized_roles for role in roles) or auth_status is not True:
+_ = authenticator.hide_unauthorized_pages
+
+if not roles or not any(role in authorized_roles for role in roles) or auth_status is not True:
     apply_403_style()
+    time.sleep(5)
+    st.switch_page("00_Home.py")
 
 else:
 

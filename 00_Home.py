@@ -12,6 +12,7 @@ import firebase_admin
 
 from modules.styling import apply_default_style, footer
 from modules.authenticator import get_authenticator
+from settings import AUTHORIZED_PAGES_ROLES
 
 load_dotenv()
 
@@ -31,6 +32,7 @@ authenticator = get_authenticator()
 
 def home():
     _ = authenticator.login_panel
+    _ = authenticator.hide_unauthorized_pages
 
 def main():
     st.sidebar.markdown("# Home")

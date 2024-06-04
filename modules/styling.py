@@ -64,10 +64,17 @@ def apply_default_style(
 
 
 def apply_403_style():
-    st.set_page_config(
-        initial_sidebar_state='collapsed'
-    )
     # --- HIDE STREAMLIT STYLE ---
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {
+                display: none
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     hide_st_style = """
         <style>
         #MainMenu {visibility: hidden;}
