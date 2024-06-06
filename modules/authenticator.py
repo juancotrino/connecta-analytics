@@ -12,7 +12,6 @@ import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 from firebase_admin import auth, firestore
 
-from settings import AUTHORIZED_PAGES_ROLES
 
 POST_REQUEST_URL_BASE = "https://identitytoolkit.googleapis.com/v1/accounts:"
 
@@ -531,13 +530,12 @@ class Authenticator:
 
         return not early_return
 
-    @property
-    def hide_unauthorized_pages(self):
+    def hide_unauthorized_pages(self, pages_roles: dict):
         user_roles = st.session_state.get("roles")
 
         if user_roles:
 
-            pages_to_hide = [page for page, authorized_roles in AUTHORIZED_PAGES_ROLES.items() if not any(role in authorized_roles for role in user_roles)]
+            pages_to_hide = [page for page, authorized_page_roles in pages_roles.items() if not any(role in authorized_page_roles['roles'] for role in user_roles)]
 
             css_pages_to_hide = '\n\t'.join(
                 [
@@ -565,3 +563,9 @@ def get_authenticator():
         os.getenv('FIREBASE_API_KEY'),
         os.getenv('COOKIE_KEY')
     )
+
+@st.cache_data
+def get_page_roles() -> dict[str, dict[str, list]]:
+    db = firestore.client()
+    documents = db.collection("pages").stream()
+    return {document.id: document.to_dict() for document in documents}

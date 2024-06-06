@@ -5,19 +5,19 @@ import pandas as pd
 from PIL import Image
 import streamlit as st
 
-from modules.authenticator import get_authenticator
+from modules.authenticator import get_authenticator, get_page_roles
 from modules.styling import apply_default_style, apply_403_style, footer
 from modules.help import help_segment_spss
 from modules.segment_spss import segment_spss
 from modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
-from settings import AUTHORIZED_PAGES_ROLES
+# from settings import AUTHORIZED_PAGES_ROLES
 
 # -------------- SETTINGS --------------
 page_title = "Segment SPSS"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
 page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
-authorized_roles = AUTHORIZED_PAGES_ROLES[page_name]
+# authorized_roles = AUTHORIZED_PAGES_ROLES[page_name]
 
 apply_default_style(
     page_title,
@@ -35,11 +35,20 @@ if not authenticator.cookie_is_valid and authenticator.not_logged_in:
 roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
-_ = authenticator.hide_unauthorized_pages
+pages_roles = get_page_roles()
+_ = authenticator.hide_unauthorized_pages(pages_roles)
+authorized_page_roles = pages_roles[page_name]['roles']
 
-if not roles or not any(role in authorized_roles for role in roles) or auth_status is not True:
+if not roles or not any(role in authorized_page_roles for role in roles) or auth_status is not True:
     apply_403_style()
-    time.sleep(5)
+    _, col2, _ = st.columns(3)
+    time_left = col2.progress(100)
+    footer()
+
+    for seconds in reversed(range(0, 101, 25)):
+        time_left.progress(seconds, f'Redirecing to Home page in {seconds // 25 + 1}...')
+        time.sleep(1)
+
     st.switch_page("00_Home.py")
 
 else:

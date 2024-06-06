@@ -1,7 +1,4 @@
-import os
-from datetime import datetime
 import json
-import jwt
 from dotenv import load_dotenv
 
 from PIL import Image
@@ -11,8 +8,7 @@ import streamlit as st
 import firebase_admin
 
 from modules.styling import apply_default_style, footer
-from modules.authenticator import get_authenticator
-from settings import AUTHORIZED_PAGES_ROLES
+from modules.authenticator import get_authenticator, get_page_roles
 
 load_dotenv()
 
@@ -25,14 +21,12 @@ apply_default_style(
     page_icon,
 )
 
-if 'sidebar_state' not in st.session_state:
-    st.session_state.sidebar_state = 'collapsed'
-
 authenticator = get_authenticator()
 
 def home():
     _ = authenticator.login_panel
-    _ = authenticator.hide_unauthorized_pages
+    pages_roles = get_page_roles()
+    _ = authenticator.hide_unauthorized_pages(pages_roles)
 
 def main():
     st.sidebar.markdown("# Home")
@@ -52,19 +46,17 @@ def main():
         cred = firebase_admin.credentials.Certificate(cred_json)
         firebase_admin.initialize_app(cred)
 
-    if not authenticator.cookie_is_valid:
-        if authenticator.not_logged_in:
-            st.markdown("""
-                <style>
-                    [data-testid="collapsedControl"] {
-                        display: none
-                    }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-            footer()
-            return None
+    if not authenticator.cookie_is_valid and authenticator.not_logged_in:
+        st.markdown("""
+            <style>
+                [data-testid="collapsedControl"] {
+                    display: none
+                }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        footer()
         return None
 
     st.write(

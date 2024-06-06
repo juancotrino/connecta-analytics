@@ -3,7 +3,7 @@ import time
 from PIL import Image
 import streamlit as st
 
-from modules.authenticator import get_authenticator
+from modules.authenticator import get_authenticator, get_page_roles
 from modules.styling import apply_default_style, apply_403_style, footer
 from modules.new_proejct_initialization import create_directory_structure
 from settings import AUTHORIZED_PAGES_ROLES
@@ -30,11 +30,20 @@ if not authenticator.cookie_is_valid and authenticator.not_logged_in:
 roles = st.session_state.get("roles")
 auth_status = st.session_state.get("authentication_status")
 
-_ = authenticator.hide_unauthorized_pages
+pages_roles = get_page_roles()
+_ = authenticator.hide_unauthorized_pages(pages_roles)
+authorized_page_roles = pages_roles[page_name]['roles']
 
-if not roles or not any(role in authorized_roles for role in roles) or auth_status is not True:
+if not roles or not any(role in authorized_page_roles for role in roles) or auth_status is not True:
     apply_403_style()
-    time.sleep(5)
+    _, col2, _ = st.columns(3)
+    time_left = col2.progress(100)
+    footer()
+
+    for seconds in reversed(range(0, 101, 25)):
+        time_left.progress(seconds, f'Redirecing to Home page in {seconds // 25 + 1}...')
+        time.sleep(1)
+
     st.switch_page("00_Home.py")
 
 else:
