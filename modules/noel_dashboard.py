@@ -14,8 +14,6 @@ client_secret = os.getenv('CLIENT_SECRET')
 @st.cache_data
 def get_data():
 
-    # data = pd.read_excel('static/db/norma_noel.xlsx')
-
     # Authenticate and create a context
     credentials = ClientCredential(client_id, client_secret)
     ctx = ClientContext(site_url).with_credentials(credentials)
