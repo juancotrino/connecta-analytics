@@ -448,6 +448,7 @@ class Authenticator:
             st.session_state["username"] = None
             st.session_state["roles"] = None
             st.session_state["authentication_status"] = None
+            time.sleep(0.5)
             return None
 
         with st.expander("Account configurarion"):
