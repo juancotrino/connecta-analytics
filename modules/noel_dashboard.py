@@ -1,13 +1,38 @@
+import os
 from io import BytesIO
 import numpy as np
 import pandas as pd
 import streamlit as st
 
+from office365.runtime.auth.client_credential import ClientCredential
+from office365.sharepoint.client_context import ClientContext
+
+site_url = os.getenv('SITE_URL')
+client_id = os.getenv('CLIENT_ID')
+client_secret = os.getenv('CLIENT_SECRET')
 
 @st.cache_data
 def get_data():
 
-    data = pd.read_excel('static/db/norma_noel.xlsx')
+    # data = pd.read_excel('static/db/norma_noel.xlsx')
+
+    # Authenticate and create a context
+    credentials = ClientCredential(client_id, client_secret)
+    ctx = ClientContext(site_url).with_credentials(credentials)
+
+    # Path to the Excel file in SharePoint
+    file_url = '/sites/connecta-ciencia_de_datos/Documentos compartidos/dbs/norma_noel.xlsx'
+
+    # Prepare a file-like object to receive the downloaded file
+    file_content = BytesIO()
+
+    # Get the file from SharePoint
+    ctx.web.get_file_by_server_relative_url(file_url).download(file_content).execute_query()
+
+    # Move to the beginning of the BytesIO buffer
+    file_content.seek(0)
+
+    data = pd.read_excel(file_content)
 
     transformed_data = data.melt(
         id_vars=data.columns[:16],
