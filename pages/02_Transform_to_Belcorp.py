@@ -9,14 +9,12 @@ from modules.authenticator import get_authenticator, get_page_roles
 from modules.styling import apply_default_style, apply_403_style, footer
 # from modules.help import help_segment_spss
 from modules.transform_to_belcorp import transform_to_belcorp
-from settings import AUTHORIZED_PAGES_ROLES
 
 # -------------- SETTINGS --------------
 page_title = "Transformation to Belcorp"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
 page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
-pages_roles = AUTHORIZED_PAGES_ROLES[page_name]
 
 apply_default_style(
     page_title,

@@ -10,14 +10,12 @@ from modules.styling import apply_default_style, apply_403_style, footer
 from modules.help import help_segment_spss
 from modules.segment_spss import segment_spss
 from modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
-# from settings import AUTHORIZED_PAGES_ROLES
 
 # -------------- SETTINGS --------------
 page_title = "Segment SPSS"
 page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
 page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
-# authorized_roles = AUTHORIZED_PAGES_ROLES[page_name]
 
 apply_default_style(
     page_title,
