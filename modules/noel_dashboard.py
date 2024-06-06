@@ -19,7 +19,7 @@ def get_data():
     ctx = ClientContext(site_url).with_credentials(credentials)
 
     # Path to the Excel file in SharePoint
-    file_url = '/sites/connecta-ciencia_de_datos/Documentos compartidos/dbs/norma_noel.xlsx'
+    file_url = 'Documentos compartidos/dbs/norma_noel.xlsx'
 
     # Prepare a file-like object to receive the downloaded file
     file_content = BytesIO()
