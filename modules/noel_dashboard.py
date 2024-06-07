@@ -1,34 +1,19 @@
-import os
 from io import BytesIO
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-from office365.runtime.auth.client_credential import ClientCredential
-from office365.sharepoint.client_context import ClientContext
-
-site_url = os.getenv('SITE_URL')
-client_id = os.getenv('CLIENT_ID')
-client_secret = os.getenv('CLIENT_SECRET')
+from modules.cloud import SharePoint
 
 @st.cache_data
 def get_data():
 
-    # Authenticate and create a context
-    credentials = ClientCredential(client_id, client_secret)
-    ctx = ClientContext(site_url).with_credentials(credentials)
+    share_point = SharePoint()
 
     # Path to the Excel file in SharePoint
-    file_url = 'Documentos compartidos/dbs/norma_noel.xlsx'
+    file_path = 'Documentos compartidos/dbs/norma_noel.xlsx'
 
-    # Prepare a file-like object to receive the downloaded file
-    file_content = BytesIO()
-
-    # Get the file from SharePoint
-    ctx.web.get_file_by_server_relative_url(file_url).download(file_content).execute_query()
-
-    # Move to the beginning of the BytesIO buffer
-    file_content.seek(0)
+    file_content = share_point.download_file(file_path)
 
     data = pd.read_excel(file_content)
 
