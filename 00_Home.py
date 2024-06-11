@@ -27,6 +27,12 @@ def home():
     _ = authenticator.login_panel
     pages_roles = get_page_roles()
     _ = authenticator.hide_unauthorized_pages(pages_roles)
+    if 'connecta-admin' in st.session_state['roles']:
+        with st.expander("User registration"):
+            try:
+                _ = authenticator.register_user_form
+            except Exception as e:
+                st.error(e)
 
 def main():
     st.sidebar.markdown("# Home")
@@ -46,10 +52,10 @@ def main():
         cred = firebase_admin.credentials.Certificate(cred_json)
         firebase_admin.initialize_app(cred)
 
-    cookie_is_valid = authenticator.cookie_is_valid
-    not_logged_in = authenticator.not_logged_in
+    # cookie_is_valid =
+    # not_logged_in =
 
-    if not cookie_is_valid and not_logged_in:
+    if not authenticator.cookie_is_valid and authenticator.not_logged_in:
         st.markdown("""
             <style>
                 [data-testid="collapsedControl"] {

@@ -23,7 +23,7 @@ class Authenticator:
         cookie_key: str,
         cookie_expiry_days: int = 30,
         cookie_name: str = "login_cookie",
-        preauthorized: str = "gmail.com"
+        preauthorized: str = "connecta.com.co"
     ) -> None:
         self.firebase_api_key = firebase_api_key
         self.cookie_key = cookie_key
@@ -157,13 +157,13 @@ class Authenticator:
         """
 
         with st.form(key="register_form"):
-            email, name, password, confirm_password, register_button = (
-                st.text_input("E-mail"),
-                st.text_input("Name"),
-                st.text_input("Password", type="password"),
-                st.text_input("Confirm password", type="password"),
-                st.form_submit_button(label="Submit"),
-            )
+            email =  st.text_input("E-mail")
+            name = st.text_input("Name")
+            password = st.text_input("Password", type="password")
+            confirm_password = st.text_input("Confirm password", type="password")
+            roles = st.multiselect("Roles", options=self.active_roles, default='connecta-viewer')
+            register_button = st.form_submit_button(label="Submit")
+
         if not register_button:
             return None
         # Below are some checks to ensure proper and secure registration
@@ -191,9 +191,12 @@ class Authenticator:
             return st.warning(
                 "Password is too weak. Please choose a stronger password.", icon="⚠️"
             )
-        auth.create_user(
+        user = auth.create_user(
             email=email, password=password, display_name=name, email_verified=False
         )
+
+        self.assign_user_role(user.uid, roles)
+
         # Having registered the user, send them a verification e-mail
         token = self.authenticate_user(
             email,
@@ -210,6 +213,22 @@ class Authenticator:
             "please verify your email address by clicking on the link we have sent to your inbox."
         )
         return st.balloons()
+
+    def assign_user_role(self, uid: str, roles: list[str]):
+        db = firestore.client()
+        db.collection("users").document(uid).set({'roles': roles})
+
+    @property
+    def active_roles(self) -> tuple[str]:
+        db = firestore.client()
+        document = db.collection("settings").document("roles").get()
+
+        if document.exists:
+            roles_info = document.to_dict()
+            roles = tuple(roles_info['active'])
+            return roles
+        else:
+            st.warning('There are no active roles registered.')
 
     @property
     def update_password_form(self) -> None:
@@ -318,10 +337,11 @@ class Authenticator:
         the cookie manager, and if it is valid. If the cookie is valid, this function updates the session
         state of the Streamlit app and authenticates the user.
         """
+        time.sleep(0.5)
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
-        for key in {"name", "authentication_status", "username", "logout", "roles"}.difference(
+        for key in {"name", "authentication_status", "username", "roles"}.difference(
             set(st.session_state)
         ):
             st.session_state[key] = None
@@ -442,7 +462,6 @@ class Authenticator:
 
         if st.button("Logout", type="primary"):
             self.cookie_manager.delete(self.cookie_name)
-            st.session_state["logout"] = None
             st.session_state["name"] = None
             st.session_state["username"] = None
             st.session_state["roles"] = None
@@ -484,9 +503,10 @@ class Authenticator:
         because the username/password does not exist in the Firebase database, the rest of the script
         does not get executed until the user logs in.
         """
+        time.sleep(0.5)
         early_return = True
         # In case of a first run, pre-populate missing session state arguments
-        for key in {"name", "authentication_status", "username", "logout", "roles"}.difference(
+        for key in {"name", "authentication_status", "username", "roles"}.difference(
             set(st.session_state)
         ):
             st.session_state[key] = None
