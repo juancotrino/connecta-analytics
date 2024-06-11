@@ -1,6 +1,7 @@
-import os
+from modules.cloud import SharePoint
 
-def create_directory_structure(base_path):
+def create_folder_structure(base_path: str):
+
     # Define the directory structure
     dirs = [
         "codificacion/input",
@@ -17,8 +18,12 @@ def create_directory_structure(base_path):
         "script/entrega_campo"
     ]
 
-    # Create each directory in the structure
-    for dir in dirs:
-        path = os.path.join(base_path, dir)
-        os.makedirs(path, exist_ok=True)
-        print(f"Created directory: {path}")
+    sharepoint = SharePoint()
+
+    studies_in_sharepoint = sharepoint.list_folders('Documentos compartidos/estudios')
+
+    id_project_name = base_path.split('/')[-1]
+    if id_project_name in studies_in_sharepoint:
+        raise NameError('Combination of ID, country and study name alreday exists.')
+
+    sharepoint.create_folder_structure(base_path, dirs)
