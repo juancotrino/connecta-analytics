@@ -46,7 +46,10 @@ def main():
         cred = firebase_admin.credentials.Certificate(cred_json)
         firebase_admin.initialize_app(cred)
 
-    if not authenticator.cookie_is_valid and authenticator.not_logged_in:
+    cookie_is_valid = authenticator.cookie_is_valid
+    not_logged_in = authenticator.not_logged_in
+
+    if not cookie_is_valid and not_logged_in:
         st.markdown("""
             <style>
                 [data-testid="collapsedControl"] {
