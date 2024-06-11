@@ -3,11 +3,19 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from modules.cloud import SharePoint
 
 @st.cache_data
 def get_data():
 
-    data = pd.read_excel('static/db/norma_noel.xlsx')
+    share_point = SharePoint()
+
+    # Path to the Excel file in SharePoint
+    file_path = 'Documentos compartidos/dbs/norma_noel.xlsx'
+
+    file_content = share_point.download_file(file_path)
+
+    data = pd.read_excel(file_content)
 
     transformed_data = data.melt(
         id_vars=data.columns[:16],
