@@ -376,7 +376,7 @@ class Authenticator:
             return None
 
         try:
-            decoded_token = auth.verify_id_token(login_response["idToken"], clock_skew_seconds=10)
+            decoded_token = auth.verify_id_token(login_response["idToken"])
             user = auth.get_user(decoded_token["uid"])
             if not user.email_verified:
                 return self.error_message("Please verify your e-mail address.")
