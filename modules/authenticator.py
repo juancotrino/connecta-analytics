@@ -2,7 +2,7 @@ import os
 import math
 import time
 from contextlib import suppress
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import partial
 
 import extra_streamlit_components as stx
@@ -270,7 +270,7 @@ class Authenticator:
         auth.update_user(user.uid, display_name=new_name)
         st.session_state["name"] = new_name
         # Update the cookie as well
-        exp_date = datetime.utcnow() + timedelta(days=self.cookie_expiry_days)
+        exp_date = datetime.now(timezone.utc) + timedelta(days=self.cookie_expiry_days)
         self.cookie_manager.set(
             self.cookie_name,
             self.token_encode(exp_date),
@@ -354,7 +354,7 @@ class Authenticator:
 
         if (
             token
-            and token["exp_date"] > datetime.utcnow().timestamp()
+            and token["exp_date"] > datetime.now(timezone.utc).timestamp()
             and {"name", "username"}.issubset(set(token))
         ):
             st.session_state["name"] = token["name"]
@@ -422,7 +422,7 @@ class Authenticator:
                     st.session_state["username"] = user.email
                     st.session_state["roles"] = self.get_user_roles(user.uid)
                     st.session_state["authentication_status"] = True
-                    exp_date = datetime.utcnow() + timedelta(days=self.cookie_expiry_days)
+                    exp_date = datetime.now(timezone.utc) + timedelta(days=self.cookie_expiry_days)
 
                     self.cookie_manager.set(
                         self.cookie_name,
