@@ -236,7 +236,7 @@ def processSavMulti(spss_file: BytesIO):
         columnsnames[count]=finalname
         count+=1
     study_metadata.columns_names=columnsnames
-    recodes="* Encoding: UTF-8.\n\nDATASET ACTIVATE ConjuntoDatos1.\n"
+    recodes="* Encoding: UTF-8.\n"
     for line in columnsnames:
         if re.search("A_",line):
             pref=re.search(".*_",line).group()
@@ -264,8 +264,9 @@ def processSavMulti(spss_file: BytesIO):
                 prev=line
             else:
                 if pref==re.search(".*_",line).group():
-                    option=re.search("\'.*\'",str(options.get("labels"+str(num)))).group()[1:-1]
-                    optqueue.append(option)
+                    if re.search("\'.*\'",str(options.get("labels"+str(num)))):
+                        option=re.search("\'.*\'",str(options.get("labels"+str(num)))).group()[1:-1]
+                        optqueue.append(option)
                     prev=line
                 else:
                     labels+="VALUE LABELS "+first+" to "+ prev

@@ -1,7 +1,7 @@
 from PIL import Image
 import streamlit as st
 import pyreadstat
-
+from streamlit_option_menu import option_menu
 from modules.styling import apply_default_style
 from modules.help import help_segment_spss
 from modules.transform_to_belcorp import transform_to_belcorp
@@ -28,7 +28,7 @@ apply_default_style(
 
 st.sidebar.markdown("# Transformation to Belcorp")
 st.sidebar.markdown("""
-This tool helps Juan to create something
+This tools helps to work with databases and questionnaries
 """)
 
 st.title(page_title)
@@ -98,13 +98,16 @@ with st.expander("Tool Multiquestion"):
             file_name='Etiquetas.txt'
         )
         st.text_area("Variables:",variables)
+
         st.success("Vars name column copy to clipboard")
 
 with st.expander("Processor test"):
-    qtypes=st.text_area("Questions Types:")
     uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"])
     if uploaded_file:
         colVars=st.multiselect("Column Variables:",getVarsSav(uploaded_file))
+        qtypes=st.text_area("Questions Types:")
+        vars=st.text_area("Variables to process:")
         proces=st.button("Process All")
-        if proces:
-            st.text_area("Commands",getCodeProcess(uploaded_file,colVars))
+        if proces and qtypes and vars:
+            st.text_area("Commands Agrupation:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[0])
+            st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[1])

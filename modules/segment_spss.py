@@ -32,7 +32,7 @@ scales = {
     }
 }
 
-keywords_inverted_scale = ('pegajosidad', 'transferencia', 'grasitud', 'pegajos', 'grasos','grumo','transfiere','transferencia','corrió','cuarteo','molesta','Transfiere')
+keywords_inverted_scale = ('pegajosidad', 'transferencia', 'grasitud', 'pegajos', 'grasos','grumo','transfiere','transferencia','corrió','cuarteo','molesta','Transfiere','corre mucho')
 # Function to perform chi-square test and return chi2, p-value, and Cramer's V
 def chi_square_test(column1, column2, correction: bool = False):
     contingency_table = pd.crosstab(column1, column2)
@@ -95,8 +95,8 @@ def process_chi2(file_path: str, cross_variable: str, chi2_mode: str, correction
     results = {}
     # Perform chi-square test for each column
     for column in filtered_data_bool.columns:
-        if all(filtered_data_bool[column]):
-            continue
+        #if all(filtered_data_bool[column]):
+        #    continue
         if column != cross_variable:
             chi2, p_value, cramer_v = chi_square_test(filtered_data_bool[cross_variable], filtered_data_bool[column], correction)
             results[column] = {'Chi-square': chi2, 'P-value': p_value, 'Cramer\'s V': cramer_v}
