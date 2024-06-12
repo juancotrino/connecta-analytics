@@ -57,7 +57,7 @@ on:
 
 env:
   PROJECT_ID: 'connecta-analytics-app' # TODO: update Google Cloud project id
-  GAR_LOCATION: 'us' # TODO: update Artifact Registry location
+  GAR_LOCATION: 'us-central1' # TODO: update Artifact Registry location
   SERVICE: 'data-solutions-docker/analytics-app' # TODO: update Cloud Run service name
   REGION: 'us-central1' # TODO: update Cloud Run service region
 
