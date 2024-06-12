@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN git clone https://github.com/juancotrino/connecta-analytics.git .
 
-COPY firebase_key.json firebase_key.json
+# COPY firebase_key.json firebase_key.json
 
 RUN pip install -r requirements.txt
 
