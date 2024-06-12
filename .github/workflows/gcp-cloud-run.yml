@@ -79,7 +79,7 @@ jobs:
           echo '${{ secrets.WIF_SERVICE_ACCOUNT }}'
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v2'
+        uses: 'google-github-actions/auth@v1'
 
         with:
           token_format: 'access_token'
