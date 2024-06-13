@@ -18,8 +18,10 @@ RUN git clone https://github.com/juancotrino/connecta-analytics.git .
 
 RUN pip install -r requirements.txt
 
-EXPOSE 8501
+ENV PORT 8080
+
+EXPOSE ${PORT}
 
 HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
 
-ENTRYPOINT ["streamlit", "run", "00_Home.py", "--server.port=8501", "--server.address=0.0.0.0"]
+ENTRYPOINT ["streamlit", "run", "00_Home.py", "--server.port=${PORT}", "--server.address=0.0.0.0"]
