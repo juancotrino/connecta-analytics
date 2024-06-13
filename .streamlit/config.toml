@@ -4,6 +4,7 @@ primaryColor="#F78E1E"
 
 [server]
 runOnSave = true
+port=8080
 
 [client]
 # Change the visibility of items in the toolbar, options menu,
