@@ -118,6 +118,12 @@ jobs:
             --timeout=3600
             --max-instances=2
             --service-account=${{ secrets.GCR_SERVICE_ACCOUNT }}
+          env_vars: |
+            COOKIE_KEY=${{ secrets.COOKIE_KEY }}
+            FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+            SITE_URL=${{ secrets.SITE_URL }}
+            CLIENT_ID=${{ secrets.CLIENT_ID }}
+            CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}
           # env_vars: |
           # #   NODE_ENV=production
           # #   TOKEN_EXPIRE=6400
