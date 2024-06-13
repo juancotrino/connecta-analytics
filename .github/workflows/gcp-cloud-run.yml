@@ -118,6 +118,8 @@ jobs:
             --timeout=3600
             --max-instances=2
             --service-account=${{ secrets.GCR_SERVICE_ACCOUNT }}
+          env_vars: |
+            PORT=8501
           # env_vars: |
           # #   NODE_ENV=production
           # #   TOKEN_EXPIRE=6400
