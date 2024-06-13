@@ -67,10 +67,11 @@ with st.expander("Generate List of Includes"):
     entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars from the GeneraAxis")
     entryText2=st.text_area("Nums:",placeholder="Copy and paste the num column from the includes Excel")
     entryText3=st.text_area("Table:",placeholder="Copy and paste the table from the includes Excel")
+    entryText4=st.text_area("Table Depured:",placeholder="Copy and paste the table depured from the includes Excel")
+    entryText5=st.text_area("Nums2:",placeholder="Copy and paste the num column oftable depured from the includes Excel")
     btnFinder=st.button("Generate Includes List")
     if btnFinder:
-        st.text_area("Labels:",genIncludesList(entryText,entryText2,entryText3))
-        st.success("Copy to clipboard")
+        st.text_area("Labels:",genIncludesList(entryText,entryText2,entryText3,entryText4,entryText5))
 
 with st.expander("Category Question Finder"):
     entryText=st.text_area("Text Entry:",placeholder="Copy and paste the entire text of the questionnaire ")
