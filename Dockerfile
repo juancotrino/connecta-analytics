@@ -22,6 +22,6 @@ ENV PORT 8080
 
 EXPOSE ${PORT}
 
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health
 
 ENTRYPOINT ["streamlit", "run", "00_Home.py", "--server.port=${PORT}", "--server.address=0.0.0.0"]
