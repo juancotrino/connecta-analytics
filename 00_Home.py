@@ -1,4 +1,3 @@
-import json
 from dotenv import load_dotenv
 
 from PIL import Image
@@ -49,11 +48,18 @@ def main():
 
     # noinspection PyProtectedMember
     if not firebase_admin._apps:
-        cred_json = json.load(open('firebase_key.json'))
-        cred = firebase_admin.credentials.Certificate(cred_json)
-        firebase_admin.initialize_app(cred)
+        app_options = {'projectId': 'connecta-analytics-app'}
+        firebase_admin.initialize_app(options=app_options)
 
-    if not authenticator.cookie_is_valid and authenticator.not_logged_in:
+    cookie_is_valid = authenticator.cookie_is_valid
+    print('cookie_is_valid', cookie_is_valid)
+    # not_logged_in = authenticator.not_logged_in
+
+    print(st.session_state["authentication_status"])
+    print(st.session_state)
+
+    if not cookie_is_valid and authenticator.not_logged_in:
+        print('ENTRAAAAAAAAAAAAAAAAAAAAAAAAAA**********************')
         st.markdown("""
             <style>
                 [data-testid="collapsedControl"] {

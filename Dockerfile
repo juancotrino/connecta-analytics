@@ -12,14 +12,16 @@ RUN apt-get update && apt-get install -y \
     # && rm -rf /var/lib/apt/lists/*
 
 
-RUN git clone https://github.com/juancotrino/connecta-analytics.git .
+RUN git clone -b dev https://github.com/juancotrino/connecta-analytics.git .
 
-COPY firebase_key.json firebase_key.json
+# COPY firebase_key.json firebase_key.json
 
 RUN pip install -r requirements.txt
 
-EXPOSE 8501
+ENV PORT 8080
 
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+EXPOSE ${PORT}
 
-ENTRYPOINT ["streamlit", "run", "00_Home.py", "--server.port=8501", "--server.address=0.0.0.0"]
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health
+
+ENTRYPOINT streamlit run 00_Home.py --server.port=${PORT} --server.address=0.0.0.0

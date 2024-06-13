@@ -337,7 +337,6 @@ class Authenticator:
         the cookie manager, and if it is valid. If the cookie is valid, this function updates the session
         state of the Streamlit app and authenticates the user.
         """
-        time.sleep(0.3)
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
@@ -346,7 +345,13 @@ class Authenticator:
         ):
             st.session_state[key] = None
 
+        if st.session_state.get('authentication_state') and st.session_state['authentication_state'] is True:
+            return True
+
+        # time.sleep(1)
+
         if token is None:
+            st.session_state["authentication_status"] = None
             return False
 
         with suppress(Exception):
@@ -362,6 +367,7 @@ class Authenticator:
             st.session_state["roles"] = token["roles"]
             st.session_state["authentication_status"] = True
             return True
+
         return False
 
 
@@ -463,6 +469,7 @@ class Authenticator:
 
         if st.button("Logout", type="primary"):
             self.cookie_manager.delete(self.cookie_name)
+            time.sleep(1)
             st.session_state["name"] = None
             st.session_state["username"] = None
             st.session_state["roles"] = None
@@ -504,6 +511,7 @@ class Authenticator:
         because the username/password does not exist in the Firebase database, the rest of the script
         does not get executed until the user logs in.
         """
+        time.sleep(0.1)
         early_return = True
         # In case of a first run, pre-populate missing session state arguments
         for key in {"name", "authentication_status", "username", "roles"}.difference(
