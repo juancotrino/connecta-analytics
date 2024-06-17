@@ -54,8 +54,12 @@ apply_default_style(
 authenticator = get_authenticator()
 
 def home():
+    print('user roles', st.session_state['roles'])
     pages_roles = get_page_roles()
     pages_names = get_authorized_pages_names(pages_roles)
+
+    print('pages roles:', pages_roles)
+    print('pages names:', pages_names)
 
     _ = authenticator.login_panel
     _ = authenticator.hide_unauthorized_pages(pages_roles)
