@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from modules.cloud import SharePoint
+from app.modules.cloud import SharePoint
 
 @st.cache_data
 def get_data():

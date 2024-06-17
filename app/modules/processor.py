@@ -1,7 +1,7 @@
 from io import BytesIO
 import re
 import pandas as pd
-from modules.segment_spss import get_temp_file
+from app.modules.segment_spss import get_temp_file
 import pyreadstat
 
 def getVarsSav(spss_file: BytesIO):

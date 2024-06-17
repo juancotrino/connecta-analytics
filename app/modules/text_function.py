@@ -4,7 +4,7 @@ import pyperclip
 import pyreadstat
 from unidecode import unidecode
 
-from modules.segment_spss import get_temp_file
+from app.modules.segment_spss import get_temp_file
 
 def questionFinder(txtC):
     questions=""

@@ -3,65 +3,29 @@ from PIL import Image
 import streamlit as st
 import pyreadstat
 
-from modules.authenticator import get_authenticator, get_page_roles
-from modules.styling import apply_default_style, apply_403_style, footer
-from modules.help import help_segment_spss
-from modules.transform_to_belcorp import transform_to_belcorp
-from modules.text_function import categoryFinder, questionFinder
-from modules.text_function import genRecodes
-from modules.text_function import genLabels2
-from modules.text_function import genIncludesList
-from modules.text_function import processSavMulti
-from modules.processor import processSav
-from modules.processor import getVarsSav
-from modules.processor import getCodeProcess
+from app.modules.text_function import categoryFinder, questionFinder
+from app.modules.text_function import genRecodes
+from app.modules.text_function import genLabels2
+from app.modules.text_function import genIncludesList
+from app.modules.text_function import processSavMulti
+from app.modules.processor import processSav
+from app.modules.processor import getVarsSav
+from app.modules.processor import getCodeProcess
 
-# -------------- SETTINGS --------------
-page_title = "Tools"
-page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
+def main():
+    # -------------- SETTINGS --------------
+    page_title = "Tools"
 
-page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
+    # st.sidebar.markdown("## Tools")
+    # st.sidebar.markdown("""
+    # Explore some miscellany tools for survey exploration and more.
+    # """)
 
-apply_default_style(
-    page_title,
-    page_icon,
-    initial_sidebar_state='expanded'
-)
-
-authenticator = get_authenticator()
-# --------------------------------------
-
-if not authenticator.cookie_is_valid and authenticator.not_logged_in:
-    st.switch_page("00_Home.py")
-
-roles = st.session_state.get("roles")
-auth_status = st.session_state.get("authentication_status")
-
-pages_roles = get_page_roles()
-_ = authenticator.hide_unauthorized_pages(pages_roles)
-authorized_page_roles = pages_roles[page_name]['roles']
-
-if not roles or not any(role in authorized_page_roles for role in roles) or auth_status is not True:
-    apply_403_style()
-    _, col2, _ = st.columns(3)
-    time_left = col2.progress(100)
-    footer()
-
-    for seconds in reversed(range(0, 101, 25)):
-        time_left.progress(seconds, f'Redirecing to Home page in {seconds // 25 + 1}...')
-        time.sleep(1)
-
-    st.switch_page("00_Home.py")
-
-else:
-
-    st.sidebar.markdown("# Transformation to Belcorp")
-    st.sidebar.markdown("""
-    This tool helps Juan to create something
+    # st.title(page_title)
+    # st.header('Tools')
+    st.markdown("""
+    Explore some miscellany tools for survey exploration and more.
     """)
-
-    st.title(page_title)
-    st.header('Tools')
 
     with st.expander("Question Finder"):
         entryText=st.text_area("Text Entry:",placeholder="Copy and paste the entire text of the questionnaire")
@@ -110,7 +74,7 @@ else:
 
 
     with st.expander("Tool Multiquestion"):
-        uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
+        uploaded_file = st.file_uploader("Upload SAV file", type=["sav"], key=f'{__name__}_1')
         if uploaded_file:
             recodes,labels,variables=processSavMulti(uploaded_file)
             st.text_area("RECODES:",recodes)
@@ -131,7 +95,7 @@ else:
 
     with st.expander("Processor test"):
         qtypes=st.text_area("Questions Types:")
-        uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"])
+        uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"], key=f'{__name__}_2')
         if uploaded_file:
             colVars=st.multiselect("Column Variables:",getVarsSav(uploaded_file))
             proces=st.button("Process All")

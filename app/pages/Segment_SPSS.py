@@ -1,65 +1,35 @@
-import time
-import requests
-
 import pandas as pd
-from PIL import Image
 import streamlit as st
 
-from modules.authenticator import get_authenticator, get_page_roles
-from modules.styling import apply_default_style, apply_403_style, footer
-from modules.help import help_segment_spss
-from modules.segment_spss import segment_spss
-from modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
+from app.modules.help import help_segment_spss
+from app.modules.segment_spss import segment_spss
+from app.modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
 
-# -------------- SETTINGS --------------
-page_title = "Segment SPSS"
-page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
-page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
+def main():
+    # -------------- SETTINGS --------------
+    page_title = "## Segment SPSS"
 
-apply_default_style(
-    page_title,
-    page_icon,
-    initial_sidebar_state='expanded'
-)
+    # st.sidebar.markdown("## Segment SPSS")
+    # st.sidebar.markdown("""
+    # This tool helps to segment Connecta's databases (SPSS) to allow easy
+    # manipulation and particular analysis of different scenarios like the Chi2.
 
-authenticator = get_authenticator()
+    # Find more help info on how to use the tool in the `Help` collapsable section.
+    # """)
 
-# --------------------------------------
+    # st.markdown(page_title, help="""
+    # This tool helps to segment Connecta's databases (SPSS) to allow easy
+    # manipulation and particular analysis of different scenarios like the Chi2.
 
-if not authenticator.cookie_is_valid and authenticator.not_logged_in:
-    st.switch_page("00_Home.py")
-
-roles = st.session_state.get("roles")
-auth_status = st.session_state.get("authentication_status")
-
-pages_roles = get_page_roles()
-_ = authenticator.hide_unauthorized_pages(pages_roles)
-authorized_page_roles = pages_roles[page_name]['roles']
-
-if not roles or not any(role in authorized_page_roles for role in roles) or auth_status is not True:
-    apply_403_style()
-    _, col2, _ = st.columns(3)
-    time_left = col2.progress(100)
-    footer()
-
-    for seconds in reversed(range(0, 101, 25)):
-        time_left.progress(seconds, f'Redirecing to Home page in {seconds // 25 + 1}...')
-        time.sleep(1)
-
-    st.switch_page("00_Home.py")
-
-else:
-
-    st.sidebar.markdown("# Segment SPSS")
-    st.sidebar.markdown("""
+    # Find more help info on how to use the tool in the `Help` collapsable section.
+    # """)
+    st.markdown("""
     This tool helps to segment Connecta's databases (SPSS) to allow easy
     manipulation and particular analysis of different scenarios like the Chi2.
 
     Find more help info on how to use the tool in the `Help` collapsable section.
     """)
-
-    st.title(page_title)
     st.header('Scenarios for segmentation')
     st.write("Fill the parameters for the segmentation")
 
@@ -87,7 +57,7 @@ else:
     jobs_validated = validate_segmentation_spss_jobs(jobs_df)
 
     # Add section to upload a file
-    uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
+    uploaded_file = st.file_uploader("Upload SAV file", type=["sav"], key=__name__)
 
     db_validated = False
     if uploaded_file:
@@ -123,5 +93,3 @@ else:
 
                     # else:
                     #     st.write("Error occurred while processing the request.")
-
-footer()
