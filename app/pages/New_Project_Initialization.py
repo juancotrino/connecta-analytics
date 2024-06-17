@@ -60,7 +60,7 @@ def main():
         if project_id and country and project_name:
             st.session_state['create_new_project_button_disabled'] = False
 
-        create_button = st.form_submit_button('Create folder structure', disabled=st.session_state['create_new_project_button_disabled'])
+        create_button = st.form_submit_button('Create folder structure')
 
         if project_id and country and project_name:
             if create_button:
