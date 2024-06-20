@@ -54,14 +54,17 @@ apply_default_style(
 authenticator = get_authenticator()
 
 def home():
-    print('user roles', st.session_state['roles'])
+    # print('user roles ', st.session_state['roles'])
     pages_roles = get_page_roles()
     pages_names = get_authorized_pages_names(pages_roles)
 
-    print('pages roles:', pages_roles)
-    print('pages names:', pages_names)
+    # print('pages roles:', pages_roles)
+    # print('pages names:', pages_names)
 
     _ = authenticator.login_panel
+    print(st.session_state)
+    if authenticator.not_logged_in:
+        st.rerun()
     _ = authenticator.hide_unauthorized_pages(pages_roles)
     if st.session_state.get('roles'):
         if 'connecta-admin' in st.session_state['roles']:
@@ -82,7 +85,7 @@ def home():
 
 
 def main():
-    st.sidebar.markdown("# Home")
+    # st.sidebar.markdown("# Home")
 
     container = st.container()
 
@@ -99,9 +102,10 @@ def main():
         firebase_admin.initialize_app(options=app_options)
 
     cookie_is_valid = authenticator.cookie_is_valid
-    # not_logged_in = authenticator.not_logged_in
-
-    if not cookie_is_valid and authenticator.not_logged_in:
+    not_logged_in = authenticator.not_logged_in
+    print(cookie_is_valid)
+    print(not_logged_in)
+    if not cookie_is_valid and not_logged_in:
         st.markdown("""
             <style>
                 [data-testid="collapsedControl"] {

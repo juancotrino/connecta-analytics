@@ -105,20 +105,20 @@ class Authenticator:
 
         return response
 
-    def get_user_roles(
-        self,
-        user_uid: str
-    ) -> tuple[str]:
-        db = firestore.client()
-        document = db.collection("users").document(user_uid).get()
+    # def get_user_roles(
+    #     self,
+    #     user_uid: str
+    # ) -> tuple[str]:
+    #     db = firestore.client()
+    #     document = db.collection("users").document(user_uid).get()
 
-        if document.exists:
-            user_info = document.to_dict()
-            roles = tuple(user_info['roles'])
-        else:
-            roles = ('basic', )
+    #     if document.exists:
+    #         user_info = document.to_dict()
+    #         roles = tuple(user_info['roles'])
+    #     else:
+    #         roles = ('basic', )
 
-        return roles
+    #     return roles
 
     @property
     def forgot_password_form(self) -> None:
@@ -426,7 +426,7 @@ class Authenticator:
                 if user:
                     st.session_state["name"] = user.display_name
                     st.session_state["username"] = user.email
-                    st.session_state["roles"] = self.get_user_roles(user.uid)
+                    st.session_state["roles"] = get_user_roles(user.uid)
                     st.session_state["authentication_status"] = True
                     exp_date = datetime.now(timezone.utc) + timedelta(days=self.cookie_expiry_days)
 
@@ -590,8 +590,20 @@ def get_authenticator():
         os.getenv('COOKIE_KEY')
     )
 
-@st.cache_data(show_spinner=False)
+# @st.cache_data(show_spinner=False)
 def get_page_roles() -> dict[str, dict[str, list]]:
     db = firestore.client()
     documents = db.collection("pages").stream()
     return {document.id: document.to_dict() for document in documents}
+
+def get_user_roles(user_uid: str) -> tuple[str]:
+    db = firestore.client()
+    document = db.collection("users").document(user_uid).get()
+
+    if document.exists:
+        user_info = document.to_dict()
+        roles = tuple(user_info['roles'])
+    else:
+        roles = ('connecta-viewer', )
+
+    return roles
