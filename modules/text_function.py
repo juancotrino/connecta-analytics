@@ -3,13 +3,14 @@ import re
 import pyperclip
 import pyreadstat
 from unidecode import unidecode
+from difflib import SequenceMatcher
 
 from modules.segment_spss import get_temp_file
 
 def questionFinder(txtC):
     questions=""
     for line in txtC.splitlines():
-        if re.search("^\s*[A-Z][1-9].*\..*",line):
+        if re.search("^\s*[A-Z][1-90].*\..*",line):
             qu=re.search("¿.*\?",line)
             numques=line.split()[0]
             if re.search("[^.]$",numques):
@@ -100,7 +101,7 @@ def genLabels(txtVars,txtOpt):
     pyperclip.copy(labels)
     return labels
 
-def genIncludesList(txtVars,txtNums,txtC):
+def genIncludesList(txtVars,txtNums,txtC,txtDep,txtNums2):
     nums=[]
     ffirst=True
     num2=0
@@ -129,11 +130,40 @@ def genIncludesList(txtVars,txtNums,txtC):
             else:
                 textopt+=unidecode(tx)
         base.append([numpreg,textopt.lower()])
+
+
+    nums2=[]
+    ffirst=True
+    num2=0
+    for num in txtNums2.splitlines():
+        if ffirst:
+            ffirst=False
+        else:
+            if int(num)==1:
+               nums2.append(int(num2))
+            num2=int(num)
+    textall2=txtDep.splitlines()
+    base2=[]
+    count=0
+    for n in nums2:
+        opt=""
+        for i in range(n):
+            opt+=textall2[count]
+            count+=1
+        preg=opt.split()
+        numpreg=""
+        textopt=""
+        for tx in preg:
+            if numpreg=="":
+                numpreg=tx
+            else:
+                textopt+=unidecode(tx)
+        base2.append([numpreg,textopt.lower()])
     result=""
-    for ele in base:
-        numpreg=ele[0]
+    for var in base:
+        numpreg=var[0]
         contain=False
-        option=ele[1].strip().lower()
+        option=var[1].strip().lower()
         for x in vars:
             if numpreg==x:
                 contain=True
@@ -142,17 +172,10 @@ def genIncludesList(txtVars,txtNums,txtC):
             if option=="1si2no":
                 result+="sino\n"
             else:
-                for question in base:
-                    if option==question[1]:
-                        contain=False
-                        for x in vars:
-                            if question[0]==x:
-                                contain=True
-                                break
-                        if contain:
-                            result+=question[0]+"\n"
-                            break
-    pyperclip.copy(result)
+                for question in base2:
+                    if similar(option,question[1])>=0.9:
+                        result+=question[0]+"\n"
+                        break
     return result
 
 def categoryFinder(txtC):
@@ -284,3 +307,16 @@ def processSavMulti(spss_file: BytesIO):
 
     varia=""
     return recodes,labels
+
+def similar(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+    #print("........................\n")
+    #print(study_metadata.value_labels)
+    #for i in range(10):
+    #    print(study_metadata.column_names[i])
+    #print(study_metadata.column_names)
+    #for i in range(10):
+    #    if "labels"+str(i) in study_metadata.value_labels:
+    #       st=str(study_metadata.value_labels.get("labels"+str(i)))
+    #        print (study_metadata.value_labels.get("labels"+str(i)))
+    #        print(re.search("\'.*\'",st[:-2]).group())
