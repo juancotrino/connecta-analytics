@@ -84,7 +84,7 @@ with st.expander("Category Question Finder"):
 with st.expander("Tool Multiquestion"):
     uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
     if uploaded_file:
-        recodes,labels,variables=processSavMulti(uploaded_file)
+        recodes,labels=processSavMulti(uploaded_file)
         st.text_area("RECODES:",recodes)
         st.download_button(
             label="Save Sintaxis",
@@ -98,7 +98,6 @@ with st.expander("Tool Multiquestion"):
             data=labels,
             file_name='Etiquetas.txt'
         )
-        st.text_area("Variables:",variables)
 
         st.success("Vars name column copy to clipboard")
 
