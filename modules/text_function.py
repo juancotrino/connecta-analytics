@@ -3,13 +3,14 @@ import re
 import pyperclip
 import pyreadstat
 from unidecode import unidecode
+from difflib import SequenceMatcher
 
 from modules.segment_spss import get_temp_file
 
 def questionFinder(txtC):
     questions=""
     for line in txtC.splitlines():
-        if re.search("^\s*[A-Z][1-9].*\..*",line):
+        if re.search("^\s*[A-Z][1-90].*\..*",line):
             qu=re.search("¿.*\?",line)
             numques=line.split()[0]
             if re.search("[^.]$",numques):
@@ -100,7 +101,7 @@ def genLabels(txtVars,txtOpt):
     pyperclip.copy(labels)
     return labels
 
-def genIncludesList(txtVars,txtNums,txtC):
+def genIncludesList(txtVars,txtNums,txtC,txtDep,txtNums2):
     nums=[]
     ffirst=True
     num2=0
@@ -129,11 +130,40 @@ def genIncludesList(txtVars,txtNums,txtC):
             else:
                 textopt+=unidecode(tx)
         base.append([numpreg,textopt.lower()])
+
+
+    nums2=[]
+    ffirst=True
+    num2=0
+    for num in txtNums2.splitlines():
+        if ffirst:
+            ffirst=False
+        else:
+            if int(num)==1:
+               nums2.append(int(num2))
+            num2=int(num)
+    textall2=txtDep.splitlines()
+    base2=[]
+    count=0
+    for n in nums2:
+        opt=""
+        for i in range(n):
+            opt+=textall2[count]
+            count+=1
+        preg=opt.split()
+        numpreg=""
+        textopt=""
+        for tx in preg:
+            if numpreg=="":
+                numpreg=tx
+            else:
+                textopt+=unidecode(tx)
+        base2.append([numpreg,textopt.lower()])
     result=""
-    for ele in base:
-        numpreg=ele[0]
+    for var in base:
+        numpreg=var[0]
         contain=False
-        option=ele[1].strip().lower()
+        option=var[1].strip().lower()
         for x in vars:
             if numpreg==x:
                 contain=True
@@ -142,17 +172,10 @@ def genIncludesList(txtVars,txtNums,txtC):
             if option=="1si2no":
                 result+="sino\n"
             else:
-                for question in base:
-                    if option==question[1]:
-                        contain=False
-                        for x in vars:
-                            if question[0]==x:
-                                contain=True
-                                break
-                        if contain:
-                            result+=question[0]+"\n"
-                            break
-    pyperclip.copy(result)
+                for question in base2:
+                    if similar(option,question[1])>=0.9:
+                        result+=question[0]+"\n"
+                        break
     return result
 
 def categoryFinder(txtC):
@@ -225,76 +248,68 @@ def processSavMulti(spss_file: BytesIO):
         temp_file_name,
         apply_value_formats=False
     )
-
-    columnsnames=study_metadata.column_names
-
-    count=0
-    for name in columnsnames:
-        finalname=re.sub("[.]","_",name)
-        if re.search("^[A-Z][1-90].*A",finalname):
-            finalname=re.sub("A","A_",finalname)
-        columnsnames[count]=finalname
-        count+=1
-    study_metadata.columns_names=columnsnames
-    recodes="* Encoding: UTF-8.\n\nDATASET ACTIVATE ConjuntoDatos1.\n"
-    for line in columnsnames:
-        if re.search("A_",line):
-            pref=re.search(".*_",line).group()
-            spaces=re.sub("_"," ",line)
-            num=""
-            for word in spaces.split():
-                num=word
+    vals=study_metadata.variable_value_labels
+    recodes="* Encoding: UTF-8.\n"
+    for line,scale in vals.items():
+        if re.search("^[FPS].*A.*[1-90]",line):
+            pref=re.search(".*A[^1-90]*",line).group()
+            num=re.search("A.*",line).group()[1:]
+            if not re.search("^[1-90]",num):
+                num=num[1:]
             recodes+="RECODE "+pref+num+"(1="+num+").\n"
     recodes+="EXECUTE."
     labels="* Encoding: UTF-8.\n"
     serie=False
-    num=-21
     prev=""
     pref=""
     optqueue=[]
-    options=study_metadata.value_labels
-    for line in columnsnames:
-        if re.search("A_",line):
+    for line, scale in vals.items():
+        if re.search("^[FPS].*A.*[1-90]",line):
             if not serie:
                 serie=True
                 first=line
-                pref=re.search(".*_",line).group()
-                option=re.search("\'.*\'",str(options.get("labels"+str(num)))).group()[1:-1]
+                pref=re.search(".*A",line).group()
+                option=scale.get(1).strip()
                 optqueue.append(option)
                 prev=line
             else:
-                if pref==re.search(".*_",line).group():
-                    option=re.search("\'.*\'",str(options.get("labels"+str(num)))).group()[1:-1]
-                    optqueue.append(option)
-                    prev=line
+                if pref==re.search(".*A",line).group():
+                    if len(scale)>=1:
+                        option=scale.get(1).strip()
+                        optqueue.append(option)
+                        prev=line
                 else:
                     labels+="VALUE LABELS "+first+" to "+ prev
-                    count=1
+                    num=re.search("A.*",first).group()[1:]
+                    if not re.search("^[1-90]",num):
+                        num=num[1:]
+                    count=int(num)
                     for opt in optqueue:
                         labels+="\n"+str(count)+" \""+opt+"\""
                         count+=1
                     labels+=".\n\n"
                     optqueue=[]
                     first=line
-                    pref=re.search(".*_",line).group()
-                    option=re.search("\'.*\'",str(options.get("labels"+str(num)))).group()[1:-1]
+                    pref=re.search(".*A",line).group()
+                    option=scale.get(1).strip()
                     optqueue.append(option)
                     prev=line
-        num+=1
     if serie:
         labels+="VALUE LABELS "+first+" to "+ prev
-        count=1
+        num=re.search("A.*",first).group()[1:]
+        if not re.search("^[1-90]",num):
+            num=num[1:]
+        count=int(num)
         for opt in optqueue:
             labels+="\n"+str(count)+" \""+opt+"\""
             count+=1
         labels+=".\n\n"
 
     varia=""
-    for name in columnsnames:
-        varia+=name+"\n"
-    pyperclip.copy(varia)
-    return recodes,labels,varia
+    return recodes,labels
 
+def similar(a, b):
+    return SequenceMatcher(None, a, b).ratio()
     #print("........................\n")
     #print(study_metadata.value_labels)
     #for i in range(10):
