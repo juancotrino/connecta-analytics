@@ -24,4 +24,4 @@ EXPOSE ${PORT}
 
 HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health
 
-ENTRYPOINT streamlit run 00_Home.py --server.port=${PORT} --server.address=0.0.0.0
+ENTRYPOINT streamlit run main.py --server.port=${PORT} --server.address=0.0.0.0
