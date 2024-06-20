@@ -60,10 +60,11 @@ def main():
         entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars from the GeneraAxis")
         entryText2=st.text_area("Nums:",placeholder="Copy and paste the num column from the includes Excel")
         entryText3=st.text_area("Table:",placeholder="Copy and paste the table from the includes Excel")
+        entryText4=st.text_area("Table Depured:",placeholder="Copy and paste the table depured from the includes Excel")
+        entryText5=st.text_area("Nums2:",placeholder="Copy and paste the num column oftable depured from the includes Excel")
         btnFinder=st.button("Generate Includes List")
         if btnFinder:
-            st.text_area("Labels:",genIncludesList(entryText,entryText2,entryText3))
-            st.success("Copy to clipboard")
+            st.text_area("Labels:",genIncludesList(entryText,entryText2,entryText3,entryText4,entryText5))
 
     with st.expander("Category Question Finder"):
         entryText=st.text_area("Text Entry:",placeholder="Copy and paste the entire text of the questionnaire ")
@@ -74,9 +75,9 @@ def main():
 
 
     with st.expander("Tool Multiquestion"):
-        uploaded_file = st.file_uploader("Upload SAV file", type=["sav"], key=f'{__name__}_1')
+        uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
         if uploaded_file:
-            recodes,labels,variables=processSavMulti(uploaded_file)
+            recodes,labels=processSavMulti(uploaded_file)
             st.text_area("RECODES:",recodes)
             st.download_button(
                 label="Save Sintaxis",
@@ -90,14 +91,16 @@ def main():
                 data=labels,
                 file_name='Etiquetas.txt'
             )
-            st.text_area("Variables:",variables)
+
             st.success("Vars name column copy to clipboard")
 
     with st.expander("Processor test"):
-        qtypes=st.text_area("Questions Types:")
-        uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"], key=f'{__name__}_2')
+        uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"])
         if uploaded_file:
             colVars=st.multiselect("Column Variables:",getVarsSav(uploaded_file))
+            qtypes=st.text_area("Questions Types:")
+            vars=st.text_area("Variables to process:")
             proces=st.button("Process All")
-            if proces:
-                st.text_area("Commands",getCodeProcess(uploaded_file,colVars))
+            if proces and qtypes and vars:
+                st.text_area("Commands Agrupation:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[0])
+                st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[1])
