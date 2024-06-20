@@ -1,24 +1,12 @@
-from io import BytesIO
-import tempfile
 import numpy as np
 import pandas as pd
 import pyreadstat
 
 import streamlit as st
 
-def get_temp_file(spss_file: BytesIO):
-    # Save BytesIO object to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(spss_file.getvalue())
-        temp_file_name = tmp_file.name
-
-    return temp_file_name
-
-def validate_segmentation_spss_db(jobs: pd.DataFrame, db: BytesIO) -> bool:
+def validate_segmentation_spss_db(jobs: pd.DataFrame, temp_file_name: str) -> bool:
 
     validations = []
-
-    temp_file_name = get_temp_file(db)
 
     survey_data: pd.DataFrame = pyreadstat.read_sav(
         temp_file_name,

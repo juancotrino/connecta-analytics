@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     # && rm -rf /var/lib/apt/lists/*
 
 
-RUN git clone -b dev https://github.com/juancotrino/connecta-analytics.git .
+RUN git clone -b app-refactor https://github.com/juancotrino/connecta-analytics.git .
 
 # COPY firebase_key.json firebase_key.json
 
@@ -24,4 +24,4 @@ EXPOSE ${PORT}
 
 HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health
 
-ENTRYPOINT streamlit run 00_Home.py --server.port=${PORT} --server.address=0.0.0.0
+ENTRYPOINT streamlit run main.py --server.port=${PORT} --server.address=0.0.0.0

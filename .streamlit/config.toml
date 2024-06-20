@@ -4,6 +4,9 @@ primaryColor="#F78E1E"
 
 [server]
 runOnSave = true
+port=8080
+enableCORS = false
+enableXsrfProtection = false
 
 [client]
 # Change the visibility of items in the toolbar, options menu,
@@ -19,3 +22,7 @@ runOnSave = true
 #                 If there are no options left, hide the menu.
 # Default: "minimal"
 toolbarMode = "viewer"
+
+# [logger]
+# level="debug"
+# messageFormat = "%(asctime)s %(message)s"

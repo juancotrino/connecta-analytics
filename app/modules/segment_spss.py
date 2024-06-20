@@ -166,6 +166,22 @@ def get_temp_file(spss_file: BytesIO):
 
     return temp_file_name
 
+def read_sav_metadata(file_name: str) -> pd.DataFrame:
+    metadata =  pyreadstat.read_sav(
+        file_name,
+        apply_value_formats=False
+    )[1]
+
+    variable_info = pd.DataFrame([metadata.column_names_to_labels, metadata.variable_value_labels])
+    variable_info = variable_info.transpose()
+    variable_info.index.name = 'name'
+    variable_info.columns = ('label', 'values')
+    variable_info = variable_info.replace({None: ''})
+    variable_info['label'] = variable_info['label'].astype(str)
+    variable_info['values'] = variable_info['values'].astype(str)
+
+    return variable_info
+
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
     print('Started execution')
     temp_file_name = get_temp_file(spss_file)

@@ -46,14 +46,14 @@ name: Build and Deploy to Cloud Run
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "app-refactor" ]
 
   workflow_dispatch:
     inputs:
       ref:
         description: 'Branch or tag reference'
         required: true
-        default: 'dev'
+        default: 'app-refactor'
 
 env:
   PROJECT_ID: 'connecta-analytics-app' # TODO: update Google Cloud project id
@@ -112,7 +112,7 @@ jobs:
           image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}
           flags: |
             --allow-unauthenticated
-            --memory=512Mi
+            --memory=1536Mi
             --cpu=1
             --concurrency=5
             --timeout=3600
