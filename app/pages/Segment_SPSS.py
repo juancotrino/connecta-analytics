@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.help import help_segment_spss
-from app.modules.segment_spss import segment_spss
+from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata
 from app.modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
 
 
@@ -61,7 +61,14 @@ def main():
 
     db_validated = False
     if uploaded_file:
-        db_validated = validate_segmentation_spss_db(jobs_df, uploaded_file)
+        temp_file_name = get_temp_file(uploaded_file)
+        db_validated = validate_segmentation_spss_db(jobs_df, temp_file_name)
+        metadata_df = read_sav_metadata(temp_file_name)
+        st.markdown('### File metadata')
+        st.dataframe(
+            metadata_df,
+            use_container_width=True
+        )
 
     if jobs_validated and db_validated and not jobs_df.empty:
         if uploaded_file:
