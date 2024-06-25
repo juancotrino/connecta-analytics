@@ -53,6 +53,8 @@ def main():
     for filter_name, attributes in filters_template.items():
         name, field = attributes
         if name == 'Age':
+            if data['Edad'].isna().all():
+                continue
             disabled = len(data['Edad'].dropna().unique()) == 0
             selection = field.slider(
                 name,
