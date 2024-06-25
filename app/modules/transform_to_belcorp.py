@@ -157,7 +157,7 @@ def write_temp_sav(df: pd.DataFrame, metadata):
         with open(tmpfile.name, 'rb') as f:
             return BytesIO(f.read())
 
-def transform_to_belcorp(study: str, xlsx_file: BytesIO, sav_file: BytesIO):
+def transform_to_belcorp(xlsx_file: BytesIO, sav_file: BytesIO):
     print('Started execution')
 
     temp_file_name_xlsx = get_temp_file(xlsx_file)

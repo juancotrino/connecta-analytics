@@ -36,7 +36,7 @@ def main():
 
     if study and uploaded_file_xlsx and uploaded_file_sav:
 
-        results = transform_to_belcorp(study, uploaded_file_xlsx, uploaded_file_sav)
+        results = transform_to_belcorp(uploaded_file_xlsx, uploaded_file_sav)
 
         # Offer the sav file for download
         st.download_button(
