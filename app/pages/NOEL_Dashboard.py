@@ -25,7 +25,7 @@ def main():
     # st.markdown(page_title)
     st.markdown("""
     This is a dashboard where TP, B2B, JR and other metrics can be
-    seen in a compact and easy to filter and understandlable way.
+    seen in a compact, easy to filter and understandable way.
     """)
     st.header('Filters')
 
