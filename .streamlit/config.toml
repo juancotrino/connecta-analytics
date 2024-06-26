@@ -23,6 +23,6 @@ enableXsrfProtection = false
 # Default: "minimal"
 toolbarMode = "viewer"
 
-[logger]
-level="debug"
-messageFormat = "%(asctime)s %(message)s"
+# [logger]
+# level="debug"
+# messageFormat = "%(asctime)s %(message)s"

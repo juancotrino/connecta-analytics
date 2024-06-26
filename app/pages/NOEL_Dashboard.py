@@ -5,61 +5,28 @@ import streamlit as st
 
 # from streamlit_option_menu import option_menu
 
-from modules.authenticator import get_authenticator, get_page_roles
-from modules.styling import apply_default_style, apply_403_style, footer
-from modules.noel_dashboard import (
+from app.modules.noel_dashboard import (
     get_data,
     to_excel_bytes,
     calculate_statistics_regular_scale,
     calculate_statistics_jr_scale
 )
 
-# -------------- SETTINGS --------------
-page_title = "Noel Dashboard"
-page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
+def main():
+    # -------------- SETTINGS --------------
+    page_title = "## Noel Dashboard"
 
-page_name = ''.join(i for i in __file__.split('/')[-1] if not i.isdigit())[1:].split('.')[0]
+    # st.sidebar.markdown("## Noel Dashboard")
+    # st.sidebar.markdown("""
+    # This is a dashboard where TP, B2B, JR and other metrics can be
+    # seen in a compact and easy to filter and understandlable way.
+    # """)
 
-apply_default_style(
-    page_title,
-    page_icon,
-    initial_sidebar_state='expanded'
-)
-
-authenticator = get_authenticator()
-# --------------------------------------
-
-if not authenticator.cookie_is_valid and authenticator.not_logged_in:
-    st.switch_page("00_Home.py")
-
-roles = st.session_state.get("roles")
-auth_status = st.session_state.get("authentication_status")
-
-pages_roles = get_page_roles()
-_ = authenticator.hide_unauthorized_pages(pages_roles)
-authorized_page_roles = pages_roles[page_name]['roles']
-
-if not roles or not any(role in authorized_page_roles for role in roles) or auth_status is not True:
-    apply_403_style()
-    _, col2, _ = st.columns(3)
-    time_left = col2.progress(100)
-    footer()
-
-    for seconds in reversed(range(0, 101, 25)):
-        time_left.progress(seconds, f'Redirecing to Home page in {seconds // 25 + 1}...')
-        time.sleep(1)
-
-    st.switch_page("00_Home.py")
-
-else:
-
-    st.sidebar.markdown("# Noel Dashboard")
-    st.sidebar.markdown("""
+    # st.markdown(page_title)
+    st.markdown("""
     This is a dashboard where TP, B2B, JR and other metrics can be
-    seen in a compact and easy to filter and understandlable way.
+    seen in a compact, easy to filter and understandable way.
     """)
-
-    st.title(page_title)
     st.header('Filters')
 
     data = get_data()
@@ -86,6 +53,8 @@ else:
     for filter_name, attributes in filters_template.items():
         name, field = attributes
         if name == 'Age':
+            if data['Edad'].isna().all():
+                continue
             disabled = len(data['Edad'].dropna().unique()) == 0
             selection = field.slider(
                 name,
@@ -168,5 +137,3 @@ else:
             file_name=f'jr_{"_".join(total_filters)}.xlsx',
             mime='application/xlsx'
         )
-
-footer()

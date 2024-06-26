@@ -1,4 +1,4 @@
-from modules.cloud import SharePoint
+from app.modules.cloud import SharePoint
 
 def create_folder_structure(base_path: str):
 
