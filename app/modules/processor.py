@@ -215,7 +215,7 @@ def writeQuestion(varName, colVars,qtype,txt):
                 for colvar in colVars:
                     txt+=colvar +" "
                 txt+=("DISPLAY=LABEL  "
-                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT F40.0, TOTALN F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
+                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT 'Total' F40.0, TOTALN 'Total Respuestas' F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
                 for colvar in colVars:
                     txt+= " + "+colvar+" [C]"
                 txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES="+varName +" ORDER=A EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"
@@ -230,7 +230,7 @@ def writeQuestion(varName, colVars,qtype,txt):
                 txt+=("DISPLAY=LABEL \n  /PCOMPUTE &cat1 = EXPR([4]+[5])"
                       + "\n  /PPROPERTIES &cat1 LABEL = \"NETO TOP TWO BOX\" FORMAT=COUNT '1' F40.0 HIDESOURCECATS=NO"
                       + "\n  /PCOMPUTE &cat2 = EXPR([2]+[1])\n  /PPROPERTIES &cat2 LABEL = \"NETO BOTTOM TWO BOX\" FORMAT=COUNT '1' F40.0 HIDESOURCECATS=NO"
-                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT F40.0, TOTALN F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
+                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT 'Total' F40.0, TOTALN 'Total Respuestas' F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
                 for colvar in colVars:
                     txt+= " + "+colvar+" [C]"
                 txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES="+varName +" [&cat1, 5, 4, 3, 2, 1, &cat2] EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"
