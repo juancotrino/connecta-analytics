@@ -218,7 +218,7 @@ def write_temp_excel(wb):
         with open(tmpfile.name, 'rb') as f:
             return BytesIO(f.read())
 
-@st.cache_data(show_spinner=False)
+# @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
     temp_file_name_xlsx = get_temp_file(xlsx_file)

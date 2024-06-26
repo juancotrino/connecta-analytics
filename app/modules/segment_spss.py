@@ -197,6 +197,10 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
 
+        jobs_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        jobs.to_excel(jobs_temp_file.name, index=False)
+        zip_file.write(f'{jobs_temp_file.name}', arcname='scenarios.xlsx')
+
         if jobs['cross_variable'].any():
 
             xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
