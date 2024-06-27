@@ -37,18 +37,13 @@ def processSav(spss_file: BytesIO):
     print(pd.crosstab(data[preg],data.RANGOS,rownames=["val"],normalize='index',dropna=False))
     print(study_metadata.column_names)
 
-def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
-    result=""
+def getCodePreProcess(spss_file: BytesIO,inversevars):
     agrupresult=""
-    varsProcess=[var for var in varsTxt.splitlines()]
-    qtypes=[qtype for qtype in qtypesTxt.splitlines()]
-
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
         temp_file_name,
         apply_value_formats=False
     )
-
     serie=False
     prefix=""
     multis=[]
@@ -74,10 +69,30 @@ def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
             serie=False
         label2=label
 
+    inverserecodes=""
+    for var in inversevars:
+        inverserecodes=inverserecodes+"\nRECODE "+var+"(5=1) (4=2) (2=4) (1=5)."
+    return agrupresult,inverserecodes
+
+def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
+    result=""
+    varsProcess=[var for var in varsTxt.splitlines()]
+    qtypes=[qtype for qtype in qtypesTxt.splitlines()]
+
+    temp_file_name = get_temp_file(spss_file)
+    data, study_metadata = pyreadstat.read_sav(
+        temp_file_name,
+        apply_value_formats=False
+    )
+    for i in range(len(colvars)):
+        var=colvars[i]
+        if re.search("A_",var):
+            colvars[i]="$"+re.search(".*A",var).group()[:-1]
+
     for var in varsProcess:
         qtype=qtypes[varsProcess.index(var)]
         result=writeQuestion(var,colvars,qtype,result)
-    return agrupresult,result
+    return result
 
 def writeAgrupMulti(txt,prefix,listVars,label):
     txt+= "\nMRSETS\n  /MCGROUP NAME=$"+prefix[:-1]+" LABEL='"+label +"'\n    VARIABLES="
@@ -165,9 +180,13 @@ def writeAgrupMulti(txt,prefix,listVars,label):
 #     return txt
 
 def writeQuestion(varName, colVars,qtype,txt):
+    if varName in colVars:
+        return txt
     match qtype:
             case "M":
                 multiquestionName="$"+re.search(".*A",varName).group()[:-1]
+                if multiquestionName in colVars:
+                    return txt
                 txt+="\nCTABLES\n  /VLABELS VARIABLES="+ multiquestionName+" "
                 for colvar in colVars:
                     txt+= colvar+" "
@@ -210,12 +229,12 @@ def writeQuestion(varName, colVars,qtype,txt):
                 for colvar in colVars:
                     txt+="\n  /CATEGORIES VARIABLES="+colvar +" ORDER=A KEY=VALUE EMPTY=EXCLUDE POSITION=AFTER"
                 txt+="\n  /CRITERIA CILEVEL=95\n  /COMPARETEST TYPE=PROP ALPHA=0.05 ADJUST=BONFERRONI ORIGIN=COLUMN INCLUDEMRSETS=YES\n  CATEGORIES=SUBTOTALS MERGE=YES STYLE=SIMPLE SHOWSIG=NO."
-            case "N":
+            case "T":
                 txt+="\n\nCTABLES\n  /VLABELS VARIABLES="+varName+" TOTAL "
                 for colvar in colVars:
                     txt+=colvar +" "
                 txt+=("DISPLAY=LABEL  "
-                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT F40.0, TOTALN F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
+                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT 'Total' F40.0, TOTALN 'Total Respuestas' F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
                 for colvar in colVars:
                     txt+= " + "+colvar+" [C]"
                 txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES="+varName +" ORDER=A EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"
@@ -230,7 +249,7 @@ def writeQuestion(varName, colVars,qtype,txt):
                 txt+=("DISPLAY=LABEL \n  /PCOMPUTE &cat1 = EXPR([4]+[5])"
                       + "\n  /PPROPERTIES &cat1 LABEL = \"NETO TOP TWO BOX\" FORMAT=COUNT '1' F40.0 HIDESOURCECATS=NO"
                       + "\n  /PCOMPUTE &cat2 = EXPR([2]+[1])\n  /PPROPERTIES &cat2 LABEL = \"NETO BOTTOM TWO BOX\" FORMAT=COUNT '1' F40.0 HIDESOURCECATS=NO"
-                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT F40.0, TOTALN F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
+                      + "\n  /TABLE " + varName +" [C][COUNT '1' F40.0, TOTALS[COUNT 'Total' F40.0, TOTALN 'Total Respuestas' F40.0, COLPCT.TOTALN '%' F40.0]] BY TOTAL[C]")
                 for colvar in colVars:
                     txt+= " + "+colvar+" [C]"
                 txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES="+varName +" [&cat1, 5, 4, 3, 2, 1, &cat2] EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"

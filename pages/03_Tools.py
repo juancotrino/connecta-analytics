@@ -13,6 +13,7 @@ from modules.text_function import processSavMulti
 from modules.processor import processSav
 from modules.processor import getVarsSav
 from modules.processor import getCodeProcess
+from modules.processor import getCodePreProcess
 
 # -------------- SETTINGS --------------
 page_title = "Tools"
@@ -100,6 +101,14 @@ with st.expander("Tool Multiquestion"):
         )
 
         st.success("Vars name column copy to clipboard")
+with st.expander("Preprocessor test"):
+    uploaded_file2 = st.file_uploader("Upload SAV file  ", type=["sav"])
+    if uploaded_file2:
+        inversVars=st.multiselect("Inverse Variables:",getVarsSav(uploaded_file2))
+        preproces=st.button("PreProcess")
+        if preproces:
+            st.text_area("Commands Agrupation:",getCodePreProcess(uploaded_file2,inversVars)[0])
+            st.text_area("Inverse Recodes:",getCodePreProcess(uploaded_file2,inversVars)[1])
 
 with st.expander("Processor test"):
     uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"])
@@ -109,5 +118,4 @@ with st.expander("Processor test"):
         vars=st.text_area("Variables to process:")
         proces=st.button("Process All")
         if proces and qtypes and vars:
-            st.text_area("Commands Agrupation:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[0])
-            st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[1])
+            st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes))
