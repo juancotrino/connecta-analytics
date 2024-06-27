@@ -1,3 +1,4 @@
+import ast
 import pandas as pd
 import streamlit as st
 
@@ -22,6 +23,7 @@ def main():
     if uploaded_file:
         temp_file_name = get_temp_file(uploaded_file)
         metadata_df = read_sav_metadata(temp_file_name)
+        metadata_df['answer_options_count'] = metadata_df['values'].apply(lambda x: len(ast.literal_eval(x)) if x else 0).astype(int)
         st.markdown('### File metadata')
         st.dataframe(
             metadata_df,
@@ -54,6 +56,9 @@ def main():
         )
 
         jobs_df = pd.DataFrame(jobs)
+
+        jobs_df['variables'] = jobs_df['variables'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n'))
+        jobs_df['condition'] = jobs_df['condition'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n'))
 
         jobs_validated = validate_segmentation_spss_jobs(jobs_df)
 

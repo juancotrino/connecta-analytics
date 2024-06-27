@@ -88,15 +88,16 @@ def significant_differences(
                 n2 = data.loc[total_index, col2]
 
                 if calculate_differences(x1, x2, n1, n2):
-                    if inner_differences_df.at[index, col1]:
-                        inner_differences_df.at[index, col1] += f',{letters_inner_dict[col2]}'
+                    if (x1 / n1) > (x2 / n2):
+                        if inner_differences_df.at[index, col1]:
+                            inner_differences_df.at[index, col1] += f',{letters_inner_dict[col2]}'
+                        else:
+                            inner_differences_df.at[index, col1] = letters_inner_dict[col2]
                     else:
-                        inner_differences_df.at[index, col1] = letters_inner_dict[col2]
-
-                    if inner_differences_df.at[index, col2]:
-                        inner_differences_df.at[index, col2] += f',{letters_inner_dict[col1]}'
-                    else:
-                        inner_differences_df.at[index, col2] = letters_inner_dict[col1]
+                        if inner_differences_df.at[index, col2]:
+                            inner_differences_df.at[index, col2] += f',{letters_inner_dict[col1]}'
+                        else:
+                            inner_differences_df.at[index, col2] = letters_inner_dict[col1]
 
     return inner_differences_df
 
