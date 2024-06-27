@@ -245,8 +245,10 @@ def processing(xlsx_file: BytesIO):
         list(category_groups_columns[category_groups_columns[1] == initial_category_group][1:].index)
     )
 
-    final_category_indexes = [[element - 1 for element in initial_category_indexes[1]]] + [[len(category_groups_columns) - 1]]
-    category_indexes = [(init[0], final[0]) for init, final in zip(initial_category_indexes, final_category_indexes)]
+    category_indexes = (
+        [(initial_category_indexes[i][0], initial_category_indexes[i + 1][0] - 1) for i in range(len(initial_category_indexes) - 1)] +
+        [(initial_category_indexes[-1][0], len(category_groups_columns) - 1)]
+    )
     total_differeces_df = pd.DataFrame(index=range(len(data_differences)), columns=data_differences.columns)
 
     for question_group in question_groups:
