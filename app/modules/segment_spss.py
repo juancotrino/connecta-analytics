@@ -4,13 +4,15 @@ from io import BytesIO
 import tempfile
 import zipfile
 from copy import copy
+from datetime import datetime
+from pytz import timezone
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import openpyxl
 from openpyxl.chart import BarChart, Reference
-from openpyxl.chart.axis import ChartLines
+# from openpyxl.chart.axis import ChartLines
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 import pyreadstat
@@ -18,6 +20,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency
 
+time_zone = timezone('America/Bogota')
 
 scales = {
     'T2B':{
@@ -182,6 +185,18 @@ def read_sav_metadata(file_name: str) -> pd.DataFrame:
 
     return variable_info
 
+def set_time_zone_to_file(zip_file: io.BytesIO, file: str):
+    info = zip_file.getinfo(os.path.basename(file))
+    current_time = datetime.now(time_zone)
+    info.date_time = (
+        current_time.year,
+        current_time.month,
+        current_time.day,
+        current_time.hour,
+        current_time.minute,
+        current_time.second
+    )
+
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
     print('Started execution')
     temp_file_name = get_temp_file(spss_file)
@@ -200,6 +215,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
         jobs_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
         jobs.to_excel(jobs_temp_file.name, index=False)
         zip_file.write(f'{jobs_temp_file.name}', arcname='scenarios.xlsx')
+        set_time_zone_to_file(zip_file, 'scenarios.xlsx')
 
         if jobs['cross_variable'].any():
 
@@ -266,6 +282,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
             # Add the temporary sav file to the zip file with custom arcname
             zip_file.write(sav_temp_file.name, arcname=sav_file_name)
+            set_time_zone_to_file(zip_file, sav_file_name)
             # Close and delete the temporary sav file
             sav_temp_file.close()
             os.unlink(sav_temp_file.name)
@@ -276,6 +293,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
             wb.close()
 
             zip_file.write(f'{xlsx_temp_file.name}', arcname=xlsx_file_name)
+            set_time_zone_to_file(zip_file, xlsx_file_name)
             xlsx_temp_file.close()
             os.unlink(xlsx_temp_file.name)
 
