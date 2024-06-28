@@ -100,15 +100,16 @@ with st.expander("Tool Multiquestion"):
             file_name='Etiquetas.txt'
         )
 
-        st.success("Vars name column copy to clipboard")
 with st.expander("Preprocessor test"):
     uploaded_file2 = st.file_uploader("Upload SAV file  ", type=["sav"])
     if uploaded_file2:
         inversVars=st.multiselect("Inverse Variables:",getVarsSav(uploaded_file2))
+        colVarsName=st.multiselect("Columns Variables:",getVarsSav(uploaded_file2))
         preproces=st.button("PreProcess")
         if preproces:
-            st.text_area("Commands Agrupation:",getCodePreProcess(uploaded_file2,inversVars)[0])
-            st.text_area("Inverse Recodes:",getCodePreProcess(uploaded_file2,inversVars)[1])
+            st.text_area("Commands Agrupation:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[0])
+            st.text_area("Inverse Recodes:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[1])
+            st.text_area("Columns clones:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[2])
 
 with st.expander("Processor test"):
     uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"])

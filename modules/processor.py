@@ -37,7 +37,7 @@ def processSav(spss_file: BytesIO):
     print(pd.crosstab(data[preg],data.RANGOS,rownames=["val"],normalize='index',dropna=False))
     print(study_metadata.column_names)
 
-def getCodePreProcess(spss_file: BytesIO,inversevars):
+def getCodePreProcess(spss_file: BytesIO,inversevars,columnVars):
     agrupresult=""
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
@@ -49,7 +49,7 @@ def getCodePreProcess(spss_file: BytesIO,inversevars):
     multis=[]
     label2=""
     for var, label in study_metadata.column_names_to_labels.items():
-        if re.search("A_",var):
+        if re.search("^[PFSV].*[1-90].*A",var):
             if not serie:
                 multis=[]
                 prefix=re.search(".*A",var).group()
@@ -71,8 +71,33 @@ def getCodePreProcess(spss_file: BytesIO,inversevars):
 
     inverserecodes=""
     for var in inversevars:
-        inverserecodes=inverserecodes+"\nRECODE "+var+" (5=1) (4=2) (2=4) (1=5)."
-    return agrupresult,inverserecodes
+        inverserecodes+="\nRECODE "+var+" (5=1) (4=2) (2=4) (1=5)."
+    inverserecodes+="\nEXECUTE."
+
+    columnsclone="SPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+    for col in columnVars:
+        if not re.search("^[PFSV].*[1-90].*A",col):
+            columnsclone+=col+" "
+    columnsclone+="\n/OPTIONS FIX=\"COL_\" FIXTYPE=PREFIX ACTION=RUN.\n"
+
+    for col in columnVars:
+        if re.search("^[PFSV].*[1-90].*A",col):
+            prefix=re.search(".*A",col).group()
+            serie=False
+            multis=[]
+            label2=""
+            for var, label in study_metadata.column_names_to_labels.items():
+                if re.search(".A",var):
+                    if re.search(".*A",var).group()==prefix:
+                        serie=True
+                        multis.append(var)
+                        label2=label
+                if serie:
+                    if not re.search(".A",var) or re.search(".*A",var).group()!=prefix:
+                        columnsclone=writeAgrupMulti(columnsclone,"COL_"+prefix,multis,label2)
+                        break
+
+    return agrupresult,inverserecodes,columnsclone
 
 def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
     result=""
@@ -86,8 +111,10 @@ def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
     )
     for i in range(len(colvars)):
         var=colvars[i]
-        if re.search("A_",var):
-            colvars[i]="$"+re.search(".*A",var).group()[:-1]
+        if re.search("^[PFSV].*[1-90].*A",var):
+            colvars[i]="$COL_"+re.search(".*A",var).group()[:-1]
+        else:
+            colvars[i]="COL_"+var
 
     for var in varsProcess:
         qtype=qtypes[varsProcess.index(var)]
@@ -98,7 +125,7 @@ def writeAgrupMulti(txt,prefix,listVars,label):
     txt+= "\nMRSETS\n  /MCGROUP NAME=$"+prefix[:-1]+" LABEL='"+label +"'\n    VARIABLES="
     for var in listVars:
         txt+=var+" "
-    txt+="\n  /DISPLAY NAME=[$"+prefix[:-1]+"]."
+    txt+="\n  /DISPLAY NAME=[$"+prefix[:-1]+"].\n"
     return txt
 
 # def writeQuestion(varName, colVars,qtype,txt):
@@ -180,13 +207,9 @@ def writeAgrupMulti(txt,prefix,listVars,label):
 #     return txt
 
 def writeQuestion(varName, colVars,qtype,txt):
-    if varName in colVars:
-        return txt
     match qtype:
             case "M":
                 multiquestionName="$"+re.search(".*A",varName).group()[:-1]
-                if multiquestionName in colVars:
-                    return txt
                 txt+="\nCTABLES\n  /VLABELS VARIABLES="+ multiquestionName+" "
                 for colvar in colVars:
                     txt+= colvar+" "
