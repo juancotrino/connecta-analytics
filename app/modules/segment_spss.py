@@ -12,13 +12,14 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import openpyxl
 from openpyxl.chart import BarChart, Reference
-# from openpyxl.chart.axis import ChartLines
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 import pyreadstat
 import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency
+
+from app.modules.authenticator import get_inverted_scales_keywords
 
 time_zone = timezone('America/Bogota')
 
@@ -35,7 +36,6 @@ scales = {
     }
 }
 
-keywords_inverted_scale = ('pegajosidad', 'transferencia', 'grasitud', 'pegajos', 'grasos','grumo','transfiere','transferencia','corrió','cuarteo','molesta','Transfiere','corre mucho','mancha mucho')
 # Function to perform chi-square test and return chi2, p-value, and Cramer's V
 def chi_square_test(column1, column2, correction: bool = False):
     contingency_table = pd.crosstab(column1, column2)
@@ -51,7 +51,14 @@ def chi_square_test(column1, column2, correction: bool = False):
     else:
         return chi2, p_value, np.sqrt(phi2 / (k - 1)) if k > 1 else 0
 
-def process_chi2(file_path: str, cross_variable: str, chi2_mode: str, correction: bool = False):
+def process_chi2(
+    file_path: str,
+    cross_variable: str,
+    chi2_mode: str,
+    inverted_scales_keywords: list,
+    correction: bool = False,
+):
+
     data, study_metadata = pyreadstat.read_sav(
         file_path,
         apply_value_formats=False
@@ -68,7 +75,7 @@ def process_chi2(file_path: str, cross_variable: str, chi2_mode: str, correction
         code for code, tag in filtered_variables_data.items()
         if any(
             keyword in ''.join(tag.values()).lower()
-            for keyword in keywords_inverted_scale
+            for keyword in inverted_scales_keywords
         ) and (
             code not in just_right_variables
         )
@@ -208,6 +215,8 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
     survey_data = survey_data.dropna(how='all')
 
+    inverted_scales_keywords = get_inverted_scales_keywords()
+
     # Create a BytesIO object to store the zip file
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
@@ -267,7 +276,13 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
             if job['cross_variable']:
                 correction = False
-                chi2_df = process_chi2(sav_temp_file.name, job['cross_variable'], job['chi2_mode'], correction)
+                chi2_df = process_chi2(
+                    sav_temp_file.name,
+                    job['cross_variable'],
+                    job['chi2_mode'],
+                    inverted_scales_keywords,
+                    correction,
+                )
 
                 # Create a new workbook object and select the active worksheet
                 wb.create_sheet(job['scenario_name'])
