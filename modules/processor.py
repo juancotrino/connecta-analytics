@@ -71,7 +71,7 @@ def getCodePreProcess(spss_file: BytesIO,inversevars):
 
     inverserecodes=""
     for var in inversevars:
-        inverserecodes=inverserecodes+"\nRECODE "+var+"(5=1) (4=2) (2=4) (1=5)."
+        inverserecodes=inverserecodes+"\nRECODE "+var+" (5=1) (4=2) (2=4) (1=5)."
     return agrupresult,inverserecodes
 
 def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
