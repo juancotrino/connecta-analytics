@@ -40,7 +40,6 @@ with st.expander("Question Finder"):
     btnFinder=st.button("Find")
     if btnFinder:
         st.text_area("Questions:",questionFinder(entryText))
-        st.success("Copy to clipboard")
 
 
 # with st.expander("Generate Recodes"):
@@ -61,7 +60,6 @@ with st.expander("Generate Labels"):
     btnFinder=st.button("Generate Labels")
     if btnFinder:
         st.text_area("Labels:",genLabels2(entryText))
-        st.success("Copy to clipboard")
 
 
 with st.expander("Generate List of Includes"):
@@ -79,7 +77,6 @@ with st.expander("Category Question Finder"):
     btnFinder=st.button("Find Categories")
     if btnFinder:
         st.text_area("Questions:",categoryFinder(entryText))
-        st.success("Copy to clipboard")
 
 
 with st.expander("Tool Multiquestion"):
