@@ -5,7 +5,7 @@ import pyreadstat
 
 from app.modules.text_function import categoryFinder, questionFinder
 from app.modules.text_function import genRecodes
-from app.modules.text_function import genLabels2
+from app.modules.text_function import genLabels
 from app.modules.text_function import genIncludesList
 from app.modules.text_function import processSavMulti
 from app.modules.processor import processSav
@@ -48,11 +48,11 @@ def main():
     #         )
 
     with st.expander("Generate Labels"):
-        entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars column from the base ")
-        entryText2=st.text_area("Options:",placeholder="Copy and paste the Values options column from the base ")
+        entryText=st.text_area("Questions:",placeholder="Copy and paste the list of questions")
+        entryText2=st.text_area("Labels SPSS:",placeholder="Copy and paste the label column from SPSS")
         btnFinder=st.button("Generate Labels")
         if btnFinder:
-            st.text_area("Labels:",genLabels2(entryText))
+            st.text_area("Labels:",genLabels(entryText,entryText2))
 
 
     with st.expander("Generate List of Includes"):
