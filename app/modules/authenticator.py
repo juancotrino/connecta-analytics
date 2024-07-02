@@ -607,3 +607,10 @@ def get_user_roles(user_uid: str) -> tuple[str]:
         roles = ('connecta-viewer', )
 
     return roles
+
+def get_inverted_scales_keywords():
+    db = firestore.client()
+    document = db.collection("settings").document('keywords').get()
+
+    if document.exists:
+        return document.to_dict()['inverted_scales']

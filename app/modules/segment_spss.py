@@ -4,13 +4,14 @@ from io import BytesIO
 import tempfile
 import zipfile
 from copy import copy
+from datetime import datetime
+from pytz import timezone
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import openpyxl
 from openpyxl.chart import BarChart, Reference
-from openpyxl.chart.axis import ChartLines
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 import pyreadstat
@@ -18,6 +19,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency
 
+from app.modules.authenticator import get_inverted_scales_keywords
+
+time_zone = timezone('America/Bogota')
 
 scales = {
     'T2B':{
@@ -32,7 +36,6 @@ scales = {
     }
 }
 
-keywords_inverted_scale = ('pegajosidad', 'transferencia', 'grasitud', 'pegajos', 'grasos','grumo','transfiere','transferencia','corrió','cuarteo','molesta','Transfiere','corre mucho','mancha mucho')
 # Function to perform chi-square test and return chi2, p-value, and Cramer's V
 def chi_square_test(column1, column2, correction: bool = False):
     contingency_table = pd.crosstab(column1, column2)
@@ -48,7 +51,14 @@ def chi_square_test(column1, column2, correction: bool = False):
     else:
         return chi2, p_value, np.sqrt(phi2 / (k - 1)) if k > 1 else 0
 
-def process_chi2(file_path: str, cross_variable: str, chi2_mode: str, correction: bool = False):
+def process_chi2(
+    file_path: str,
+    cross_variable: str,
+    chi2_mode: str,
+    inverted_scales_keywords: list,
+    correction: bool = False,
+):
+
     data, study_metadata = pyreadstat.read_sav(
         file_path,
         apply_value_formats=False
@@ -65,7 +75,7 @@ def process_chi2(file_path: str, cross_variable: str, chi2_mode: str, correction
         code for code, tag in filtered_variables_data.items()
         if any(
             keyword in ''.join(tag.values()).lower()
-            for keyword in keywords_inverted_scale
+            for keyword in inverted_scales_keywords
         ) and (
             code not in just_right_variables
         )
@@ -182,6 +192,18 @@ def read_sav_metadata(file_name: str) -> pd.DataFrame:
 
     return variable_info
 
+def set_time_zone_to_file(zip_file: io.BytesIO, file: str):
+    info = zip_file.getinfo(os.path.basename(file))
+    current_time = datetime.now(time_zone)
+    info.date_time = (
+        current_time.year,
+        current_time.month,
+        current_time.day,
+        current_time.hour,
+        current_time.minute,
+        current_time.second
+    )
+
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
     print('Started execution')
     temp_file_name = get_temp_file(spss_file)
@@ -193,9 +215,16 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
     survey_data = survey_data.dropna(how='all')
 
+    inverted_scales_keywords = get_inverted_scales_keywords()
+
     # Create a BytesIO object to store the zip file
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+
+        jobs_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        jobs.to_excel(jobs_temp_file.name, index=False)
+        zip_file.write(f'{jobs_temp_file.name}', arcname='scenarios.xlsx')
+        set_time_zone_to_file(zip_file, 'scenarios.xlsx')
 
         if jobs['cross_variable'].any():
 
@@ -247,7 +276,13 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
             if job['cross_variable']:
                 correction = False
-                chi2_df = process_chi2(sav_temp_file.name, job['cross_variable'], job['chi2_mode'], correction)
+                chi2_df = process_chi2(
+                    sav_temp_file.name,
+                    job['cross_variable'],
+                    job['chi2_mode'],
+                    inverted_scales_keywords,
+                    correction,
+                )
 
                 # Create a new workbook object and select the active worksheet
                 wb.create_sheet(job['scenario_name'])
@@ -262,6 +297,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
             # Add the temporary sav file to the zip file with custom arcname
             zip_file.write(sav_temp_file.name, arcname=sav_file_name)
+            set_time_zone_to_file(zip_file, sav_file_name)
             # Close and delete the temporary sav file
             sav_temp_file.close()
             os.unlink(sav_temp_file.name)
@@ -272,6 +308,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
             wb.close()
 
             zip_file.write(f'{xlsx_temp_file.name}', arcname=xlsx_file_name)
+            set_time_zone_to_file(zip_file, xlsx_file_name)
             xlsx_temp_file.close()
             os.unlink(xlsx_temp_file.name)
 

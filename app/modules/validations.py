@@ -37,7 +37,10 @@ def validate_segmentation_spss_jobs(jobs: pd.DataFrame) -> bool:
         if (
             (scenario['condition'] != '' and scenario['condition'] is not None) and
             scenario['variables'] and
-            not any([variable in scenario['condition'] for variable in scenario['variables'].split(',')])
+            not (
+                any([variable in scenario['condition'] for variable in scenario['variables'].split(',')]) or
+                any([variable in scenario['condition'] for variable in scenario['variables'].split('\n')])
+            )
         ):
             st.warning(f"Variables in condition don't match required variables. Scenario: {scenario['scenario_name']}")
             validations.append(False)

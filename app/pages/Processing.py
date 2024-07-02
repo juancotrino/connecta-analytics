@@ -10,19 +10,19 @@ def main():
 
     st.header('SPSS Tables')
 
-    st.write("Load excel file with the processing tables from SPSS.")
+    with st.form('processing_form'):
 
-    if 'download_button_disabled' not in st.session_state:
-        st.session_state['download_button_disabled'] = True
+        st.write("Load excel file with the processing tables from SPSS.")
 
-    # Add section to upload a file
-    uploaded_file_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processing_xlsx')
+        # Add section to upload a file
+        uploaded_file_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processing_xlsx')
 
-    if uploaded_file_xlsx:
-        with st.spinner('Processing...'):
-            results = processing(uploaded_file_xlsx)
-            st.session_state['download_button_disabled'] = False
-            st.success('Tables processed successfully.')
+        process = st.form_submit_button('Process file')
+
+        if uploaded_file_xlsx and process:
+            with st.spinner('Processing...'):
+                results = processing(uploaded_file_xlsx)
+                st.success('Tables processed successfully.')
 
     try:
         st.download_button(
@@ -30,7 +30,7 @@ def main():
             data=results.getvalue(),
             file_name=f'processed_tables.xlsx',
             mime='application/xlsx',
-            disabled=st.session_state['download_button_disabled']
+            type='primary'
         )
     except:
         pass

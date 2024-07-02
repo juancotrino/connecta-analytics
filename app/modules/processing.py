@@ -88,15 +88,16 @@ def significant_differences(
                 n2 = data.loc[total_index, col2]
 
                 if calculate_differences(x1, x2, n1, n2):
-                    if inner_differences_df.at[index, col1]:
-                        inner_differences_df.at[index, col1] += f',{letters_inner_dict[col2]}'
+                    if (x1 / n1) > (x2 / n2):
+                        if inner_differences_df.at[index, col1]:
+                            inner_differences_df.at[index, col1] += f',{letters_inner_dict[col2]}'
+                        else:
+                            inner_differences_df.at[index, col1] = letters_inner_dict[col2]
                     else:
-                        inner_differences_df.at[index, col1] = letters_inner_dict[col2]
-
-                    if inner_differences_df.at[index, col2]:
-                        inner_differences_df.at[index, col2] += f',{letters_inner_dict[col1]}'
-                    else:
-                        inner_differences_df.at[index, col2] = letters_inner_dict[col1]
+                        if inner_differences_df.at[index, col2]:
+                            inner_differences_df.at[index, col2] += f',{letters_inner_dict[col1]}'
+                        else:
+                            inner_differences_df.at[index, col2] = letters_inner_dict[col1]
 
     return inner_differences_df
 
@@ -218,7 +219,7 @@ def write_temp_excel(wb):
         with open(tmpfile.name, 'rb') as f:
             return BytesIO(f.read())
 
-@st.cache_data(show_spinner=False)
+# @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
     temp_file_name_xlsx = get_temp_file(xlsx_file)
@@ -244,8 +245,10 @@ def processing(xlsx_file: BytesIO):
         list(category_groups_columns[category_groups_columns[1] == initial_category_group][1:].index)
     )
 
-    final_category_indexes = [[element - 1 for element in initial_category_indexes[1]]] + [[len(category_groups_columns) - 1]]
-    category_indexes = [(init[0], final[0]) for init, final in zip(initial_category_indexes, final_category_indexes)]
+    category_indexes = (
+        [(initial_category_indexes[i][0], initial_category_indexes[i + 1][0] - 1) for i in range(len(initial_category_indexes) - 1)] +
+        [(initial_category_indexes[-1][0], len(category_groups_columns) - 1)]
+    )
     total_differeces_df = pd.DataFrame(index=range(len(data_differences)), columns=data_differences.columns)
 
     for question_group in question_groups:
