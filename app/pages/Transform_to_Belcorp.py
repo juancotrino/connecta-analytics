@@ -30,13 +30,13 @@ def main():
     st.write("Load excel file with variable mapping and project specifications and `.sav` database.")
 
     # Add section to upload a file
-    uploaded_file_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"])
-    uploaded_file_sav = st.file_uploader("Upload SAV file", type=["sav"])
+    uploaded_file_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='xlsx')
+    uploaded_file_sav = st.file_uploader("Upload SAV file", type=["sav"], key='sav')
 
 
     if study and uploaded_file_xlsx and uploaded_file_sav:
 
-        results = transform_to_belcorp(study, uploaded_file_xlsx, uploaded_file_sav)
+        results = transform_to_belcorp(uploaded_file_xlsx, uploaded_file_sav)
 
         # Offer the sav file for download
         st.download_button(

@@ -25,7 +25,7 @@ def main():
     # st.markdown(page_title)
     st.markdown("""
     This is a dashboard where TP, B2B, JR and other metrics can be
-    seen in a compact and easy to filter and understandlable way.
+    seen in a compact, easy to filter and understandable way.
     """)
     st.header('Filters')
 
@@ -53,6 +53,8 @@ def main():
     for filter_name, attributes in filters_template.items():
         name, field = attributes
         if name == 'Age':
+            if data['Edad'].isna().all():
+                continue
             disabled = len(data['Edad'].dropna().unique()) == 0
             selection = field.slider(
                 name,
