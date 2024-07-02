@@ -18,26 +18,28 @@ def questionFinder(txtC):
             if qu:
                 qutrim=qu.group()[:-1]
                 if re.search("¿.*\?",qutrim):
-                    questions+=numques+" "+re.search("¿.*\?",qutrim).group()+"\n"
+                    pregu=re.search("¿.*\?",qutrim).group().split()[0][1:]
+                    pregu2=" ".join(re.search("¿.*\?",qutrim).group().split()[1:])
+                    questions+=numques+" ¿"+pregu.capitalize()+" "+pregu2+"\n"
                 else:
-                    questions+=numques+" "+qu.group()+"\n"
+                    pregu=qu.group().split()[0][1:]
+                    pregu2=" ".join(qu.group().split()[1:])
+                    questions+=numques+" ¿"+pregu.capitalize()+" "+pregu2+"\n"
             else:
                 qu2=re.search("¿.*",line)
                 if qu2:
-                    questions+=numques+" "+qu2.group()+"\n"
+                    questions+=numques+" "+re.search("([A-Z][a-z]|[^A-Z .ÁÉÍÓÚ]).*[^A-Z .ÁÉÍÓÚ]",qu2.group()).group()+"\n"
                 else:
-                    flag=True
                     questions+=numques+" "
-                    for word in line.split():
-                        if flag:
-                            flag=False
-                            continue
-                        if re.search("^[A-ZÁÉÍÓÚ].*[A-ZÁÉÍÓÚ.]$",word):
-                            continue
-                        else:
-                            questions+=word+" "
+                    questionstr=" ".join(line.split()[1:])
+                    if re.search("[^A-Z .ÁÉÍÓÚ].*[^A-Z .ÁÉÍÓÚ]",questionstr):
+                        questions+=re.search("([A-Z][a-z]|[^A-Z .ÁÉÍÓÚ]).*[^A-Z .ÁÉÍÓÚ]",questionstr).group()
+                    else:
+                        questions+=questionstr
                     questions+="\n"
-    pyperclip.copy(questions)
+    #------------
+
+
     return questions
 
 def genRecodes(txtC):
@@ -50,7 +52,6 @@ def genRecodes(txtC):
             for word in spaces.split():
                 num=word
             recodes+="RECODE "+pref+num+"(1="+num+").\n"
-    pyperclip.copy(recodes)
     return recodes
 
 def genLabels(txtVars,txtOpt):
@@ -98,7 +99,6 @@ def genLabels(txtVars,txtOpt):
             labels+="\n"+str(count)+" \""+opt+"\""
             count+=1
         labels+=".\n\n"
-    pyperclip.copy(labels)
     return labels
 
 def genIncludesList(txtVars,txtNums,txtC,txtDep,txtNums2):
@@ -208,7 +208,6 @@ def categoryFinder(txtC):
                             result+=word+" "
                     result+="\n\n"
         count+=1
-    pyperclip.copy(result)
     return result
 
 def genRecodes2(txtC):
