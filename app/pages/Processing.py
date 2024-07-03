@@ -19,10 +19,10 @@ def main():
 
         st.markdown('#### Database')
 
-        st.write("Load `.sav` database file.")
+        st.write("Load `.sav` database file to be formatted.")
 
         # Add section to upload a file
-        uploaded_file_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='preprocessing_xlsx')
+        uploaded_file_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessing_sav')
 
         config = {
             'visit_name': st.column_config.TextColumn('Visit Name', width='small', required=True),
@@ -38,21 +38,24 @@ def main():
             column_config=config
         )
 
-        visit_names_df = pd.DataFrame(visit_names)
+        visit_names_list = visit_names['visit_name'].to_list()
 
         process = st.form_submit_button('Preprocess database')
 
-        if uploaded_file_xlsx and process:
+        if uploaded_file_sav and process:
             with st.spinner('Processing...'):
-                preprocessing_results = processing(uploaded_file_xlsx)
-                st.success('Tables processed successfully.')
+                try:
+                    preprocessing_results = preprocessing(uploaded_file_sav, visit_names_list)
+                except Exception as e:
+                    st.error('Number of visits in database do not match number of visits listed above.')
+                st.success('Database preprocessed successfully.')
 
     try:
         st.download_button(
-            label="Download processed tables",
+            label="Download processed database",
             data=preprocessing_results.getvalue(),
-            file_name=f'processed_tables.xlsx',
-            mime='application/xlsx',
+            file_name=f'processed_database.sav',
+            mime='application/sav',
             type='primary'
         )
     except:
