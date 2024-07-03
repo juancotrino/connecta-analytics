@@ -5,7 +5,9 @@ import pyreadstat
 from unidecode import unidecode
 from difflib import SequenceMatcher
 
-from app.modules.segment_spss import get_temp_file
+from modules.segment_spss import get_temp_file
+
+
 
 def questionFinder(txtC):
     questions=""
@@ -13,8 +15,6 @@ def questionFinder(txtC):
         if re.search("^\s*[A-Z][1-90].*\..*",line):
             qu=re.search("¿.*\?",line)
             numques=line.split()[0]
-            while re.search("[^0-9]$",numques):
-                numques=numques[:-1]
             if re.search("[^.]$",numques):
                 numques+="."
             if qu:
@@ -56,37 +56,51 @@ def genRecodes(txtC):
             recodes+="RECODE "+pref+num+"(1="+num+").\n"
     return recodes
 
-def genLabels(txtQues,txtLabels):
-    labels=""
-
-    questions=[quest for quest in txtQues.splitlines()]
-    idquestions=[]
-    for ques in txtQues.splitlines():
-        idquestions.append(ques.split()[0][:-1])
-    for lab in txtLabels.splitlines():
-        idques=lab.split()[0]
-        quest=" ".join(lab.split()[1:])
-        if re.search("^[DFPS].*[0-9].*-",idques):
-            preg=idques.split("-")[0]
-            if re.search("_",preg):
-                preg=preg.split("_")[0]
-            labels+=questions[idquestions.index(preg)]
-        elif re.search("^[DFPS][0-9]",idques):
-            if len(idques.split("_"))>1:
-                preg=idques.split("_")[0]
-                visit=idques.split("_")[1]
-                if re.search(preg, quest):
-                    labels+=preg+". "+visit+" "+ " ".join(questions[idquestions.index(preg)].split()[1:])
-                else:
-                    labels+=preg+". "+visit+ quest[1:]
+def genLabels(txtVars,txtOpt):
+    labels="* Encoding: UTF-8.\n"
+    num=0
+    options=txtOpt.splitlines()
+    serie=False
+    serienum=1
+    fist=""
+    prev=""
+    pref=""
+    optqueue=[]
+    for line in txtVars.splitlines():
+        if re.search("A_",line):
+            if not serie:
+                serie=True
+                first=line
+                pref=re.search(".*_",line).group()
+                option=re.search(",.*}",options[num]).group()[2:-1]
+                optqueue.append(option)
+                prev=line
             else:
-                if re.search(idques, quest):
-                    labels+=idques+". "+ " ".join(questions[idquestions.index(idques)].split()[1:])
+                if pref==re.search(".*_",line).group():
+                    option=re.search(",.*}",options[num]).group()[2:-1]
+                    optqueue.append(option)
+                    prev=line
                 else:
-                    labels+=idques+". "+ quest[1:]
-        else:
-             labels+=lab
-        labels+="\n"
+                    labels+="VALUE LABELS "+first+" to "+ prev
+                    count=1
+                    for opt in optqueue:
+                        labels+="\n"+str(count)+" \""+opt+"\""
+                        count+=1
+                    labels+=".\n\n"
+                    optqueue=[]
+                    first=line
+                    pref=re.search(".*_",line).group()
+                    option=re.search(",.*}",options[num]).group()[2:-1]
+                    optqueue.append(option)
+                    prev=line
+        num+=1
+    if serie:
+        labels+="VALUE LABELS "+first+" to "+ prev
+        count=1
+        for opt in optqueue:
+            labels+="\n"+str(count)+" \""+opt+"\""
+            count+=1
+        labels+=".\n\n"
     return labels
 
 def genIncludesList(txtVars,txtNums,txtC,txtDep,txtNums2):

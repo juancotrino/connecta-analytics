@@ -5,12 +5,13 @@ import pyreadstat
 
 from app.modules.text_function import categoryFinder, questionFinder
 from app.modules.text_function import genRecodes
-from app.modules.text_function import genLabels2
+from app.modules.text_function import genLabels
 from app.modules.text_function import genIncludesList
 from app.modules.text_function import processSavMulti
 from app.modules.processor import processSav
 from app.modules.processor import getVarsSav
 from app.modules.processor import getCodeProcess
+from app.modules.processor import getCodePreProcess
 
 def main():
     # -------------- SETTINGS --------------
@@ -32,7 +33,6 @@ def main():
         btnFinder=st.button("Find")
         if btnFinder:
             st.text_area("Questions:",questionFinder(entryText))
-            st.success("Copy to clipboard")
 
 
     # with st.expander("Generate Recodes"):
@@ -48,12 +48,11 @@ def main():
     #         )
 
     with st.expander("Generate Labels"):
-        entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars column from the base ")
-        entryText2=st.text_area("Options:",placeholder="Copy and paste the Values options column from the base ")
+        entryText=st.text_area("Questions:",placeholder="Copy and paste the list of questions")
+        entryText2=st.text_area("Labels SPSS:",placeholder="Copy and paste the label column from SPSS")
         btnFinder=st.button("Generate Labels")
         if btnFinder:
-            st.text_area("Labels:",genLabels2(entryText))
-            st.success("Copy to clipboard")
+            st.text_area("Labels:",genLabels(entryText,entryText2))
 
 
     with st.expander("Generate List of Includes"):
@@ -71,11 +70,10 @@ def main():
         btnFinder=st.button("Find Categories")
         if btnFinder:
             st.text_area("Questions:",categoryFinder(entryText))
-            st.success("Copy to clipboard")
 
 
     with st.expander("Tool Multiquestion"):
-        uploaded_file = st.file_uploader("Upload SAV file", type=["sav"])
+        uploaded_file = st.file_uploader("Upload SAV file", type=["sav"],key="multiquestion")
         if uploaded_file:
             recodes,labels=processSavMulti(uploaded_file)
             st.text_area("RECODES:",recodes)
@@ -92,15 +90,23 @@ def main():
                 file_name='Etiquetas.txt'
             )
 
-            st.success("Vars name column copy to clipboard")
+    with st.expander("Preprocessor test"):
+        uploaded_file2 = st.file_uploader("Upload SAV file", type=["sav"],key="Preprocessor")
+        if uploaded_file2:
+            inversVars=st.multiselect("Inverse Variables:",getVarsSav(uploaded_file2))
+            colVarsName=st.multiselect("Columns Variables:",getVarsSav(uploaded_file2))
+            preproces=st.button("PreProcess")
+            if preproces:
+                st.text_area("Commands Agrupation:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[0])
+                st.text_area("Inverse Recodes:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[1])
+                st.text_area("Columns clones:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[2])
 
     with st.expander("Processor test"):
-        uploaded_file = st.file_uploader("Upload SAV file ", type=["sav"])
+        uploaded_file = st.file_uploader("Upload SAV file", type=["sav"],key="Processor")
         if uploaded_file:
             colVars=st.multiselect("Column Variables:",getVarsSav(uploaded_file))
             qtypes=st.text_area("Questions Types:")
             vars=st.text_area("Variables to process:")
             proces=st.button("Process All")
             if proces and qtypes and vars:
-                st.text_area("Commands Agrupation:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[0])
-                st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes)[1])
+                st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes))
