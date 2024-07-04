@@ -10,6 +10,7 @@ from statsmodels.stats.proportion import proportions_ztest
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import range_boundaries
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font
@@ -336,8 +337,6 @@ def processing(xlsx_file: BytesIO):
     # Delete column B
     delete_col_with_merged_ranges(ws_new, 2)
 
-    ws_new.column_dimensions["B"].width = 25
-
     # Loop through each range and apply the formatting
     for question_group in question_groups:
         for row in question_group:
@@ -348,5 +347,20 @@ def processing(xlsx_file: BytesIO):
                     apply_red_color_to_letter(cell)
 
     ws_new.cell(row=1, column=1).value = ''
+
+    ws_new.column_dimensions["A"].width = 400 / 8.43
+    ws_new.column_dimensions["B"].width = 150 / 8.43
+
+    # Set fixed column width for all columns
+    fixed_column_width = 80 / 8.43
+    for col in range(3, ws_new.max_column + 1):
+        column_letter = get_column_letter(col)
+        ws_new.column_dimensions[column_letter].width = fixed_column_width
+
+
+    # Set fixed row height for all rows
+    fixed_row_height = 20 / 1.33
+    for row in range(1, ws_new.max_row + 1):
+        ws_new.row_dimensions[row].height = fixed_row_height
 
     return write_temp_excel(wb_new)
