@@ -46,9 +46,9 @@ def main():
             with st.spinner('Processing...'):
                 try:
                     preprocessing_results = preprocessing(uploaded_file_sav, visit_names_list)
+                    st.success('Database preprocessed successfully.')
                 except Exception as e:
-                    st.error('Number of visits in database do not match number of visits listed above.')
-                st.success('Database preprocessed successfully.')
+                    st.error(e)
 
     try:
         st.download_button(

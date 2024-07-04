@@ -5,6 +5,7 @@ import re
 from itertools import product
 import warnings
 
+import numpy as np
 import pandas as pd
 import pyreadstat
 
@@ -127,7 +128,7 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
     samples = get_samples(questions)
 
     if len(visits) != len(visit_names):
-        raise AssertionError
+        raise AssertionError('Number of visits in database do not match number of visits listed above.')
 
     # Regular expression to match letters followed by digits
     pattern = r'[A-Za-z]\d*'
@@ -159,15 +160,6 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
             question_format_mapping[question] = transformed_question
 
     db = db.rename(columns=question_format_mapping)
-
-    partial_df = db[
-        ['Response_ID'] +
-        db.columns[db.columns.str.startswith('REF')].to_list() +
-        db.columns[
-            (db.columns.str.contains(visits[0])) &
-            (db.columns.str.startswith('P'))
-        ].to_list()
-    ].astype(int)
 
     # plain_questions = get_plain_questions(formatted_questions)
     visit_sample_combinations = get_visit_sample_combinations(visits, samples)
@@ -217,5 +209,14 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
 
     variable_value_labels_final = get_variable_value_labels_final(metadata, questions, question_format_mapping)
     variable_value_labels_final['visit_sample'] = sample_visit_value_labels
+
+    # Iterate through the unique product references
+    unique_samples = final_db['REF'].unique().astype(int)
+
+    for sample in unique_samples:
+        # Create a new column for each unique reference
+        final_db[samples_dictionary[sample]] = np.where(final_db['REF'] == sample, final_db['visit_sample'], np.nan)
+        column_labels_final[samples_dictionary[sample]] = samples_dictionary[sample]
+        variable_value_labels_final[samples_dictionary[sample]] = sample_visit_value_labels
 
     return write_temp_sav(final_db, column_labels_final, variable_value_labels_final)
