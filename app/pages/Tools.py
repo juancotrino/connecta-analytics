@@ -95,11 +95,13 @@ def main():
         if uploaded_file2:
             inversVars=st.multiselect("Inverse Variables:",getVarsSav(uploaded_file2))
             colVarsName=st.multiselect("Columns Variables:",getVarsSav(uploaded_file2))
+            datasetName=st.text_input("DatasetName (Optional):")
             preproces=st.button("PreProcess")
             if preproces:
                 st.text_area("Commands Agrupation:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[0])
                 st.text_area("Inverse Recodes:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[1])
                 st.text_area("Columns clones:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[2])
+                st.text_area("Filtered Data:",getCodePreProcess(uploaded_file2,inversVars,colVarsName,datasetName)[3])
 
     with st.expander("Processor test"):
         uploaded_file = st.file_uploader("Upload SAV file", type=["sav"],key="Processor")

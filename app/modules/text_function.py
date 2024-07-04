@@ -30,18 +30,17 @@ def questionFinder(txtC):
             else:
                 qu2=re.search("¿.*",line)
                 if qu2:
-                    questions+=numques+" "+re.search("([A-Z][a-z]|[^A-Z .ÁÉÍÓÚ]).*[^A-Z .ÁÉÍÓÚ]",qu2.group()).group()+"\n"
+                    preg1nonefirst=re.search(".*[^A-Z .ÁÉÍÓÚ]",qu2.group()[1:]).group().split()[0]
+                    preg1none=" ".join(re.search(".*[^A-Z .ÁÉÍÓÚ]",qu2.group()[1:]).group().split()[1:])
+                    questions+=numques+" ¿"+preg1nonefirst.capitalize()+" "+preg1none+"?\n"
                 else:
                     questions+=numques+" "
                     questionstr=" ".join(line.split()[1:])
-                    if re.search("[^A-Z .ÁÉÍÓÚ].*[^A-Z .ÁÉÍÓÚ]",questionstr):
-                        questions+=re.search("([A-Z][a-z]|[^A-Z .ÁÉÍÓÚ]).*[^A-Z .ÁÉÍÓÚ]",questionstr).group()
+                    if re.search("[^A-Z .ÁÉÍÓÚ].*[^A-Z \-.ÁÉÍÓÚ]",questionstr):
+                        questions+=re.search("([A-Z][a-z]|[^A-Z .ÁÉÍÓÚ]).*[^A-Z \-.ÁÉÍÓÚ]",questionstr).group()
                     else:
                         questions+=questionstr
                     questions+="\n"
-    #------------
-
-
     return questions
 
 def genRecodes(txtC):
@@ -64,13 +63,25 @@ def genLabels(txtQues,txtLabels):
     for ques in txtQues.splitlines():
         idquestions.append(ques.split()[0][:-1])
     for lab in txtLabels.splitlines():
+        if lab=="":
+            labels+="\n"
+            continue
         idques=lab.split()[0]
         quest=" ".join(lab.split()[1:])
-        if re.search("^[DFPS].*[0-9].*-",idques):
+        if re.search("^[DF].*[0-9].*-",idques):
             preg=idques.split("-")[0]
             if re.search("_",preg):
                 preg=preg.split("_")[0]
-            labels+=questions[idquestions.index(preg)]
+            try:
+                labels+=questions[idquestions.index(preg)]
+            except:
+                labels+=preg+". "+" ".join(questions[idquestions.index(preg.split(".")[0])].split()[1:])
+        elif re.search("^[PS].*[0-9].*-",idques):
+            preg2=idques.split("-")[0]
+            if len(preg2.split("_"))>1:
+                preg=preg2.split("_")[0]
+                visit=preg2.split("_")[1]
+                labels+=preg+". "+visit+" "+ " ".join(questions[idquestions.index(preg)].split()[1:])
         elif re.search("^[DFPS][0-9]",idques):
             if len(idques.split("_"))>1:
                 preg=idques.split("_")[0]
@@ -83,7 +94,7 @@ def genLabels(txtQues,txtLabels):
                 if re.search(idques, quest):
                     labels+=idques+". "+ " ".join(questions[idquestions.index(idques)].split()[1:])
                 else:
-                    labels+=idques+". "+ quest[1:]
+                    labels+=idques+". "+ quest[2:]
         else:
              labels+=lab
         labels+="\n"
