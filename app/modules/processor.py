@@ -37,7 +37,7 @@ def processSav(spss_file: BytesIO):
     print(pd.crosstab(data[preg],data.RANGOS,rownames=["val"],normalize='index',dropna=False))
     print(study_metadata.column_names)
 
-def getCodePreProcess(spss_file: BytesIO,inversevars,columnVars):
+def getCodePreProcess(spss_file: BytesIO,inversevars,columnVars,namedatasetspss="ConjuntoDatos1"):
     agrupresult=""
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
@@ -96,8 +96,15 @@ def getCodePreProcess(spss_file: BytesIO,inversevars,columnVars):
                     if not re.search(".A",var) or re.search(".*A",var).group()!=prefix:
                         columnsclone=writeAgrupMulti(columnsclone,"COL_"+prefix,multis,label2)
                         break
-
-    return agrupresult,inverserecodes,columnsclone
+    refdict=study_metadata.variable_value_labels["REF.1"]
+    filterdatabase=""
+    if namedatasetspss=="":
+        namedatasetspss="ConjuntoDatos1"
+    for refindex in data["REF.1"].unique():
+        filterdatabase+="DATASET ACTIVATE "+ namedatasetspss+".\n"
+        filterdatabase+="DATASET COPY REF_"+refdict[refindex]+".\nDATASET ACTIVATE REF_"+refdict[refindex]+".\nFILTER OFF.\nUSE ALL.\n"
+        filterdatabase+="SELECT IF (REF.1 = "+str(int(refindex))+").\nEXECUTE.\n\n"
+    return agrupresult,inverserecodes,columnsclone,filterdatabase
 
 def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
     result=""
@@ -134,7 +141,7 @@ def writeQuestion(varName, colVars,qtype,txt):
                 txt+="DISPLAY=LABEL  /VLABELS VARIABLES=TOTAL DISPLAY=NONE\n  /TABLE "+multiquestionName+" [C][COUNT '1' F40.0, TOTALS[COUNT 'Total' F40.0, RESPONSES 'Total Respuestas' F40.0, COLPCT.RESPONSES.COUNT '%' F40.0]] BY TOTAL[C]"
                 for colvar in colVars:
                     txt+= " + "+colvar+" [C]"
-                txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES=" +multiquestionName+ " ORDER=D KEY=COUNT ("+multiquestionName+") EMPTY=EXCLUDE TOTAL=YES POSITION=AFTER\n  /CATEGORIES VARIABLES=TOTAL ORDER=A KEY=VALUE EMPTY=INCLUDE POSITION=AFTER"
+                txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES=" +multiquestionName+ " ORDER=D KEY=COUNT ("+multiquestionName+") EMPTY=INCLUDE TOTAL=YES POSITION=AFTER\n  /CATEGORIES VARIABLES=TOTAL ORDER=A KEY=VALUE EMPTY=INCLUDE POSITION=AFTER"
                 for colvar in colVars:
                     txt+="\n  /CATEGORIES VARIABLES="+colvar +" ORDER=A KEY=VALUE EMPTY=EXCLUDE POSITION=AFTER"
                 txt+="\n  /CRITERIA CILEVEL=95\n  /COMPARETEST TYPE=PROP ALPHA=0.05 ADJUST=BONFERRONI ORIGIN=COLUMN INCLUDEMRSETS=YES\n    CATEGORIES=SUBTOTALS MERGE=YES STYLE=SIMPLE SHOWSIG=NO."
@@ -155,7 +162,7 @@ def writeQuestion(varName, colVars,qtype,txt):
                 for colvar in colVars:
                     txt+="\n  /CATEGORIES VARIABLES="+colvar +" ORDER=A KEY=VALUE EMPTY=EXCLUDE POSITION=AFTER"
                 txt+="\n  /CRITERIA CILEVEL=95\n  /COMPARETEST TYPE=PROP ALPHA=0.05 ADJUST=BONFERRONI ORIGIN=COLUMN INCLUDEMRSETS=YES\n  CATEGORIES=SUBTOTALS MERGE=YES STYLE=SIMPLE SHOWSIG=NO."
-            case "A":
+            case "N":
                 txt+="\n\nCTABLES\n  /VLABELS VARIABLES="+varName+" TOTAL "
                 for colvar in colVars:
                     txt+=colvar +" "
@@ -165,7 +172,7 @@ def writeQuestion(varName, colVars,qtype,txt):
                       + "\n     F40.0, COLPCT.COUNT '%' F40.0]] BY TOTAL[C]")
                 for colvar in colVars:
                     txt+= " + "+colvar+" [C]"
-                txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES="+varName +" ORDER=A EMPTY=EXCLUDE TOTAL=YES POSITION=AFTER"
+                txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES="+varName +" ORDER=A EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"
                 txt+="\n  /CATEGORIES VARIABLES=TOTAL ORDER=A EMPTY=EXCLUDE TOTAL=NO POSITION=AFTER"
                 for colvar in colVars:
                     txt+="\n  /CATEGORIES VARIABLES="+colvar +" ORDER=A KEY=VALUE EMPTY=EXCLUDE POSITION=AFTER"
