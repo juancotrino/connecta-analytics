@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     # && rm -rf /var/lib/apt/lists/*
 
 
-RUN git clone -b app-refactor https://github.com/juancotrino/connecta-analytics.git .
+RUN git clone -b dev https://github.com/juancotrino/connecta-analytics.git .
 
 # COPY firebase_key.json firebase_key.json
 
