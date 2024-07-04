@@ -261,7 +261,10 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
                 variables = survey_data.columns.to_list()
 
             if job['condition']:
-                filtered_data = survey_data[variables].query(job['condition'])
+                try:
+                    filtered_data = survey_data[variables].query(job['condition'])
+                except SyntaxError as e:
+                    raise e
             else:
                 filtered_data = survey_data[variables]
             # Write filtered data to a temporary sav file
