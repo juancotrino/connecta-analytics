@@ -46,14 +46,14 @@ name: Build and Deploy to Cloud Run
 
 on:
   push:
-    branches: [ "app-refactor" ]
+    branches: [ "dev" ]
 
   workflow_dispatch:
     inputs:
       ref:
         description: 'Branch or tag reference'
         required: true
-        default: 'app-refactor'
+        default: 'dev'
 
 env:
   PROJECT_ID: 'connecta-analytics-app' # TODO: update Google Cloud project id

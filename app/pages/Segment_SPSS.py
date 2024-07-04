@@ -71,7 +71,10 @@ def main():
         if jobs_validated and db_validated and not jobs_df.empty:
             if uploaded_file and process:
                 with st.spinner('Processing...'):
-                    results = segment_spss(jobs_df, uploaded_file)
+                    try:
+                        results = segment_spss(jobs_df, uploaded_file)
+                    except Exception as e:
+                        st.error(e)
         elif not uploaded_file and process:
             st.error('Missing SAV file')
 

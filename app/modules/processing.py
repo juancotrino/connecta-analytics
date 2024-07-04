@@ -10,6 +10,7 @@ from statsmodels.stats.proportion import proportions_ztest
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import range_boundaries
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font
@@ -224,129 +225,153 @@ def processing(xlsx_file: BytesIO):
 
     temp_file_name_xlsx = get_temp_file(xlsx_file)
 
-    data = pd.read_excel(temp_file_name_xlsx)
-    data['Unnamed: 2'] = (
-        pd.to_numeric(data['Unnamed: 2'], errors='coerce')
-        .fillna(data['Unnamed: 2'])
-        .fillna('')
-    )
-    data_differences = data.copy()
-
-    value_type = data['Unnamed: 2'].apply(lambda x: type(x))
-    float_types = value_type[value_type == float]
-
-    question_groups = group_consecutive_indexes(list(float_types.index))
-
-    partial_df = data[data.index.isin([question_groups[0][0] - 1] + question_groups[0])]
-    initial_category_group = partial_df.loc[partial_df.index[0], 'TOTAL'] # (A)
-    category_groups_columns = partial_df.loc[partial_df.index[0], :].to_frame().reset_index()
-
-    initial_category_indexes = group_consecutive_indexes(
-        list(category_groups_columns[category_groups_columns[1] == initial_category_group][1:].index)
-    )
-
-    category_indexes = (
-        [(initial_category_indexes[i][0], initial_category_indexes[i + 1][0] - 1) for i in range(len(initial_category_indexes) - 1)] +
-        [(initial_category_indexes[-1][0], len(category_groups_columns) - 1)]
-    )
-    total_differeces_df = pd.DataFrame(index=range(len(data_differences)), columns=data_differences.columns)
-
-    for question_group in question_groups:
-        df_total_search = data_differences.loc[question_group[-1]:question_group[-1] + 6, :]
-        total_index = df_total_search[df_total_search['Unnamed: 2'].str.contains('Total', na=False)].index[0]
-        data_differences.loc[total_index, 'TOTAL'] = int(data_differences.loc[total_index, 'TOTAL'])
-
-        data_differences.update(
-            calculate_percentages(
-                data_differences[['TOTAL']].loc[question_group, :].astype(int),
-                data_differences,
-                total_index
-            )
-        )
-
-        for category_group in category_indexes:
-            columns_category_groups = category_groups_columns.loc[category_group[0]:category_group[1]]['index'].to_list()
-
-            inner_df = data.loc[question_group, columns_category_groups].map(extract_digits)
-
-            data_differences.update(inner_df)
-
-            data_differences.loc[total_index, inner_df.columns] = data_differences.loc[total_index, inner_df.columns].infer_objects(copy=False).fillna(0).astype(int)
-
-            data_differences.update(calculate_percentages(inner_df, data_differences, total_index))
-
-            letters_inner_dict = {column: letter for column, letter in zip(inner_df.columns, letters_list[:len(inner_df.columns)])}
-
-            inner_differences_df = significant_differences(inner_df, data_differences, total_index, letters_inner_dict)
-
-            total_differeces_df.update(inner_differences_df)
-
-    combined_differences_df = combine_dataframes(data_differences, total_differeces_df, 0)
-    combined_differences_df['Unnamed: 2'] = np.where(
-        combined_differences_df['Unnamed: 2'] == '1',
-        combined_differences_df['Unnamed: 1'],
-        combined_differences_df['Unnamed: 2']
-    )
-
-    combined_differences_df['Unnamed: 2'] = combined_differences_df['Unnamed: 2'].replace('', np.nan)
-    first_all_nan_index = combined_differences_df[combined_differences_df.isna().all(axis=1)].index[0]
-
     # Load the existing Excel file
     wb_existing = load_workbook(temp_file_name_xlsx)
-    ws_existing = wb_existing.active
+
+    # List all sheet names
+    sheet_names = wb_existing.sheetnames
 
     # Create a new Workbook
     wb_new = Workbook()
-    ws_new = wb_new.active
 
-    # Copy styles and merged cells from existing sheet to new sheet
-    for row in ws_existing.iter_rows():
-        for cell in row:
-            new_cell = ws_new.cell(row=cell.row, column=cell.column, value=cell.value)
-            copy_styles(cell, new_cell)
+    # Remove the default sheet created with the new workbook
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
 
-    # Copy column widths
-    for col in ws_existing.columns:
-        column_letter = col[first_all_nan_index + 1].column_letter
-        ws_new.column_dimensions[column_letter].width = ws_existing.column_dimensions[column_letter].width
+    # Iterate over all sheets
+    for sheet_name in sheet_names:
+        ws_existing = wb_existing[sheet_name]
 
-    # Write DataFrame to the new worksheet, starting after the existing data
-    start_row = 1
-    start_column = 1
-    for r_idx, row in enumerate(dataframe_to_rows(combined_differences_df, index=False, header=True), start=start_row):
-        for c_idx, value in enumerate(row, start=start_column):
-            new_cell = ws_new.cell(row=r_idx, column=c_idx, value=value)
+        data = pd.read_excel(temp_file_name_xlsx, sheet_name=sheet_name)
+        data['Unnamed: 2'] = (
+            pd.to_numeric(data['Unnamed: 2'], errors='coerce')
+            .fillna(data['Unnamed: 2'])
+            .fillna('')
+        )
+        data_differences = data.copy()
 
-    # Copy merged cell ranges
-    for merged_cell in ws_existing.merged_cells.ranges:
-        ws_new.merge_cells(str(merged_cell))
+        value_type = data['Unnamed: 2'].apply(lambda x: type(x))
+        float_types = value_type[value_type == float]
 
-    # Iterate through merged cell ranges and unmerge those in column B
-    for merged_range in list(ws_new.merged_cells.ranges):
-        min_col, min_row, max_col, max_row = range_boundaries(merged_range.coord)
+        question_groups = group_consecutive_indexes(list(float_types.index))
 
-        if min_col == 2 and max_col == 2:  # Check if the merged range is in column B
-            ws_new.unmerge_cells(start_row=min_row, start_column=min_col, end_row=max_row, end_column=max_col)
+        partial_df = data[data.index.isin([question_groups[0][0] - 1] + question_groups[0])]
+        initial_category_group = partial_df.loc[partial_df.index[0], 'TOTAL'] # (A)
+        category_groups_columns = partial_df.loc[partial_df.index[0], :].to_frame().reset_index()
 
-    # Apply bold formatting to the first two columns
-    for row in ws_new.iter_rows():
-        for cell in row[:3]:  # First two columns
-            cell.font = Font(bold=True)
+        initial_category_indexes = group_consecutive_indexes(
+            list(category_groups_columns[category_groups_columns[1] == initial_category_group][1:].index)
+        )
 
-    # Delete column B
-    delete_col_with_merged_ranges(ws_new, 2)
+        category_indexes = (
+            [(initial_category_indexes[i][0], initial_category_indexes[i + 1][0] - 1) for i in range(len(initial_category_indexes) - 1)] +
+            [(initial_category_indexes[-1][0], len(category_groups_columns) - 1)]
+        )
+        total_differeces_df = pd.DataFrame(index=range(len(data_differences)), columns=data_differences.columns)
 
-    ws_new.column_dimensions["B"].width = 25
+        for question_group in question_groups:
+            df_total_search = data_differences.loc[question_group[-1]:question_group[-1] + 6, :]
+            total_index = df_total_search[df_total_search['Unnamed: 2'].str.contains('Total', na=False)].index[0]
+            data_differences.loc[total_index, 'TOTAL'] = int(data_differences.loc[total_index, 'TOTAL'])
 
-    # Loop through each range and apply the formatting
-    for question_group in question_groups:
-        for row in question_group:
+            data_differences.update(
+                calculate_percentages(
+                    data_differences[['TOTAL']].loc[question_group, :].astype(int),
+                    data_differences,
+                    total_index
+                )
+            )
+
             for category_group in category_indexes:
-                col_start, col_end = category_group
-                for col in range(col_start, col_end + 1):
-                    cell = ws_new.cell(row=row + 2, column=col)
-                    apply_red_color_to_letter(cell)
+                columns_category_groups = category_groups_columns.loc[category_group[0]:category_group[1]]['index'].to_list()
 
-    ws_new.cell(row=1, column=1).value = ''
+                inner_df = data.loc[question_group, columns_category_groups].map(extract_digits)
+
+                data_differences.update(inner_df)
+
+                data_differences.loc[total_index, inner_df.columns] = data_differences.loc[total_index, inner_df.columns].infer_objects(copy=False).fillna(0).astype(int)
+
+                data_differences.update(calculate_percentages(inner_df, data_differences, total_index))
+
+                letters_inner_dict = {column: letter for column, letter in zip(inner_df.columns, letters_list[:len(inner_df.columns)])}
+
+                inner_differences_df = significant_differences(inner_df, data_differences, total_index, letters_inner_dict)
+
+                total_differeces_df.update(inner_differences_df)
+
+        combined_differences_df = combine_dataframes(data_differences, total_differeces_df, 0)
+        combined_differences_df['Unnamed: 2'] = np.where(
+            combined_differences_df['Unnamed: 2'] == '1',
+            combined_differences_df['Unnamed: 1'],
+            combined_differences_df['Unnamed: 2']
+        )
+
+        combined_differences_df['Unnamed: 2'] = combined_differences_df['Unnamed: 2'].replace('', np.nan)
+        first_all_nan_index = combined_differences_df[combined_differences_df.isna().all(axis=1)].index[0]
+
+        ws_new = wb_new.create_sheet(title=sheet_name)
+
+        # Copy styles and merged cells from existing sheet to new sheet
+        for row in ws_existing.iter_rows():
+            for cell in row:
+                new_cell = ws_new.cell(row=cell.row, column=cell.column, value=cell.value)
+                copy_styles(cell, new_cell)
+
+        # Copy column widths
+        for col in ws_existing.columns:
+            column_letter = col[first_all_nan_index + 1].column_letter
+            ws_new.column_dimensions[column_letter].width = ws_existing.column_dimensions[column_letter].width
+
+        # Write DataFrame to the new worksheet, starting after the existing data
+        start_row = 1
+        start_column = 1
+        for r_idx, row in enumerate(dataframe_to_rows(combined_differences_df, index=False, header=True), start=start_row):
+            for c_idx, value in enumerate(row, start=start_column):
+                new_cell = ws_new.cell(row=r_idx, column=c_idx, value=value)
+
+        # Copy merged cell ranges
+        for merged_cell in ws_existing.merged_cells.ranges:
+            ws_new.merge_cells(str(merged_cell))
+
+        # Iterate through merged cell ranges and unmerge those in column B
+        for merged_range in list(ws_new.merged_cells.ranges):
+            min_col, min_row, max_col, max_row = range_boundaries(merged_range.coord)
+
+            if min_col == 2 and max_col == 2:  # Check if the merged range is in column B
+                ws_new.unmerge_cells(start_row=min_row, start_column=min_col, end_row=max_row, end_column=max_col)
+
+        # Apply bold formatting to the first two columns
+        for row in ws_new.iter_rows():
+            for cell in row[:3]:  # First two columns
+                cell.font = Font(bold=True)
+
+        # Delete column B
+        delete_col_with_merged_ranges(ws_new, 2)
+
+        # Loop through each range and apply the formatting
+        for question_group in question_groups:
+            for row in question_group:
+                for category_group in category_indexes:
+                    col_start, col_end = category_group
+                    for col in range(col_start, col_end + 1):
+                        cell = ws_new.cell(row=row + 2, column=col)
+                        apply_red_color_to_letter(cell)
+
+        ws_new.cell(row=1, column=1).value = ''
+
+        ws_new.column_dimensions["A"].width = 400 / 8.43
+        ws_new.column_dimensions["B"].width = 150 / 8.43
+
+        # Set fixed column width for all columns
+        fixed_column_width = 80 / 8.43
+        for col in range(3, ws_new.max_column + 1):
+            column_letter = get_column_letter(col)
+            ws_new.column_dimensions[column_letter].width = fixed_column_width
+
+
+        # Set fixed row height for all rows
+        fixed_row_height = 20 / 1.33
+        for row in range(1, ws_new.max_row + 1):
+            ws_new.row_dimensions[row].height = fixed_row_height
 
     return write_temp_excel(wb_new)
