@@ -63,6 +63,9 @@ def genLabels(txtQues,txtLabels):
     for ques in txtQues.splitlines():
         idquestions.append(ques.split()[0][:-1])
     for lab in txtLabels.splitlines():
+        if lab=="":
+            labels+="\n"
+            continue
         idques=lab.split()[0]
         quest=" ".join(lab.split()[1:])
         if re.search("^[DF].*[0-9].*-",idques):
@@ -91,7 +94,7 @@ def genLabels(txtQues,txtLabels):
                 if re.search(idques, quest):
                     labels+=idques+". "+ " ".join(questions[idquestions.index(idques)].split()[1:])
                 else:
-                    labels+=idques+". "+ quest[1:]
+                    labels+=idques+". "+ quest[2:]
         else:
              labels+=lab
         labels+="\n"
