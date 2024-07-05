@@ -44,7 +44,8 @@ def main():
 
     uploaded_file_sav = st.file_uploader("Upload `.sav` database file", type=["sav"], key='noel_transform_sav')
 
-    sav_temp_file = get_temp_file(uploaded_file_sav)
+    if uploaded_file_sav:
+        sav_temp_file = get_temp_file(uploaded_file_sav)
 
     if uploaded_file_sav:
         temp_file_name = get_temp_file(uploaded_file_sav)
@@ -123,7 +124,7 @@ def main():
         ).to_dict()
 
         project_info = {
-            'project_id': int(project_id),
+            'project_id': project_id,
             'category': category,
             'country': country,
             'sub_category': sub_category,
