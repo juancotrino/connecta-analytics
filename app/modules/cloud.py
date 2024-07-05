@@ -5,9 +5,6 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.sharepoint.client_context import ClientContext
 
-site_url = os.getenv('SITE_URL')
-client_id = os.getenv('CLIENT_ID')
-client_secret = os.getenv('CLIENT_SECRET')
 
 class SharePoint:
 
@@ -35,7 +32,7 @@ class SharePoint:
 
         return file_content
 
-    def create_folder(self, base_path, dir):
+    def create_folder(self, base_path: str, dir: str = ''):
         folder_url = f"/{'/'.join(self.site_url.split('/')[-3:-1])}/{base_path}/{dir}"
         self.ctx.web.ensure_folder_path(folder_url).execute_query()
 
@@ -57,3 +54,6 @@ class SharePoint:
         folders = library_root.folders
         self.ctx.load(folders).execute_query()
         return [folder.name for folder in folders]
+
+    def upload_file(self, folder: str, file_content: BytesIO, file_name: str):
+        self.ctx.web.get_folder_by_server_relative_url(f'{folder}/').upload_file(file_name, file_content).execute_query()
