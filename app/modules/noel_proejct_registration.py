@@ -1,6 +1,7 @@
 from io import BytesIO
 import tempfile
 
+import numpy as np
 import pandas as pd
 import pyreadstat
 
@@ -35,7 +36,7 @@ def read_sav_metadata(file_name: str) -> pd.DataFrame:
     return variable_info
 
 @st.cache_data(show_spinner=False)
-def get_projects_info():
+def get_studies_info():
     db = firestore.client()
     document = db.collection("settings").document('projects_info').get()
 
@@ -87,85 +88,104 @@ def validate_data(selected_variables: dict, metadata_df: pd.DataFrame):
     metadata_validation(metadata_df)
     duplicated_variables_validation(selected_variables)
 
-def process_project(spss_file_name: str):
-    pass
-    # scales_data = pd.DataFrame(
-    #     columns=['study_number', 'file_name', 'question_code', 'question', 'answer_code', 'answer_label']
-    # )
+def get_scales_data(study_number: int, study_data: pd.DataFrame, survey_data):
 
-    # jr_scales_data = pd.DataFrame(
-    #     columns=['study_number', 'file_name', 'question_code', 'question', 'answer_code', 'answer_label']
-    # )
+    scales_data_list = [
+        pd.DataFrame(
+            {
+                'study_number': [study_number] * len(labels),
+                'question_code': [variable] * len(labels),
+                'question': list(study_data[study_data['question_code'] == variable.split('.')[0]]['question'].values) * len(labels),
+                'answer_code': list(labels.keys()),
+                'answer_label': list(labels.values()),
+                'is_inverted': list(study_data[study_data['question_code'] == variable.split('.')[0]]['is_inverted'].values) * len(labels),
+            }
+        ) for variable, labels in survey_data.variable_value_labels.items()
+        if (
+            (
+                len(variable.split('.')) > 0
+                and variable.split('.')[0] in study_data['question_code'].tolist()
+            ) or (
+                variable in study_data['question_code'].tolist()
+            )
+        ) and (
+            'just' not in ' '.join(labels.values()).lower()
+        )
+    ]
 
+    if scales_data_list:
 
-    # study_data = study[~study.isna()].to_frame(name='question_code').reset_index(names='question')
-    # study_data['question_code'] = study_data['question_code'].apply(lambda x: x.split(',')[0].strip() if isinstance(x, str) else x)
-    # study_number = str(study['Número del estudio'])
+        scales_data = pd.concat(scales_data_list).reset_index(drop=True)
 
-    # if not duplicated_question_codes.empty and study_number in duplicated_question_codes['study_number'].unique().astype(str):
-    #     return None
+        count_scales_data = scales_data.groupby(['study_number', 'question_code', 'question']).count()
+        unique_count_scales_data = count_scales_data.reset_index()['answer_code'].unique()
+        print(f'Unique values of answer options length for regular questions (should only be 5): {", ".join(unique_count_scales_data.astype(str))}')
 
-    # file_name = study_data[study_data['question'] == 'Nombre de archivo']['question_code'].values[0]
+        inverted_template = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}
 
-    # if file_name is None:
-    #     print(f'\tThere is no .sav for Study number: {study_number}')
-    #     return None
-    # survey_data = pyreadstat.read_sav(
-    #     f'data/{file_name}.sav',
-    #     apply_value_formats=False
-    # )[1]
+        scales_data['real_value'] = np.where(
+            scales_data['is_inverted'] == True,
+            scales_data['answer_code'].map(inverted_template),
+            scales_data['answer_code']
+        )
 
-    # for variable, labels in survey_data.variable_value_labels.items():
-    #     if (
-    #         (
-    #             len(variable.split('.')) > 0
-    #             and variable.split('.')[0] in study_data[15:]['question_code'].tolist()
-    #         ) or (
-    #             variable in study_data[15:]['question_code'].tolist()
-    #         )
-    #     ) and (
-    #         'just' not in ' '.join(labels.values()).lower()
-    #     ):
-    #         scales_data = pd.concat(
-    #             [
-    #                 scales_data,
-    #                 pd.DataFrame(
-    #                     {
-    #                         'study_number': [int(study_number)] * len(labels),
-    #                         'file_name': [file_name] * len(labels),
-    #                         'question_code': [variable] * len(labels),
-    #                         'question': list(study_data[study_data['question_code'] == variable.split('.')[0]]['question'].values) * len(labels),
-    #                         'answer_code': list(labels.keys()),
-    #                         'answer_label': list(labels.values())
-    #                     }
-    #                 )
-    #             ]
-    #         ).reset_index(drop=True)
+        return scales_data
 
+def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, survey_data):
 
-    # for variable, labels in survey_data.variable_value_labels.items():
-    #     if (
-    #         (
-    #             len(variable.split('.')) > 0
-    #             and variable.split('.')[0] in study_data[15:]['question_code'].tolist()
-    #         ) or (
-    #             variable in study_data[15:]['question_code'].tolist()
-    #         )
-    #     ) and (
-    #         'just' in ' '.join(labels.values()).lower()
-    #     ):
-    #         jr_scales_data = pd.concat(
-    #             [
-    #                 jr_scales_data,
-    #                 pd.DataFrame(
-    #                     {
-    #                         'study_number': [int(study_number)] * len(labels),
-    #                         'file_name': [file_name] * len(labels),
-    #                         'question_code': [variable] * len(labels),
-    #                         'question': list(study_data[study_data['question_code'] == variable.split('.')[0]]['question'].values) * len(labels),
-    #                         'answer_code': list(labels.keys()),
-    #                         'answer_label': list(labels.values())
-    #                     }
-    #                 )
-    #             ]
-    #         ).reset_index(drop=True)
+    jr_scales_data_list = [
+        pd.DataFrame(
+            {
+                'study_number': [study_number] * len(labels),
+                'question_code': [variable] * len(labels),
+                'question': list(study_data[study_data['question_code'] == variable.split('.')[0]]['question'].values) * len(labels),
+                'answer_code': list(labels.keys()),
+                'answer_label': list(labels.values()),
+                'is_inverted': list(study_data[study_data['question_code'] == variable.split('.')[0]]['is_inverted'].values) * len(labels),
+            }
+        ) for variable, labels in survey_data.variable_value_labels.items()
+        if (
+            (
+                len(variable.split('.')) > 0
+                and variable.split('.')[0] in study_data[15:]['question_code'].tolist()
+            ) or (
+                variable in study_data[15:]['question_code'].tolist()
+            )
+        ) and (
+            'just' in ' '.join(labels.values()).lower()
+        )
+    ]
+
+    if jr_scales_data_list:
+
+        jr_scales_data = pd.concat(jr_scales_data_list).reset_index(drop=True)
+
+        count_jr_scales_data = jr_scales_data.groupby(['study_number', 'question_code', 'question']).count()
+        unique_count_jr_scales_data = count_jr_scales_data.reset_index()['answer_code'].unique()
+        print(f'Unique values of answer options length for JR questions (should only be 5 or 3): {", ".join(unique_count_jr_scales_data.astype(str))}')
+
+        inverted_template = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}
+
+        jr_scales_data['real_value'] = np.where(
+            jr_scales_data['is_inverted'] == True,
+            jr_scales_data['answer_code'].map(inverted_template),
+            jr_scales_data['answer_code']
+        )
+
+        return jr_scales_data
+
+def process_study(spss_file_name: str, study_info: dict):
+
+    study_number = study_info['study_id']
+    study_data = study_info['variables_mapping']
+
+    survey_data = pyreadstat.read_sav(
+        spss_file_name,
+        apply_value_formats=False
+    )[1]
+
+    scales_data = get_scales_data(study_number, study_data, survey_data)
+    jr_scales_data = get_jr_scales_data(study_number, study_data, survey_data)
+
+    print('scales_data:\n', scales_data)
+    print('jr_scales_data:\n', jr_scales_data)
