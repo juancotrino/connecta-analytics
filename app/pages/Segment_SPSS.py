@@ -57,8 +57,8 @@ def main():
 
         jobs_df = pd.DataFrame(jobs)
 
-        jobs_df['variables'] = jobs_df['variables'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n'))
-        jobs_df['condition'] = jobs_df['condition'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n'))
+        jobs_df['variables'] = jobs_df['variables'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
+        jobs_df['condition'] = jobs_df['condition'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
 
         jobs_validated = validate_segmentation_spss_jobs(jobs_df)
 
