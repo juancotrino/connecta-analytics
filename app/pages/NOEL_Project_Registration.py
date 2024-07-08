@@ -93,7 +93,7 @@ def main():
                     'Brand',
                     options=brands,
                     index=None,
-                    placeholder="Select client..."
+                    placeholder="Select brand..."
                 )
 
             with col2:
@@ -155,7 +155,8 @@ def main():
                 config = {
                     'question': st.column_config.TextColumn('Variable Name', width='large', disabled=True),
                     'question_code': st.column_config.SelectboxColumn('Variable in DB', width='small', options=cleaned_variables),
-                    'is_inverted': st.column_config.CheckboxColumn('Inverted', width='small')
+                    'is_inverted': st.column_config.CheckboxColumn('Inverted', width='small'),
+                    'jr_option': st.column_config.NumberColumn('JR Option', width='small', step=1)
                 }
 
                 variables_mapping = st.data_editor(

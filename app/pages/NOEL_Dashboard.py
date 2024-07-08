@@ -29,7 +29,10 @@ def main():
     """)
     st.header('Filters')
 
-    data = get_data()
+    try:
+        data = get_data()
+    except Exception as e:
+        st.error(e)
 
     col11, col12 = st.columns(2)
     col21, col22, col23, col24 = st.columns(4)

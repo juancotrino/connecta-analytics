@@ -62,7 +62,8 @@ def upload_file_to_sharepoint(base_path: str, file_content: BytesIO, file_name: 
 
 def variables_validation(selected_variables: dict, metadata_df: pd.DataFrame):
     # Check for missing values
-    missing_values = {k: v for k, v in selected_variables.items() if v not in metadata_df.index.values}
+    missing_values = {k: v for k, v in selected_variables.items() if v not in [value.split('.')[0] for value in metadata_df.index.values]}
+    print(missing_values)
     if missing_values:
         missing_str = ", ".join([f"{k}: {v}" for k, v in missing_values.items()])
         raise ValueError(f"Missing variables in database: {missing_str}")
