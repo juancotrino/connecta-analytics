@@ -36,11 +36,6 @@ def get_column_labels(metadata, questions: list[str]) -> dict[str, str]:
 def get_variable_value_labels(metadata, questions: list[str]) -> dict[str, str]:
     return {k: v for k, v in metadata.__dict__['variable_value_labels'].items() if k in questions}
 
-visits_names = [
-    'primer impacto',
-    'segundo impacto'
-]
-
 def get_visits(questions: list[str]) -> list[str]:
     return sorted(list(set([question.split('_')[1] for question in questions])))
 
