@@ -57,7 +57,8 @@ def genRecodes(txtC):
 
 def genLabels(txtQues,txtLabels):
     labels=""
-
+    if re.search("^[DFPS][0-9]",txtQues):
+        txtQues=questionFinder(txtQues)
     questions=[quest for quest in txtQues.splitlines()]
     idquestions=[]
     for ques in txtQues.splitlines():
