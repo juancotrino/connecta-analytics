@@ -1,5 +1,6 @@
 import ast
 
+import numpy as np
 import pandas as pd
 
 import streamlit as st
@@ -31,6 +32,7 @@ def main():
         brands = tuple(studies_info['brands'])
         clients = tuple(studies_info['clients'])
         variables = tuple(studies_info['variables'])
+        demographic_variables = tuple(studies_info['db_variables'][:16])
         db_variables = tuple(studies_info['db_variables'])
     except Exception as e:
         st.error(e)
@@ -166,7 +168,9 @@ def main():
                     use_container_width=True,
                     key="variables_mapping_df",
                     column_config=config
-                ).dropna(subset='question_code').reset_index(drop=True)
+                ).dropna(subset='question_code').reset_index(drop=True).replace({None: np.nan})
+
+                variables_mapping['is_inverted'] = np.where(~variables_mapping['jr_option'].isna(), True, variables_mapping['is_inverted'])
 
                 variables_mapping_dict = pd.Series(
                     variables_mapping['question_code'].values,
@@ -181,12 +185,11 @@ def main():
                     'category': category,
                     'sub_category': sub_category,
                     'brand': brand,
+                    'demographic_variables': demographic_variables,
                     'sample_variable': sample_variable,
                     'variables_mapping': variables_mapping,
                     'db_variables': db_variables
                 }
-
-                # print(variables_mapping_dict)
 
                 if country:
                     country_code = countries_iso_2_code[country].lower()
@@ -195,43 +198,48 @@ def main():
 
             create_button = st.form_submit_button('Process database')
 
-            if study_id and country and study_name:
-                if create_button:
-                    try:
-                        validate_data(variables_mapping_dict, metadata_df)
+    try:
+        if study_id and country and study_name:
+            if create_button:
+                try:
+                    validate_data(variables_mapping_dict, metadata_df)
 
-                        base_path = f'Documentos compartidos/estudios_externos/{id_study_name}'
-                        if uploaded_file_docx and uploaded_file_sav:
-                            try:
-                                # with st.spinner('Creating folder structure...'):
-                                #     create_folder_structure(base_path)
-                                #     folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios_externos/{id_study_name}'
-                                #     st.success(
-                                #         f'Study root folder created successfully. Visit the new folder [here]({folder_url}).'
-                                #     )
+                    base_path = f'Documentos compartidos/estudios_externos/{id_study_name}'
+                    if uploaded_file_docx and uploaded_file_sav:
+                        try:
+                            with st.spinner('Creating folder structure...'):
+                                create_folder_structure(base_path)
+                                folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios_externos/{id_study_name}'
+                                st.success(
+                                    f'Study root folder created successfully. Visit the new folder [here]({folder_url}).'
+                                )
 
-                                # with st.spinner('Uploading questionnaire and database to Sharepoint...'):
-                                #     upload_file_to_sharepoint(base_path, uploaded_file_docx, 'questionnaire.docx')
-                                #     upload_file_to_sharepoint(base_path, uploaded_file_sav, 'db.sav')
-                                #     st.success(
-                                #         f'Questionnaire and database uploaded successfully into above created folder.'
-                                #     )
+                            with st.spinner('Uploading questionnaire and database to Sharepoint...'):
+                                upload_file_to_sharepoint(base_path, uploaded_file_docx, 'questionnaire.docx')
+                                upload_file_to_sharepoint(base_path, uploaded_file_sav, 'db.sav')
+                                st.success(
+                                    f'Questionnaire and database uploaded successfully into above created folder.'
+                                )
 
-                                with st.spinner('Processing database...'):
-                                    process_study(sav_file_name, study_info)
-                                    pass
-                                    # upload_file_to_sharepoint(uploaded_file_sav)
-                                    # st.success(
-                                    #     f'Study root folder created successfully. Visit the new folder [here]({folder_url}).'
-                                    # )
+                            with st.spinner('Processing database...'):
+                                processed_db = process_study(sav_file_name, study_info)
+                                upload_file_to_sharepoint(base_path, processed_db, 'processed_db.xlsx')
 
-                            except Exception as e:
-                                st.error(e)
+                                # TODO: Append the processed db to the global db in dbs/norma_noel.xlsx
+                                # upload_file_to_sharepoint(uploaded_file_sav)
+                                st.success(
+                                    f'Database processed and loaded successfully into above created folder.'
+                                )
 
-                        else:
-                            st.error(
-                                'A questionnaire in `.docx` format and database in `.sav` format must be attached into the respective fields.'
-                            )
+                        except Exception as e:
+                            st.error(e)
 
-                    except Exception as e:
-                        st.error(e)
+                    else:
+                        st.error(
+                            'A questionnaire in `.docx` format and database in `.sav` format must be attached into the respective fields.'
+                        )
+
+                except Exception as e:
+                    st.error(e)
+    except:
+        pass

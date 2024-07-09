@@ -35,6 +35,18 @@ def read_sav_metadata(file_name: str) -> pd.DataFrame:
 
     return variable_info
 
+def write_df_bytes(df: pd.DataFrame):
+    # Use a context manager with BytesIO
+    bytes_io = BytesIO()
+
+    # Save the DataFrame to the BytesIO object as a CSV
+    df.to_excel(bytes_io, index=False)
+
+    # Reset the buffer's position to the beginning
+    bytes_io.seek(0)
+
+    return bytes_io
+
 @st.cache_data(show_spinner=False)
 def get_studies_info():
     db = firestore.client()
@@ -63,7 +75,6 @@ def upload_file_to_sharepoint(base_path: str, file_content: BytesIO, file_name: 
 def variables_validation(selected_variables: dict, metadata_df: pd.DataFrame):
     # Check for missing values
     missing_values = {k: v for k, v in selected_variables.items() if v not in [value.split('.')[0] for value in metadata_df.index.values]}
-    print(missing_values)
     if missing_values:
         missing_str = ", ".join([f"{k}: {v}" for k, v in missing_values.items()])
         raise ValueError(f"Missing variables in database: {missing_str}")
@@ -175,60 +186,101 @@ def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, survey_data)
 def process_study(spss_file_name: str, study_info: dict):
 
     study_number = study_info['study_id']
-    study_data = study_info['variables_mapping']
+    study_name = study_info['study_name']
+    study_data: pd.DataFrame = study_info['variables_mapping']
+    country = study_info['country']
+    client = study_info['client']
+    category = study_info['category']
+    sub_category = study_info['sub_category']
+    brand = study_info['brand']
+    demographic_variables = study_info['demographic_variables']
+    final_columns = study_info['db_variables']
 
     survey_data = pyreadstat.read_sav(
         spss_file_name,
         apply_value_formats=False
     )[1]
 
-    scales_data = get_scales_data(study_number, study_data, survey_data)
-    jr_scales_data = get_jr_scales_data(study_number, study_data, survey_data)
+    # scales_data = get_scales_data(study_number, study_data, survey_data)
+    # jr_scales_data = get_jr_scales_data(study_number, study_data, survey_data)
 
-    print('scales_data:\n', scales_data)
-    print('jr_scales_data:\n', jr_scales_data)
+    # print('scales_data:\n', scales_data)
+    # print('jr_scales_data:\n', jr_scales_data)
 
-    final_columns = study_info['db_variables']
     final_data_template = pd.DataFrame(columns=final_columns)
 
-    try:
-        print(f'Processing study...')
+    print(f'Processing study {study_number}_{study_name}...')
 
-        survey_data_tags: pd.DataFrame = pyreadstat.read_sav(
-            spss_file_name,
-            apply_value_formats=True
-        )[0].dropna(how='all')
+    survey_data_tags: pd.DataFrame = pyreadstat.read_sav(
+        spss_file_name,
+        apply_value_formats=True
+    )[0].dropna(how='all')
 
-        survey_data: pd.DataFrame = pyreadstat.read_sav(
-            spss_file_name,
-            apply_value_formats=False
-        )[0].dropna(how='all')
+    survey_data: pd.DataFrame = pyreadstat.read_sav(
+        spss_file_name,
+        apply_value_formats=False
+    )[0].dropna(how='all')
 
-        matching_columns = [variable for variable in study_data['question_code'] if variable in survey_data.columns]
-        print(matching_columns)
-        pattern = study_info['sample_variable']
+    demographic_variables_codes = study_data[study_data['question'].isin(demographic_variables)]['question_code'].to_list()
 
-        sample_columns = survey_data[survey_data.columns[survey_data.columns.str.contains(pattern, regex=True)]].columns.tolist()
+    pattern = study_info['sample_variable']
 
-        survey_data.loc[:, matching_columns + sample_columns] = survey_data_tags.loc[:, matching_columns + sample_columns]
+    sample_columns = survey_data[survey_data.columns[survey_data.columns.str.contains(pattern, regex=True)]].columns.tolist()
 
-        if 'sys_RespNum' in survey_data.columns:
-            survey_data['sys_RespNum'] = survey_data['sys_RespNum'].astype(int)
-        elif 'ID_DP' in survey_data.columns:
-            survey_data['sys_RespNum'] = survey_data['ID_DP'].astype(int)
+    survey_data.loc[:, demographic_variables_codes + sample_columns] = survey_data_tags.loc[:, demographic_variables_codes + sample_columns]
+
+    if 'sys_RespNum' not in study_data['question'].to_list():
+        survey_data = survey_data.reset_index(names='sys_RespNum')
+
+    survey_data = survey_data.replace({'': np.nan})
+    survey_data = survey_data.replace({-99: np.nan})
+
+    print(f'Number of surveys taken: {len(survey_data)}')
+
+    for _, survey in survey_data.iterrows():
+        # print(f'Processing survey {_}')
+        answers = survey.to_frame(name='answer').reset_index(names='question_code')
+
+        test_samples_nan = (
+            answers['question_code']
+            .apply(
+                lambda x: x.split('.')[1]
+                if (
+                    len(x.split('.')) > 1
+                    and '_' not in x.split('.')[1]
+                    and (
+                        'P' in x.split('.')[0]
+                        or 'p' in x.split('.')[0]
+                        or 'N' in x.split('.')[0]
+                    )
+                ) else np.nan
+            )
+            .astype(float)
+            .isna()
+        )
+
+        if len(sample_columns) > 1 and all(test_samples_nan):
+            print('Inconsistency: There is more than one sample but there are no variables with pattern PXX.X or pXX.X or NXX.X')
+            break
+
+        if all(test_samples_nan):
+            answers['sample_number'] = 1
+
+            answers['question_code'] = (
+                answers['question_code']
+                .apply(lambda x: x.split('.')[0] if len(x.split('.')) > 1 else x)
+            )
+
+            samples = pd.DataFrame(
+                {
+                    'question_code': [1],
+                    'sample': answers[answers['question_code'].str.contains(pattern)]['answer'].values,
+                    'sample_number': [1]
+                }
+            )
+
         else:
-            survey_data = survey_data.reset_index(names='sys_RespNum')
-
-        survey_data = survey_data.replace({'': np.nan})
-        survey_data = survey_data.replace({-99: np.nan})
-
-        print(f'Number of surveys taken: {len(survey_data)}')
-
-        for j, survey in survey_data.iterrows():
-            # print(f'Processing survey {j}')
-            answers = survey.to_frame(name='answer').reset_index(names='question_code')
-
-            test_samples_nan = (
+            answers['sample_number'] = (
                 answers['question_code']
                 .apply(
                     lambda x: x.split('.')[1]
@@ -243,11 +295,24 @@ def process_study(spss_file_name: str, study_info: dict):
                     ) else np.nan
                 )
                 .astype(float)
+            )
+
+            answers['question_code'] = (
+                answers['question_code']
+                .apply(lambda x: x.split('.')[0] if len(x.split('.')) > 1 else x)
+            )
+
+            answers['sample_number'] = np.where(
+                answers['question_code'].isin(study_data['question_code']), answers['sample_number'], np.nan
+            )
+
+            test_samples_nan = (
+                answers['sample_number']
                 .isna()
             )
 
             if len(sample_columns) > 1 and all(test_samples_nan):
-                print('Inconsistency: There is more than one sample but there are no variables with pattern PXX.X or pXX.X or NXX.X')
+                print('Inconsistency: (Second instance) There is more than one sample but there are no variables with pattern PXX.X or pXX.X or NXX.X')
                 break
 
             if all(test_samples_nan):
@@ -261,121 +326,68 @@ def process_study(spss_file_name: str, study_info: dict):
                 samples = pd.DataFrame(
                     {
                         'question_code': [1],
-                        'sample': answers[answers['question_code'].str.contains(pattern)]['answer'].values,
+                        'sample': [1],
                         'sample_number': [1]
                     }
                 )
 
-            else:
-                answers['sample_number'] = (
-                    answers['question_code']
-                    .apply(
-                        lambda x: x.split('.')[1]
-                        if (
-                            len(x.split('.')) > 1
-                            and '_' not in x.split('.')[1]
-                            and (
-                                'P' in x.split('.')[0]
-                                or 'p' in x.split('.')[0]
-                                or 'N' in x.split('.')[0]
-                            )
-                        ) else np.nan
-                    )
-                    .astype(float)
-                )
 
-                answers['question_code'] = (
-                    answers['question_code']
-                    .apply(lambda x: x.split('.')[0] if len(x.split('.')) > 1 else x)
-                )
+            # Get samples of this survey
+            samples = answers[answers['question_code'].str.contains(pattern, regex=True)].reset_index(drop=True).replace({0: np.nan})
+            samples = samples[~samples['answer'].isna()].reset_index(drop=True)
+            samples['sample_number'] = answers[(~answers['sample_number'].isna()) & (~answers['answer'].isna())]['sample_number'].unique().astype(int)
+            samples = samples.rename(columns={'answer': 'sample'})
 
-                answers['sample_number'] = np.where(
-                    answers['question_code'].isin(study_data['question_code']), answers['sample_number'], np.nan
-                )
+        answers_merged = (
+            study_data.merge(answers, on='question_code')
+            .dropna(subset='answer')
+            .reset_index(drop=True)
+        )
 
-                test_samples_nan = (
-                    answers['sample_number']
-                    .isna()
-                )
+        questions_with_sample = answers_merged[~answers_merged['sample_number'].isna()].reset_index(drop=True)
+        questions_without_sample = answers_merged[answers_merged['sample_number'].isna()].reset_index(drop=True)
 
-                if len(sample_columns) > 1 and all(test_samples_nan):
-                    print('Inconsistency: (Second instance) There is more than one sample but there are no variables with pattern PXX.X or pXX.X or NXX.X')
-                    break
+        questions_without_sample_duplication = []
+        for sample in answers_merged['sample_number'].dropna().unique():
+            df_sample = questions_without_sample.copy()
+            df_sample['sample_number'] = sample
+            questions_without_sample_duplication.append(df_sample)
 
-                if all(test_samples_nan):
-                    answers['sample_number'] = 1
+        questions_answers_merged = (
+            pd.concat(questions_without_sample_duplication + [questions_with_sample])
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
 
-                    answers['question_code'] = (
-                        answers['question_code']
-                        .apply(lambda x: x.split('.')[0] if len(x.split('.')) > 1 else x)
-                    )
-
-                    samples = pd.DataFrame(
-                        {
-                            'question_code': [1],
-                            'sample': [1],
-                            'sample_number': [1]
-                        }
-                    )
-
-
-                # Get samples of this survey
-                samples = answers[answers['question_code'].str.contains(pattern, regex=True)].reset_index(drop=True).replace({0: np.nan})
-                samples = samples[~samples['answer'].isna()].reset_index(drop=True)
-                samples['sample_number'] = answers[(~answers['sample_number'].isna()) & (~answers['answer'].isna())]['sample_number'].unique().astype(int)
-                samples = samples.rename(columns={'answer': 'sample'})
-
-            answers_merged = (
-                study_data.merge(answers, on='question_code')
-                .dropna(subset='answer')
-                .reset_index(drop=True)
+        pivoted_answers = (
+            questions_answers_merged
+            .drop(columns='question_code')
+            .pivot(
+                columns='question',
+                index='sample_number',
+                values='answer'
             )
+            .reset_index()
+        )
 
-            questions_with_sample = answers_merged[~answers_merged['sample_number'].isna()].reset_index(drop=True)
-            questions_without_sample = answers_merged[answers_merged['sample_number'].isna()].reset_index(drop=True)
+        pivoted_answers['sample_number'] = pivoted_answers['sample_number'].astype(int)
 
-            questions_without_sample_duplication = []
-            for sample in answers_merged['sample_number'].dropna().unique():
-                df_sample = questions_without_sample.copy()
-                df_sample['sample_number'] = sample
-                questions_without_sample_duplication.append(df_sample)
+        pivoted_answers = samples.drop(columns='question_code').merge(pivoted_answers, on='sample_number')
 
-            questions_answers_merged = (
-                pd.concat(questions_without_sample_duplication + [questions_with_sample])
-                .drop_duplicates()
-                .reset_index(drop=True)
-            )
+        # Fill static information
+        pivoted_answers['Número del estudio'] = study_number
+        pivoted_answers['Nombre del estudio'] = study_name
+        # pivoted_answers['Número de muestras'] = study_data[study_data['question'] == 'Número de muestras'].reset_index(drop=True)['question_code'].loc[0]
+        # pivoted_answers['Códigos de las muestras'] = study_data[study_data['question'] == 'Códigos de las muestras'].reset_index(drop=True)['question_code'].loc[0]
+        pivoted_answers['Categoría'] = category
+        pivoted_answers['Sub - Categoría'] = sub_category
+        pivoted_answers['sys_RespNum'] = answers[answers['question_code'] == 'sys_RespNum'].reset_index(drop=True)['answer'].astype(int).loc[0]
+        pivoted_answers['País'] = country
+        pivoted_answers['Cliente'] = client
+        pivoted_answers['Marca'] = brand
 
-            pivoted_answers = (
-                questions_answers_merged
-                .drop(columns='question_code')
-                .pivot(
-                    columns='question',
-                    index='sample_number',
-                    values='answer'
-                )
-                .reset_index()
-            )
+        final_data_template = pd.concat([final_data_template, pivoted_answers]).reset_index(drop=True)
 
-            pivoted_answers['sample_number'] = pivoted_answers['sample_number'].astype(int)
+    final_data_template = final_data_template[list(final_columns)]
 
-            pivoted_answers = samples.drop(columns='question_code').merge(pivoted_answers, on='sample_number')
-
-            # Fill static information
-            pivoted_answers['Número del estudio'] = study_data[study_data['question'] == 'Número del estudio'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['Nombre del estudio'] = study_data[study_data['question'] == 'Nombre del estudio'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['Número de muestras'] = study_data[study_data['question'] == 'Número de muestras'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['Códigos de las muestras'] = study_data[study_data['question'] == 'Códigos de las muestras'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['Categoría'] = study_data[study_data['question'] == 'Categoría'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['Sub - Categoría'] = study_data[study_data['question'] == 'Sub - Categoría'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['sys_RespNum'] = answers[answers['question_code'] == 'sys_RespNum'].reset_index(drop=True)['answer'].astype(int).loc[0]
-            pivoted_answers['País'] = study_data[study_data['question'] == 'País'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['Cliente'] = study_data[study_data['question'] == 'Cliente'].reset_index(drop=True)['question_code'].loc[0]
-            pivoted_answers['Marca'] = study_data[study_data['question'] == 'Marca'].reset_index(drop=True)['question_code'].loc[0]
-
-            final_data_template = pd.concat([final_data_template, pivoted_answers]).reset_index(drop=True)
-
-        final_data_template = final_data_template[final_columns]
-
-    except Exception as e:
-        raise ValueError(e)
+    return write_df_bytes(final_data_template)
