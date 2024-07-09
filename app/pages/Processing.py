@@ -4,6 +4,9 @@ import streamlit as st
 
 from app.modules.processing import processing
 from app.modules.preprocessing import preprocessing
+from app.modules.processor import getPreProcessCode
+from app.modules.processor import getProcessCode
+from app.modules.processor import getCloneCodeVars
 
 def main():
     # -------------- SETTINGS --------------
@@ -13,7 +16,23 @@ def main():
 
     st.header('SPSS Tables')
 
-    st.markdown('### Preprocessing')
+    st.markdown('### Processing')
+
+    with st.form('processingSPSS_form'):
+        uploaded_file_process_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processingSPSS_xlsx')
+        uploaded_file_process_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
+        processButton = st.form_submit_button('Get code to process')
+        if processButton and uploaded_file_process_xlsx and uploaded_file_process_sav:
+            st.markdown("Preprocess code (one time only):")
+            st.text_area("Code to preprocess (one time only):",getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx))
+            st.text_area("Code to clone variables with labels:",getCloneCodeVars(uploaded_file_process_sav,uploaded_file_process_xlsx))
+            st.markdown("##Code SPSS")
+            st.text_area("Code to gen Tables in SPSS:",getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx))
+
+
+
+
+    st.markdown('### Segment Base')
 
     with st.form('preprocessing_form'):
 
@@ -61,7 +80,7 @@ def main():
     except:
         pass
 
-    st.markdown('### Processing')
+    st.markdown('### Get Diferences')
 
     with st.form('processing_form'):
 
