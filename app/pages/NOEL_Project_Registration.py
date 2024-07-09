@@ -31,6 +31,7 @@ def main():
         brands = tuple(studies_info['brands'])
         clients = tuple(studies_info['clients'])
         variables = tuple(studies_info['variables'])
+        db_variables = tuple(studies_info['db_variables'])
     except Exception as e:
         st.error(e)
 
@@ -181,7 +182,8 @@ def main():
                     'sub_category': sub_category,
                     'brand': brand,
                     'sample_variable': sample_variable,
-                    'variables_mapping': variables_mapping
+                    'variables_mapping': variables_mapping,
+                    'db_variables': db_variables
                 }
 
                 # print(variables_mapping_dict)
