@@ -57,7 +57,8 @@ def create_workbook(result_df: pd.DataFrame):
                 if col_num > 2:  # Apply number format to numeric columns
                     cell.number_format = '0.00'
                 # Apply thin borders to data cells
-                cell.border = Border(top=Side(border_style="thin"), bottom=Side(border_style="thin"))
+                if col_num > 1:
+                    cell.border = Border(top=Side(border_style="thin"), bottom=Side(border_style="thin"))
 
         # Write the question in the merged cell
         cell = worksheet.cell(row=start_row + 2, column=1)
