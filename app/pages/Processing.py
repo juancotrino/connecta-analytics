@@ -28,7 +28,7 @@ def main():
         uploaded_file_process_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
         processButton = st.form_submit_button('Get code to process')
         if processButton and uploaded_file_process_xlsx and uploaded_file_process_sav:
-            col1, col2 = st.columns(2)
+            col1, col2 , col3  = st.columns(3)
 
             with col1:
                 col1.markdown("Preprocess code (one time only):")
@@ -39,12 +39,22 @@ def main():
                 col2.markdown("Code to clone variables with labels:")
                 with col2.container(height=250):
                     st.code(getCloneCodeVars(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
-            st.text_area("Code to segment base by references:",getSegmentCode(uploaded_file_process_sav))
+            with col3:
+                col3.markdown("Code to segment base by references:")
+                with col3.container(height=250):
+                    st.code(getSegmentCode(uploaded_file_process_sav), line_numbers=True)
             st.markdown("#### Code SPSS")
-            st.markdown("Code to gen Tables in SPSS:")
-            with st.container(height=250):
-                st.code(getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
-            st.text_area("Code to gen Penaltys Tables in SPSS:",getPenaltysCode(uploaded_file_process_xlsx))
+            col1, col2  = st.columns(2)
+            with col1:
+                col1.markdown("Code to gen Tables in SPSS:")
+                with col1.container(height=250):
+                    st.code(getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
+
+            with col2:
+                col2.markdown("Code to gen Penaltys Tables in SPSS:")
+                with col2.container(height=250):
+                    st.code(getPenaltysCode(uploaded_file_process_xlsx), line_numbers=True)
+
 
 
     st.markdown('### Penalties')
