@@ -116,8 +116,10 @@ def process_chi2(
 
     results_df = results_df.reset_index(names='code').merge(variables_scale_info, on='code')
 
-    return results_df[['text', 'Cramer\'s V', 'P-value', 'scale_type']].sort_values(by=['Cramer\'s V'], ascending=True)
-
+    if not results_df.empty:
+        return results_df[['text', 'Cramer\'s V', 'P-value', 'scale_type']].sort_values(by=['Cramer\'s V'], ascending=True)
+    else:
+        return pd.DataFrame()
 
 def copy_axis_style(source_axis, invisible: bool):
     target_axis = copy(source_axis)
