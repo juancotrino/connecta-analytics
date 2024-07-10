@@ -590,12 +590,13 @@ def get_authenticator():
         os.getenv('COOKIE_KEY')
     )
 
-# @st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=600)
 def get_page_roles() -> dict[str, dict[str, list]]:
     db = firestore.client()
     documents = db.collection("pages").stream()
     return {document.id: document.to_dict() for document in documents}
 
+@st.cache_data(show_spinner=False, ttl=600)
 def get_user_roles(user_uid: str) -> tuple[str]:
     db = firestore.client()
     document = db.collection("users").document(user_uid).get()
@@ -608,6 +609,7 @@ def get_user_roles(user_uid: str) -> tuple[str]:
 
     return roles
 
+@st.cache_data(show_spinner=False, ttl=600)
 def get_inverted_scales_keywords():
     db = firestore.client()
     document = db.collection("settings").document('keywords').get()
