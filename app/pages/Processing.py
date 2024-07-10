@@ -31,7 +31,7 @@ def main():
             col1, col2 , col3  = st.columns(3)
 
             with col1:
-                col1.markdown("Preprocess code (one time only):")
+                col1.markdown("Preprocess code (only first time):")
                 with col1.container(height=250):
                     st.code(getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
 
