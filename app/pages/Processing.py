@@ -4,9 +4,12 @@ import streamlit as st
 
 from app.modules.processing import processing
 from app.modules.preprocessing import preprocessing
-from app.modules.processor import getPreProcessCode
-from app.modules.processor import getProcessCode
-from app.modules.processor import getCloneCodeVars
+from app.modules.processor import (
+    getPreProcessCode,
+    getProcessCode,
+    getCloneCodeVars
+)
+from app.modules.penalty import calculate_penalties
 
 def main():
     # -------------- SETTINGS --------------
@@ -23,16 +26,51 @@ def main():
         uploaded_file_process_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
         processButton = st.form_submit_button('Get code to process')
         if processButton and uploaded_file_process_xlsx and uploaded_file_process_sav:
-            st.markdown("Preprocess code (one time only):")
-            st.text_area("Code to preprocess (one time only):",getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx))
-            st.text_area("Code to clone variables with labels:",getCloneCodeVars(uploaded_file_process_sav,uploaded_file_process_xlsx))
-            st.markdown("##Code SPSS")
-            st.text_area("Code to gen Tables in SPSS:",getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx))
+            col1, col2 = st.columns(2)
+
+            with col1:
+                col1.markdown("Preprocess code (one time only):")
+                with col1.container(height=250):
+                    st.code(getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
+
+            with col2:
+                col2.markdown("Code to clone variables with labels:")
+                with col2.container(height=250):
+                    st.code(getCloneCodeVars(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
+
+            st.markdown("#### Code SPSS")
+            st.markdown("Code to gen Tables in SPSS:")
+            with st.container(height=250):
+                st.code(getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
 
 
+    st.markdown('### Penalties')
 
+    with st.form('penalties_form'):
+        uploaded_file_penalty_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='penalty_xlsx')
 
-    st.markdown('### Segment Base')
+        calculate = st.form_submit_button('Calculate penalties')
+
+        if uploaded_file_penalty_xlsx and calculate:
+            with st.spinner('Calculating penalties...'):
+                try:
+                    penalties_results = calculate_penalties(uploaded_file_penalty_xlsx)
+                    st.success('Penalties calculated successfully.')
+                except Exception as e:
+                    st.error(e)
+
+    try:
+        st.download_button(
+            label="Download penalties",
+            data=penalties_results.getvalue(),
+            file_name=f'penalties.xlsx',
+            mime='application/xlsx',
+            type='primary'
+        )
+    except:
+        pass
+
+    st.markdown('### Transform Database')
 
     with st.form('preprocessing_form'):
 
@@ -80,7 +118,7 @@ def main():
     except:
         pass
 
-    st.markdown('### Get Diferences')
+    st.markdown('### Statistical Significance')
 
     with st.form('processing_form'):
 
