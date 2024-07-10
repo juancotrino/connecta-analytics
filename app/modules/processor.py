@@ -25,7 +25,7 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
 
 def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     file_xlsx = get_temp_file(xlsx_file)
-    varsList=pd.read_excel(file_xlsx,usecols="A,B",skiprows=3,names=["vars","varsTypes"])
+    varsList=pd.read_excel(file_xlsx,usecols="A,B",skiprows=3,names=["vars","varsTypes"]).dropna()
     colVarsList=pd.melt(pd.read_excel(file_xlsx,nrows=2),var_name="colVars",value_name="colVarsNames").drop(0)
     result=""
     colvars=colVarsList.iloc[:,0]
