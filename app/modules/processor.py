@@ -18,8 +18,9 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     if not inverseVarsList.empty:
         preprocesscode+=getInverseCodeVars(inverseVarsList)
     if not scaleVarsList.empty:
-        preprocesscode+=getScaleCodeVars(scaleVarsList)
-    preprocesscode+="\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nEXECUTE."
+        preprocesscode+=getScaleCodeVars(spss_file,scaleVarsList)
+    preprocesscode+="\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nVALUE LABELS TOTAL 1 \"TOTAL\".\nEXECUTE.\n"
+    preprocesscode+=getCloneCodeVars(spss_file,xlsx_file)
     return preprocesscode
 
 def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
@@ -39,6 +40,43 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     for i in range(len(varsList)):
         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars)
     return result
+
+def getPenaltysCode(xlsx_file: BytesIO):
+    try:
+        file_xlsx = get_temp_file(xlsx_file)
+        varsList=pd.read_excel(file_xlsx,usecols="A,B",skiprows=3,names=["vars","varsTypes"]).dropna()
+        penaltyList=pd.read_excel(file_xlsx,usecols="E",skiprows=3,names=["penaltyVars"]).dropna()
+        ref=penaltyList.iloc[0][0]
+        penaltyList=penaltyList.drop(0)
+        penaltyList=penaltyList.iloc[:,0]
+        penaltyCode=""
+        for i in range(len(varsList)):
+            typevar=varsList.iloc[i][1]
+            if typevar=="J":
+                var1=varsList.iloc[i][0]
+                var2=""
+                for penal in penaltyList:
+                    if re.search("_.*",var1).group()==re.search("_.*",penal).group():
+                        var2=penal
+                        break
+                penaltyCode+=("\nCTABLES"
+                    +"\n  /VLABELS VARIABLES="+var1+" "+ ref+" DISPLAY=LABEL  /VLABELS VARIABLES="+var2+ " DISPLAY=NONE"
+                    +"\n  /PCOMPUTE &cat3 = EXPR([4] + [5])"
+                    +"\n  /PPROPERTIES &cat3 LABEL = \"TOP TWO\" FORMAT=COUNT F40.0 HIDESOURCECATS=YES"
+                    +"\n  /PCOMPUTE &cat2 = EXPR([3])"
+                    +"\n  /PPROPERTIES &cat2 LABEL = \"JUST RIGHT\" FORMAT=COUNT F40.0 HIDESOURCECATS=YES"
+                    +"\n  /PCOMPUTE &cat1 = EXPR([1] + [2])"
+                    +"\n  /PPROPERTIES &cat1 LABEL = \"BOTTOM TWO\" FORMAT=COUNT F40.0 HIDESOURCECATS=YES"
+                    +"\n  /TABLE "+var1+" [C][COUNT F40.0] + "+var1+" [C] > "+var2+" [C][COUNT F40.0] BY "+ref+" [C]"
+                    +"\n  /SLABELS VISIBLE=NO"
+                    +"\n  /CATEGORIES VARIABLES="+var1+" [1, 2, 3, 4, 5, &cat3, &cat2, &cat1, OTHERNM] EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"
+                    +"\n  /CATEGORIES VARIABLES="+var2+" ORDER=A KEY=VALUE EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"
+                    +"\n  /CATEGORIES VARIABLES="+ref+" ORDER=A KEY=VALUE EMPTY=EXCLUDE"
+                    +"\n  /CRITERIA CILEVEL=95.")
+        return penaltyCode
+    except:
+        return "No Penaltys to calculated"
+
 
 
 
@@ -211,17 +249,29 @@ def getInverseCodeVars(inverseVars):
     inverserecodes+="\nEXECUTE."
     return inverserecodes
 
-def getScaleCodeVars(scaleVars):
+def getScaleCodeVars(spss_file: BytesIO,scaleVars):
     scalerecodes=""
-    for i in range(len(scaleVars)):
-        scalerecodes+="\nRECODE "+scaleVars.iloc[i][0]
-        index=1
-        for num in scaleVars.iloc[i][1].split():
-            scalerecodes+=" ("+str(index)+"="+num+")"
-            index+=1
-        scalerecodes+="."
-    scalerecodes+="\nEXECUTE."
-    return scalerecodes
+    try:
+        for i in range(len(scaleVars)):
+            scalerecodes+="\nRECODE "+scaleVars.iloc[i][0]
+            for num in range(len(scaleVars.iloc[i][1].split())):
+                scalerecodes+=" ("+str(num+1)+"="+scaleVars.iloc[i][1].split()[num]+")"
+            scalerecodes+="."
+        scalerecodes+="\nEXECUTE."
+        temp_file_name = get_temp_file(spss_file)
+        data, study_metadata = pyreadstat.read_sav(
+            temp_file_name,
+            apply_value_formats=False
+        )
+        dictValues=study_metadata.variable_value_labels
+        for i in range(len(scaleVars)):
+            scalerecodes+="\nVALUE LABELS "+scaleVars.iloc[i][0]
+            for num in range(len(scaleVars.iloc[i][1].split())):
+                scalerecodes+="\n"+scaleVars.iloc[i][1].split()[num]+" \"("+scaleVars.iloc[i][1].split()[num]+") "+dictValues[scaleVars.iloc[i][0]][num+1]+"\""
+            scalerecodes+="."
+        return scalerecodes
+    except:
+        return ""
 
 def getGroupCreateMultisCode(spss_file: BytesIO):
     agrupresult=""
@@ -256,6 +306,24 @@ def getGroupCreateMultisCode(spss_file: BytesIO):
         label2=label
     return agrupresult
 
+def getSegmentCode(spss_file: BytesIO):
+    try:
+        temp_file_name = get_temp_file(spss_file)
+        data, study_metadata = pyreadstat.read_sav(
+            temp_file_name,
+            apply_value_formats=False
+        )
+
+        refdict=study_metadata.variable_value_labels["REF.1"]
+        filterdatabase=""
+        namedatasetspss="ConjuntoDatos1"
+        for refindex in data["REF.1"].unique():
+            filterdatabase+="DATASET ACTIVATE "+ namedatasetspss+".\n"
+            filterdatabase+="DATASET COPY REF_"+refdict[refindex]+".\nDATASET ACTIVATE REF_"+refdict[refindex]+".\nFILTER OFF.\nUSE ALL.\n"
+            filterdatabase+="SELECT IF (REF.1 = "+str(int(refindex))+").\nEXECUTE.\n\n"
+        return filterdatabase
+    except:
+        return "References variable not is REF.1"
 def writeQuestion(varName,qtype, colVars):
     txt=""
     if qtype=="M":

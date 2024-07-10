@@ -7,6 +7,8 @@ from app.modules.preprocessing import preprocessing
 from app.modules.processor import getPreProcessCode
 from app.modules.processor import getProcessCode
 from app.modules.processor import getCloneCodeVars
+from app.modules.processor import getSegmentCode
+from app.modules.processor import getPenaltysCode
 
 def main():
     # -------------- SETTINGS --------------
@@ -26,8 +28,11 @@ def main():
             st.markdown("Preprocess code (one time only):")
             st.text_area("Code to preprocess (one time only):",getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx))
             st.text_area("Code to clone variables with labels:",getCloneCodeVars(uploaded_file_process_sav,uploaded_file_process_xlsx))
+            st.text_area("Code to segment base by references:",getSegmentCode(uploaded_file_process_sav))
             st.markdown("##Code SPSS")
             st.text_area("Code to gen Tables in SPSS:",getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx))
+            st.text_area("Code to gen Penaltys Tables in SPSS:",getPenaltysCode(uploaded_file_process_xlsx))
+
 
 
 
