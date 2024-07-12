@@ -7,6 +7,7 @@ import streamlit as st
 
 from app.modules.noel_dashboard import (
     get_data,
+    get_data_unique,
     to_excel_bytes,
     calculate_statistics_regular_scale,
     calculate_statistics_jr_scale
@@ -30,6 +31,7 @@ def main():
     st.header('Filters')
 
     try:
+        # data = get_data_unique()
         data = get_data()
     except Exception as e:
         st.error(e)

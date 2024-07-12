@@ -250,6 +250,17 @@ def transponse_df(df: pd.DataFrame):
 
     return transformed_data
 
+def check_project_existance_in_bq(project_id: int):
+    bq = BigQueryClient()
+    bq.fetch_data(
+        """
+        SELECT 1
+        FROM `connecta-analytics-app.normas.noel`
+        WHERE unique_key = value;
+        """
+    )
+    pass
+
 def load_to_bq(df: pd.DataFrame):
     bq = BigQueryClient()
     bq.load_data('noel', df)
@@ -456,6 +467,10 @@ def process_study(spss_file_name: str, study_info: dict):
     final_data_template = final_data_template[list(final_columns)]
 
     final_data_template = transponse_df(final_data_template)
+
+    final_data_template['study_number'] = final_data_template['study_number'].astype(int)
+    final_data_template['age'] = final_data_template['age'].astype(int)
+    final_data_template['value'] = final_data_template['value'].astype(int)
 
     load_to_bq(final_data_template)
 

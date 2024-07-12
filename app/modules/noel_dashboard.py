@@ -3,7 +3,27 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from app.modules.cloud import SharePoint
+from app.modules.cloud import SharePoint, BigQueryClient
+
+@st.cache_data
+def get_data_unique():
+    bq = BigQueryClient()
+    return bq.fetch_data(
+        """
+        SELECT DISTINCT
+            category,
+            sub_category,
+            client,
+            study_name,
+            brand,
+            sample,
+            age,
+            gender,
+            ses,
+            country
+        FROM `connecta-analytics-app.normas.noel`;
+        """
+    )
 
 @st.cache_data
 def get_data():

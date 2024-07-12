@@ -119,7 +119,7 @@ def main():
 
             with col3:
                 study_name = st.text_input('Project name')
-                study_name = study_name.strip().lower().replace(' ', '_')
+                study_name = study_name.strip().title().replace(' ', '_')
 
                 sub_category = st.selectbox(
                     'Subcategory',
@@ -195,7 +195,7 @@ def main():
                 if country:
                     country_code = countries_iso_2_code[country].lower()
 
-                    id_study_name = f'{study_id}_{country_code}_{study_name}'
+                    id_study_name = f'{study_id}_{country_code}_{study_name.lower()}'
 
             create_button = st.form_submit_button('Process database')
 
