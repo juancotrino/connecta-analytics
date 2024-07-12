@@ -2,6 +2,13 @@ import os
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, wait
 
+import time
+import random
+
+import pandas as pd
+
+from google.cloud import bigquery
+
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.sharepoint.client_context import ClientContext
 
@@ -57,3 +64,93 @@ class SharePoint:
 
     def upload_file(self, folder: str, file_content: BytesIO, file_name: str):
         self.ctx.web.get_folder_by_server_relative_url(f'{folder}/').upload_file(file_name, file_content).execute_query()
+
+
+def handle_rate_limit(func):
+    def wrapper(*args, **kwargs):
+        max_retries = 5
+        retries = 0
+
+        while retries < max_retries:
+            try:
+                result = func(*args, **kwargs)
+                return result
+            except Exception as e:
+                if "403 Exceeded rate limits" in str(e):
+                    # Implement exponential backoff with jitter
+                    wait_time = (2 ** retries) + (random.uniform(0, 1) * 0.1)
+                    time.sleep(wait_time)
+                    retries += 1
+                else:
+                    # Handle other exceptions
+                    print(f"Error: {e}")
+                    break
+
+    return wrapper
+
+class BigQueryClient:
+    def __init__(self) -> None:
+        self.client = bigquery.Client()
+        self.schema_id = os.getenv('BIGQUERY_SCHEMA_ID')
+
+    @handle_rate_limit
+    def load_data(
+        self,
+        table_name: str,
+        data: pd.DataFrame
+    ):
+
+        job = self.client.load_table_from_dataframe(data, f'{self.schema_id}.{table_name}')  # Make an API request.
+        job.result()
+
+    def fetch_data(
+        self,
+        query: str
+    ) -> pd.DataFrame:
+
+        return self.client.query(query).to_dataframe()
+
+    @handle_rate_limit
+    def delete_data(
+        self,
+        query: str
+    ):
+
+        return self.client.query(query)
+
+    def fetch_available_periods(
+        self,
+        table_name: str,
+        country: str,
+        study: str,
+        source: str | None = None,
+        print_query: bool = False
+    ):
+
+        if source:
+            source_query = f"AND source = '{source}'"
+        else:
+            source_query = ""
+
+        query = """
+        SELECT DISTINCT
+            year,
+            cycle,
+            CONCAT(year, '_', cycle) AS period
+        FROM `{schema}.{table_name}`
+        WHERE country = '{country}'
+            {source_query}
+            AND study = '{study}'
+        ORDER BY year, cycle
+        """.format(
+            schema=self.schema_id,
+            table_name=table_name,
+            country=country,
+            study=study,
+            source_query=source_query
+        )
+
+        if print_query:
+            print(query)
+
+        return self.client.query(query).to_dataframe()

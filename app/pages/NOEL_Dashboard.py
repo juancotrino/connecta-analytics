@@ -39,16 +39,16 @@ def main():
     col31, col32, col33, col34 = st.columns(4)
 
     filters_template = {
-        'Categoría': ('Category', col11),
-        'Sub - Categoría': ('Sub Category', col12),
-        'Cliente': ('Client', col21),
-        'Nombre del estudio': ('Study Name', col22),
-        'Marca': ('Brand', col23),
+        'category': ('Category', col11),
+        'sub_category': ('Sub Category', col12),
+        'client': ('Client', col21),
+        'study_name': ('Study Name', col22),
+        'brand': ('Brand', col23),
         'sample': ('Sample', col24),
-        'Edad': ('Age', col31),
-        'Género': ('Gender', col32),
-        'Estrato/Nivel socieconómico': ('SES', col33),
-        'País': ('Country', col34),
+        'age': ('Age', col31),
+        'gender': ('Gender', col32),
+        'ses': ('SES', col33),
+        'country': ('Country', col34),
     }
 
     filters = {filter_name: [] for filter_name in filters_template.keys()}
@@ -56,18 +56,18 @@ def main():
     for filter_name, attributes in filters_template.items():
         name, field = attributes
         if name == 'Age':
-            if data['Edad'].isna().all():
+            if data['age'].isna().all():
                 continue
-            disabled = len(data['Edad'].dropna().unique()) == 0
+            disabled = len(data['age'].dropna().unique()) == 0
             selection = field.slider(
                 name,
                 value=(
-                    int(min(data['Edad'].dropna().unique())) if not disabled else 0,
-                    int(max(data['Edad'].dropna().unique())) if not disabled else 0
+                    int(min(data['age'].dropna().unique())) if not disabled else 0,
+                    int(max(data['age'].dropna().unique())) if not disabled else 0
                 ),
                 disabled=disabled
             )
-            data = data[(data['Edad'] >= selection[0]) & (data['Edad'] <= selection[1])]
+            data = data[(data['age'] >= selection[0]) & (data['age'] <= selection[1])]
         else:
             selection = field.multiselect(name, sorted(data[filter_name].unique()))
             if selection:

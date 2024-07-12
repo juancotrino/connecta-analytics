@@ -12,6 +12,7 @@ from app.modules.noel_proejct_registration import (
     get_studies_info,
     upload_file_to_sharepoint,
     validate_data,
+    get_logs,
     process_study
 )
 from app.modules.utils import get_countries
@@ -222,15 +223,14 @@ def main():
                                 )
 
                             with st.spinner('Processing database...'):
+                                logs = get_logs(study_info)
+                                upload_file_to_sharepoint(base_path, logs, 'logs.txt')
                                 processed_db = process_study(sav_file_name, study_info)
                                 upload_file_to_sharepoint(base_path, processed_db, 'processed_db.xlsx')
-
-                                # TODO: Append the processed db to the global db in dbs/norma_noel.xlsx
-                                # upload_file_to_sharepoint(uploaded_file_sav)
                                 st.success(
                                     f'Database processed and loaded successfully into above created folder.'
                                 )
-
+                            # TODO: create a funcion that writes the logs of all configuration parameters passed
                         except Exception as e:
                             st.error(e)
 

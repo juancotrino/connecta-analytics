@@ -9,7 +9,7 @@ from firebase_admin import firestore
 
 import streamlit as st
 
-from app.modules.cloud import SharePoint
+from app.modules.cloud import SharePoint, BigQueryClient
 
 def get_temp_file(spss_file: BytesIO):
     # Save BytesIO object to a temporary file
@@ -46,6 +46,30 @@ def write_df_bytes(df: pd.DataFrame):
     bytes_io.seek(0)
 
     return bytes_io
+
+def write_txt_bytes(text: str):
+
+    # Create a BytesIO object
+    output = BytesIO()
+
+    # Write the combined output to the BytesIO object
+    output.write(text.encode('utf-8'))
+
+    # Seek to the beginning of the BytesIO object to read its content from the start
+    output.seek(0)
+
+    return output
+
+# def write_temp_txt(text: str):
+#     with tempfile.NamedTemporaryFile() as tmpfile:
+
+
+#         # Write the markdown output to a txt file
+#         with open(tmpfile.name, 'w') as file:
+#             file.write(text)
+
+#         with open(tmpfile.name, 'rb') as f:
+#             return BytesIO(f.read())
 
 @st.cache_data(show_spinner=False)
 def get_studies_info():
@@ -183,6 +207,53 @@ def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, survey_data)
 
         return jr_scales_data
 
+def get_logs(study_info: dict):
+
+    logs_demographics_df = pd.DataFrame(
+        {
+            'study_number': [study_info['study_id']],
+            'study_name': [study_info['study_name']],
+            'country': [study_info['country']],
+            'client': [study_info['client']],
+            'category': [study_info['category']],
+            'sub_category': [study_info['sub_category']],
+            'brand': [study_info['brand']],
+        }
+    ).transpose().reset_index()
+
+    logs_demographics_df.columns = ['variable', 'value']
+
+    logs_variable_mapping_df: pd.DataFrame = study_info['variables_mapping']
+
+    logs_demographics = logs_demographics_df.to_markdown(headers='keys', tablefmt='psql', index=False)
+    logs_variable_mapping = logs_variable_mapping_df.to_markdown(headers='keys', tablefmt='psql', index=False)
+
+    logs = "DEMOGRAPHICS:\n\n" + logs_demographics + "\n\n\nVARIABLE MAPPING:\n\n" + logs_variable_mapping
+
+    return write_txt_bytes(logs)
+
+def transponse_df(df: pd.DataFrame):
+
+    transformed_data = df.melt(
+        id_vars=df.columns[:14].tolist(),
+        value_vars=df.columns[14:].tolist(),
+        var_name='attribute',
+        value_name='value'
+    ).dropna(subset='value').reset_index(drop=True)
+
+    transformed_data['category'] = transformed_data['category'].apply(lambda x: x.strip())
+    transformed_data['sample'] = transformed_data['sample'].astype(str)
+    transformed_data['gender'] = transformed_data['gender'].astype(str)
+    transformed_data['age'] = transformed_data['age'].apply(lambda x: x if isinstance(x, (float, int)) else np.nan)
+    transformed_data['ses'] = transformed_data['ses'].astype(str)
+    transformed_data['country'] = transformed_data['country'].apply(lambda x: x.title())
+
+    return transformed_data
+
+def load_to_bq(df: pd.DataFrame):
+    bq = BigQueryClient()
+    bq.load_data('noel', df)
+
 def process_study(spss_file_name: str, study_info: dict):
 
     study_number = study_info['study_id']
@@ -200,12 +271,6 @@ def process_study(spss_file_name: str, study_info: dict):
         spss_file_name,
         apply_value_formats=False
     )[1]
-
-    # scales_data = get_scales_data(study_number, study_data, survey_data)
-    # jr_scales_data = get_jr_scales_data(study_number, study_data, survey_data)
-
-    # print('scales_data:\n', scales_data)
-    # print('jr_scales_data:\n', jr_scales_data)
 
     final_data_template = pd.DataFrame(columns=final_columns)
 
@@ -375,19 +440,23 @@ def process_study(spss_file_name: str, study_info: dict):
         pivoted_answers = samples.drop(columns='question_code').merge(pivoted_answers, on='sample_number')
 
         # Fill static information
-        pivoted_answers['Número del estudio'] = study_number
-        pivoted_answers['Nombre del estudio'] = study_name
+        pivoted_answers['study_number'] = study_number
+        pivoted_answers['study_name'] = study_name
         # pivoted_answers['Número de muestras'] = study_data[study_data['question'] == 'Número de muestras'].reset_index(drop=True)['question_code'].loc[0]
         # pivoted_answers['Códigos de las muestras'] = study_data[study_data['question'] == 'Códigos de las muestras'].reset_index(drop=True)['question_code'].loc[0]
-        pivoted_answers['Categoría'] = category
-        pivoted_answers['Sub - Categoría'] = sub_category
+        pivoted_answers['category'] = category
+        pivoted_answers['sub_category'] = sub_category
         pivoted_answers['sys_RespNum'] = answers[answers['question_code'] == 'sys_RespNum'].reset_index(drop=True)['answer'].astype(int).loc[0]
-        pivoted_answers['País'] = country
-        pivoted_answers['Cliente'] = client
-        pivoted_answers['Marca'] = brand
+        pivoted_answers['country'] = country
+        pivoted_answers['client'] = client
+        pivoted_answers['brand'] = brand
 
         final_data_template = pd.concat([final_data_template, pivoted_answers]).reset_index(drop=True)
 
     final_data_template = final_data_template[list(final_columns)]
+
+    final_data_template = transponse_df(final_data_template)
+
+    load_to_bq(final_data_template)
 
     return write_df_bytes(final_data_template)

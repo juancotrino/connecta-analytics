@@ -22,12 +22,12 @@ def get_data():
         value_vars=data.columns[16:]
     ).dropna(subset='value').reset_index(drop=True)
 
-    transformed_data['Categoría'] = transformed_data['Categoría'].apply(lambda x: x.strip())
+    transformed_data['category'] = transformed_data['category'].apply(lambda x: x.strip())
     transformed_data['sample'] = transformed_data['sample'].astype(str)
-    transformed_data['Género'] = transformed_data['Género'].astype(str)
-    transformed_data['Edad'] = transformed_data['Edad'].apply(lambda x: x if isinstance(x, (float, int)) else np.nan)
-    transformed_data['Estrato/Nivel socieconómico'] = transformed_data['Estrato/Nivel socieconómico'].astype(str)
-    transformed_data['País'] = transformed_data['País'].apply(lambda x: x.capitalize())
+    transformed_data['gender'] = transformed_data['gender'].astype(str)
+    transformed_data['age'] = transformed_data['age'].apply(lambda x: x if isinstance(x, (float, int)) else np.nan)
+    transformed_data['ses'] = transformed_data['ses'].astype(str)
+    transformed_data['country'] = transformed_data['country'].apply(lambda x: x.capitalize())
 
     return transformed_data
 
