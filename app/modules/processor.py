@@ -77,6 +77,16 @@ def getPenaltysCode(xlsx_file: BytesIO):
     except:
         return "No Penaltys to calculated"
 
+def getCruces(xlsx_file: BytesIO):
+    try:
+        file_xlsx = get_temp_file(xlsx_file)
+        varsList=pd.read_excel(file_xlsx,usecols="A,B,F",skiprows=3,names=["vars","varsTypes","crossVars"]).dropna()
+        crosscode=""
+        for i in range(len(varsList)):
+            crosscode+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],[varsList.iloc[i][2]])
+        return crosscode
+    except:
+        return "No cruces"
 
 
 

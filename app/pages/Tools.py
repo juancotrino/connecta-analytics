@@ -8,6 +8,7 @@ from app.modules.text_function import genRecodes
 from app.modules.text_function import genLabels
 from app.modules.text_function import genIncludesList
 from app.modules.text_function import processSavMulti
+from app.modules.text_function import getAbiertasCode
 from app.modules.processor import processSav
 from app.modules.processor import getVarsSav
 from app.modules.processor import getCodeProcess
@@ -69,7 +70,7 @@ def main():
         entryText=st.text_area("Text Entry:",placeholder="Copy and paste the entire text of the questionnaire ")
         btnFinder=st.button("Find Categories")
         if btnFinder:
-            st.text_area("Questions:",categoryFinder(entryText))
+            st.text_area("Questions:",getAbiertasCode(entryText))
 
 
     with st.expander("Tool Multiquestion"):
