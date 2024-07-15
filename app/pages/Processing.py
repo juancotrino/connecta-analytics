@@ -4,6 +4,14 @@ import streamlit as st
 
 from app.modules.processing import processing
 from app.modules.preprocessing import preprocessing
+from app.modules.processor import (
+    getPreProcessCode,
+    getProcessCode,
+    getSegmentCode,
+    getPenaltysCode,
+    getCruces
+)
+from app.modules.penalty import calculate_penalties
 
 def main():
     # -------------- SETTINGS --------------
@@ -13,7 +21,69 @@ def main():
 
     st.header('SPSS Tables')
 
-    st.markdown('### Preprocessing')
+    st.markdown('### Processing')
+
+    with st.form('processingSPSS_form'):
+        uploaded_file_process_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processingSPSS_xlsx')
+        uploaded_file_process_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
+        processButton = st.form_submit_button('Get code to process')
+        if processButton and uploaded_file_process_xlsx and uploaded_file_process_sav:
+            col1, col2   = st.columns(2)
+
+            with col1:
+                col1.markdown("Preprocess code:")
+                with col1.container(height=250):
+                    st.code(getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
+            with col2:
+                col2.markdown("Code to segment base by references:")
+                with col2.container(height=250):
+                    st.code(getSegmentCode(uploaded_file_process_sav), line_numbers=True)
+            st.markdown("#### Code SPSS")
+            col1, col2, col3  = st.columns(3)
+            with col1:
+                col1.markdown("Code to gen Tables in SPSS:")
+                with col1.container(height=250):
+                    st.code(getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
+
+            with col2:
+                col2.markdown("Code to gen Penaltys Tables in SPSS:")
+                with col2.container(height=250):
+                    st.code(getPenaltysCode(uploaded_file_process_xlsx), line_numbers=True)
+
+            with col3:
+                col3.markdown("Code to gen Cruces Tables in SPSS:")
+                with col3.container(height=250):
+                    st.code(getCruces(uploaded_file_process_xlsx), line_numbers=True)
+
+
+
+    st.markdown('### Penalties')
+
+    with st.form('penalties_form'):
+        uploaded_file_penalty_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='penalty_xlsx')
+
+        calculate = st.form_submit_button('Calculate penalties')
+
+        if uploaded_file_penalty_xlsx and calculate:
+            with st.spinner('Calculating penalties...'):
+                try:
+                    penalties_results = calculate_penalties(uploaded_file_penalty_xlsx)
+                    st.success('Penalties calculated successfully.')
+                except Exception as e:
+                    st.error(e)
+
+    try:
+        st.download_button(
+            label="Download penalties",
+            data=penalties_results.getvalue(),
+            file_name=f'penalties.xlsx',
+            mime='application/xlsx',
+            type='primary'
+        )
+    except:
+        pass
+
+    st.markdown('### Transform Database')
 
     with st.form('preprocessing_form'):
 
@@ -61,17 +131,7 @@ def main():
     except:
         pass
 
-
-    st.markdown('### SPSS Processing')
-
-    with st.form('processingSPSS_form'):
-        # Add section to upload a file
-        uploaded_file_sav_processing_pro = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
-
-        # Add section to upload a file
-        uploaded_file_processing_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processingSPSS_xlsx')
-
-    st.markdown('### Processing')
+    st.markdown('### Statistical Significance')
 
     with st.form('processing_form'):
 
