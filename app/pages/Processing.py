@@ -61,6 +61,16 @@ def main():
     except:
         pass
 
+
+    st.markdown('### SPSS Processing')
+
+    with st.form('processingSPSS_form'):
+        # Add section to upload a file
+        uploaded_file_sav_processing_pro = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
+
+        # Add section to upload a file
+        uploaded_file_processing_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processingSPSS_xlsx')
+
     st.markdown('### Processing')
 
     with st.form('processing_form'):
