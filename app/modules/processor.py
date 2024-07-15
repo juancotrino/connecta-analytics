@@ -1,6 +1,7 @@
 from io import BytesIO
 import re
 import pandas as pd
+import math
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
 import pyreadstat
@@ -38,8 +39,61 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
             colvars[i+1]="COL_"+var
 
     for i in range(len(varsList)):
-        result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars)
+        if varsList.iloc[i][1]!="A":
+            result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars)
     return result
+
+def getPreProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
+    result=""
+    temp_file_name = get_temp_file(spss_file)
+    data, study_metadata = pyreadstat.read_sav(
+        temp_file_name,
+        apply_value_formats=False
+    )
+    file_xlsx = get_temp_file(xlsx_file)
+    varsList=pd.read_excel(file_xlsx,usecols="A,G",skiprows=3,names=["vars","sheetNames"]).dropna()
+    for i in range(len(varsList)):
+        lcTable=pd.read_excel(file_xlsx,sheet_name=varsList.iloc[i][1],usecols="A,B",skiprows=1,names=["vars","sheetNames"])
+        if str(lcTable.iloc[0][0]).strip()!="NETO":
+            serie=False
+            prefix=re.search("^[PFSV].*[1-90].*A",varsList.iloc[i][0]).group()
+            multis=[]
+            variab=""
+            for var, label in study_metadata.column_names_to_labels.items():
+                if re.search("^[PFSV].*[1-90].*A",var):
+                    print(prefix+" -   -  "+re.search(".*A",var).group())
+                    if re.search(".*A",var).group()==prefix:
+                        multis.append(var)
+                        serie=True
+                    elif serie:
+                        variab=multis[0]+" to "+multis[-1]
+            if serie:
+                variab=multis[0]+" to "+multis[-1]
+            result+= getAbiertasCode(variab,lcTable)
+    return result
+
+def getAbiertasCode(var,lcTable):
+    abiertascode=""
+    principal=""
+    subcodes=[]
+    options=[]
+    for i in range(len(lcTable)):
+        if lcTable.isnull().iloc[i][1]:
+            subcodes.append(lcTable.iloc[i][0])
+        else:
+            if subcodes:
+                abiertascode+="\nRECODE "+var
+                for cod in subcodes:
+                    abiertascode+=" ("+str(cod)+"="+str(principal)+")"
+                abiertascode+="."
+                subcodes=[]
+            principal= lcTable.iloc[i][0]
+            options.append((principal,lcTable.iloc[i][1]))
+    abiertascode+="\nVALUE LABELS "+var
+    for num,option in options:
+        abiertascode+="\n"+str(num)+" \""+option+"\""
+    abiertascode+=".\nEXECUTE.\n"
+    return abiertascode
 
 def getPenaltysCode(xlsx_file: BytesIO):
     try:
@@ -83,7 +137,8 @@ def getCruces(xlsx_file: BytesIO):
         varsList=pd.read_excel(file_xlsx,usecols="A,B,F",skiprows=3,names=["vars","varsTypes","crossVars"]).dropna()
         crosscode=""
         for i in range(len(varsList)):
-            crosscode+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],[varsList.iloc[i][2]])
+            for crossvar in varsList.iloc[i][2].split():
+                crosscode+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],[crossvar])
         return crosscode
     except:
         return "No cruces"
@@ -145,12 +200,12 @@ def getCodePreProcess(spss_file: BytesIO,inversevars="",columnVars="",namedatase
                 if re.search(".*A",var).group()==prefix:
                     multis.append(var)
                 else:
-                    agrupresult=writeAgrupMulti(agrupresult,prefix,multis,label2)
+                    agrupresult+=writeAgrupMulti(prefix,multis,label2)
                     multis=[]
                     prefix=re.search(".*A",var).group()
                     multis.append(var)
         elif serie:
-            agrupresult=writeAgrupMulti(agrupresult,prefix,multis,label2)
+            agrupresult+=writeAgrupMulti(prefix,multis,label2)
             multis=[]
             serie=False
         label2=label
@@ -180,7 +235,7 @@ def getCodePreProcess(spss_file: BytesIO,inversevars="",columnVars="",namedatase
                         label2=label
                 if serie:
                     if not re.search(".A",var) or re.search(".*A",var).group()!=prefix:
-                        columnsclone=writeAgrupMulti(columnsclone,"COL_"+prefix,multis,label2)
+                        columnsclone+=writeAgrupMulti("COL_"+prefix,multis,label2)
                         break
     refdict=study_metadata.variable_value_labels["REF.1"]
 
@@ -206,17 +261,19 @@ def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
             colvars[i]="COL_"+var
 
     for var in varsProcess:
-        print(var)
         qtype=qtypes[varsProcess.index(var)]
         result+=writeQuestion(var,colvars,qtype,result)
     return result
 
-def writeAgrupMulti(txt,prefix,listVars,label):
-    txt+= "\nMRSETS\n  /MCGROUP NAME=$"+prefix[:-1]+" LABEL='"+label +"'\n    VARIABLES="
-    for var in listVars:
-        txt+=var+" "
-    txt+="\n  /DISPLAY NAME=[$"+prefix[:-1]+"].\n"
-    return txt
+def writeAgrupMulti(prefix,listVars,label):
+    try:
+        txt= "\nMRSETS\n  /MCGROUP NAME=$"+prefix[:-1]+" LABEL='"+label +"'\n    VARIABLES="
+        for var in listVars:
+            txt+=var+" "
+        txt+="\n  /DISPLAY NAME=[$"+prefix[:-1]+"].\n"
+        return txt
+    except:
+        return ""
 
 def getCloneCodeVars(spss_file: BytesIO,xlsx_file: BytesIO):
     file_xlsx = get_temp_file(xlsx_file)
@@ -245,7 +302,7 @@ def getCloneCodeVars(spss_file: BytesIO,xlsx_file: BytesIO):
                         multis.append(var)
                 if serie:
                     if not re.search(".A",var) or re.search(".*A",var).group()!=prefix:
-                        columnsclone=writeAgrupMulti(columnsclone,"COL_"+prefix,multis,colVars.iloc[row][1])
+                        columnsclone+=writeAgrupMulti("COL_"+prefix,multis,colVars.iloc[row][1])
                         break
     for row in range(len(colVars)):
         if not re.search("^[PFSV].*[1-90].*A",colVars.iloc[row][0]):
@@ -305,12 +362,12 @@ def getGroupCreateMultisCode(spss_file: BytesIO):
                 if re.search(".*A",var).group()==prefix:
                     multis.append(var)
                 else:
-                    agrupresult=writeAgrupMulti(agrupresult,prefix,multis,label2)
+                    agrupresult+=writeAgrupMulti(prefix,multis,label2)
                     multis=[]
                     prefix=re.search(".*A",var).group()
                     multis.append(var)
         elif serie:
-            agrupresult=writeAgrupMulti(agrupresult,prefix,multis,label2)
+            agrupresult+=writeAgrupMulti(prefix,multis,label2)
             multis=[]
             serie=False
         label2=label
@@ -327,13 +384,14 @@ def getSegmentCode(spss_file: BytesIO):
         refdict=study_metadata.variable_value_labels["REF.1"]
         filterdatabase=""
         namedatasetspss="ConjuntoDatos1"
-        for refindex in data["REF.1"].unique():
+        for refindex in data["REF.1"].dropna().unique():
             filterdatabase+="DATASET ACTIVATE "+ namedatasetspss+".\n"
             filterdatabase+="DATASET COPY REF_"+refdict[refindex]+".\nDATASET ACTIVATE REF_"+refdict[refindex]+".\nFILTER OFF.\nUSE ALL.\n"
             filterdatabase+="SELECT IF (REF.1 = "+str(int(refindex))+").\nEXECUTE.\n\n"
         return filterdatabase
     except:
         return "References variable not is REF.1"
+
 def writeQuestion(varName,qtype, colVars):
     txt=""
     if qtype=="M":
