@@ -66,7 +66,7 @@ def main():
             with col2:
                 col2.markdown("Code to gen Abiertas tables in SPSS:")
                 with col2.container(height=250):
-                    st.code(getPenaltysCode(uploaded_file_process_xlsx), line_numbers=True)
+                    st.code("none", line_numbers=True)
 
 
 
