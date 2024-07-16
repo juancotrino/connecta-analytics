@@ -124,7 +124,7 @@ def validate_data(selected_variables: dict, metadata_df: pd.DataFrame):
     metadata_validation(metadata_df)
     duplicated_variables_validation(selected_variables)
 
-def get_scales_data(study_number: int, study_data: pd.DataFrame, survey_data):
+def get_scales_data(study_number: int, study_data: pd.DataFrame, metadata):
 
     scales_data_list = [
         pd.DataFrame(
@@ -137,7 +137,7 @@ def get_scales_data(study_number: int, study_data: pd.DataFrame, survey_data):
                 'is_inverted': list(study_data[study_data['question_code'] == variable.split('.')[0]]['is_inverted'].values) * len(labels),
                 'jr_option': list(study_data[study_data['question_code'] == variable.split('.')[0]]['jr_option'].values) * len(labels),
             }
-        ) for variable, labels in survey_data.variable_value_labels.items()
+        ) for variable, labels in metadata.variable_value_labels.items()
         if (
             (
                 len(variable.split('.')) > 0
@@ -146,7 +146,7 @@ def get_scales_data(study_number: int, study_data: pd.DataFrame, survey_data):
                 variable in study_data['question_code'].tolist()
             )
         ) and (
-            'just' not in ' '.join(labels.values()).lower()
+            'justo' not in ' '.join(labels.values()).lower()
         )
     ]
 
@@ -168,7 +168,7 @@ def get_scales_data(study_number: int, study_data: pd.DataFrame, survey_data):
 
         return scales_data
 
-def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, survey_data):
+def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, metadata):
 
     jr_scales_data_list = [
         pd.DataFrame(
@@ -181,7 +181,7 @@ def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, survey_data)
                 'is_inverted': list(study_data[study_data['question_code'] == variable.split('.')[0]]['is_inverted'].values) * len(labels),
                 'jr_option': list(study_data[study_data['question_code'] == variable.split('.')[0]]['jr_option'].values) * len(labels),
             }
-        ) for variable, labels in survey_data.variable_value_labels.items()
+        ) for variable, labels in metadata.variable_value_labels.items()
         if (
             (
                 len(variable.split('.')) > 0
@@ -190,7 +190,7 @@ def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, survey_data)
                 variable in study_data['question_code'].tolist()
             )
         ) and (
-            'just' in ' '.join(labels.values()).lower()
+            'justo' in ' '.join(labels.values()).lower()
         )
     ]
 
@@ -203,9 +203,40 @@ def get_jr_scales_data(study_number: int, study_data: pd.DataFrame, survey_data)
         print(f'Unique values of answer options length for JR questions (should only be 5 or 3): {", ".join(unique_count_jr_scales_data.astype(str))}')
 
         jr_scales_data['is_inverted'] = np.where(~jr_scales_data['jr_option'].isna(), True, False)
-        jr_scales_data['real_value'] = np.where(jr_scales_data['jr_option'] == jr_scales_data['answer_code'], 3, 1)
+        jr_scales_data['real_value'] = np.where(
+            jr_scales_data['jr_option'] == jr_scales_data['answer_code'],
+            3,
+            np.where(
+                jr_scales_data['is_inverted'] == False,
+                jr_scales_data['answer_code'],
+                1
+            )
+        ).astype(int)
 
         return jr_scales_data
+
+def assign_real_values(df: pd.DataFrame, real_value_df: pd.DataFrame | None):
+
+    if real_value_df is None:
+        return df
+
+    final_columns = df.columns
+    df = df.merge(
+        real_value_df[['question', 'answer_code', 'real_value']],
+        left_on=['attribute', 'value'],
+        right_on=['question', 'answer_code'],
+        how='left'
+    )
+
+    df['value'] = np.where(
+        df['value'] == df['answer_code'],
+        df['real_value'],
+        df['value']
+    ).astype(int)
+
+    df = df[final_columns]
+
+    return df
 
 def get_logs(study_info: dict):
 
@@ -242,11 +273,14 @@ def transponse_df(df: pd.DataFrame):
     ).dropna(subset='value').reset_index(drop=True)
 
     transformed_data['category'] = transformed_data['category'].apply(lambda x: x.strip())
-    transformed_data['sample'] = transformed_data['sample'].astype(str)
-    transformed_data['gender'] = transformed_data['gender'].astype(str)
+    # transformed_data['gender'] = transformed_data['gender'].astype(str)
     transformed_data['age'] = transformed_data['age'].apply(lambda x: x if isinstance(x, (float, int)) else np.nan)
-    transformed_data['ses'] = transformed_data['ses'].astype(str)
+    # transformed_data['ses'] = transformed_data['ses'].astype(str)
     transformed_data['country'] = transformed_data['country'].apply(lambda x: x.title())
+    transformed_data['study_number'] = transformed_data['study_number'].astype(int)
+    transformed_data['age'] = transformed_data['age'].astype(int)
+    # transformed_data['sub_category'] = transformed_data['sub_category'].astype(str)
+    transformed_data['value'] = transformed_data['value'].astype(int)
 
     return transformed_data
 
@@ -278,7 +312,7 @@ def process_study(spss_file_name: str, study_info: dict):
     demographic_variables = study_info['demographic_variables']
     final_columns = study_info['db_variables']
 
-    survey_data = pyreadstat.read_sav(
+    metadata = pyreadstat.read_sav(
         spss_file_name,
         apply_value_formats=False
     )[1]
@@ -296,6 +330,12 @@ def process_study(spss_file_name: str, study_info: dict):
         spss_file_name,
         apply_value_formats=False
     )[0].dropna(how='all')
+
+    scales_data = get_scales_data(study_number, study_data, metadata)
+    jr_scales_data = get_jr_scales_data(study_number, study_data, metadata)
+
+    # print('scales_data', scales_data, sep='\n')
+    # print('jr_scales_data', jr_scales_data, sep='\n')
 
     demographic_variables_codes = study_data[study_data['question'].isin(demographic_variables)]['question_code'].to_list()
 
@@ -453,8 +493,6 @@ def process_study(spss_file_name: str, study_info: dict):
         # Fill static information
         pivoted_answers['study_number'] = study_number
         pivoted_answers['study_name'] = study_name
-        # pivoted_answers['Número de muestras'] = study_data[study_data['question'] == 'Número de muestras'].reset_index(drop=True)['question_code'].loc[0]
-        # pivoted_answers['Códigos de las muestras'] = study_data[study_data['question'] == 'Códigos de las muestras'].reset_index(drop=True)['question_code'].loc[0]
         pivoted_answers['category'] = category
         pivoted_answers['sub_category'] = sub_category
         pivoted_answers['sys_RespNum'] = answers[answers['question_code'] == 'sys_RespNum'].reset_index(drop=True)['answer'].astype(int).loc[0]
@@ -468,9 +506,10 @@ def process_study(spss_file_name: str, study_info: dict):
 
     final_data_template = transponse_df(final_data_template)
 
-    final_data_template['study_number'] = final_data_template['study_number'].astype(int)
-    final_data_template['age'] = final_data_template['age'].astype(int)
-    final_data_template['value'] = final_data_template['value'].astype(int)
+    final_data_template = assign_real_values(final_data_template, scales_data)
+    final_data_template = assign_real_values(final_data_template, jr_scales_data)
+
+    final_data_template = final_data_template.replace({np.nan: None})
 
     load_to_bq(final_data_template)
 

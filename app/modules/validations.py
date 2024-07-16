@@ -17,7 +17,7 @@ def validate_segmentation_spss_db(jobs: pd.DataFrame, temp_file_name: str) -> bo
 
     for _, scenario in jobs.iterrows():
         if scenario['condition'] and (
-            (scenario['variables'] == '' or scenario['variables'] is None) or
+            # (scenario['variables'] == '' or scenario['variables'] is None) or
             not any([variable in scenario['condition'] for variable in db_variables])
         ):
             st.warning(f"Variables in condition are not present either in the SPSS database or in the `Variables` column. Scenario: {scenario['scenario_name']}")

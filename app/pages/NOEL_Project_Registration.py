@@ -33,7 +33,7 @@ def main():
         brands = tuple(studies_info['brands'])
         clients = tuple(studies_info['clients'])
         variables = tuple(studies_info['variables'])
-        demographic_variables = tuple(studies_info['db_variables'][:16])
+        demographic_variables = tuple(studies_info['db_variables'][:14])
         db_variables = tuple(studies_info['db_variables'])
     except Exception as e:
         st.error(e)

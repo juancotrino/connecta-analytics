@@ -269,6 +269,10 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
                     raise e
             else:
                 filtered_data = survey_data[variables]
+
+            if filtered_data.empty:
+                raise ValueError(f'Conditions produced an empty database for scenario: {job["scenario_name"]}')
+
             # Write filtered data to a temporary sav file
             sav_file_name = f"{spss_file.name.split('.')[0].replace('Base ', '')}_{job['scenario_name']}.sav"
             sav_temp_file = tempfile.NamedTemporaryFile(delete=False)
