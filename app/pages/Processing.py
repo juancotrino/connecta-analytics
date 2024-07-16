@@ -7,9 +7,10 @@ from app.modules.preprocessing import preprocessing
 from app.modules.processor import (
     getPreProcessCode,
     getProcessCode,
-    getCloneCodeVars,
     getSegmentCode,
-    getPenaltysCode
+    getPenaltysCode,
+    getCruces,
+    getPreProcessAbiertas
 )
 from app.modules.penalty import calculate_penalties
 
@@ -28,23 +29,18 @@ def main():
         uploaded_file_process_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
         processButton = st.form_submit_button('Get code to process')
         if processButton and uploaded_file_process_xlsx and uploaded_file_process_sav:
-            col1, col2 , col3  = st.columns(3)
+            col1, col2   = st.columns(2)
 
             with col1:
-                col1.markdown("Preprocess code (only first time):")
+                col1.markdown("Preprocess code:")
                 with col1.container(height=250):
                     st.code(getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
-
             with col2:
-                col2.markdown("Code to clone variables with labels:")
+                col2.markdown("Code to segment base by references:")
                 with col2.container(height=250):
-                    st.code(getCloneCodeVars(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
-            with col3:
-                col3.markdown("Code to segment base by references:")
-                with col3.container(height=250):
                     st.code(getSegmentCode(uploaded_file_process_sav), line_numbers=True)
-            st.markdown("#### Code SPSS")
-            col1, col2  = st.columns(2)
+            st.markdown("### Code SPSS")
+            col1, col2, col3  = st.columns(3)
             with col1:
                 col1.markdown("Code to gen Tables in SPSS:")
                 with col1.container(height=250):
@@ -54,6 +50,23 @@ def main():
                 col2.markdown("Code to gen Penaltys Tables in SPSS:")
                 with col2.container(height=250):
                     st.code(getPenaltysCode(uploaded_file_process_xlsx), line_numbers=True)
+
+            with col3:
+                col3.markdown("Code to gen Cruces Tables in SPSS:")
+                with col3.container(height=250):
+                    st.code(getCruces(uploaded_file_process_xlsx), line_numbers=True)
+
+            st.markdown("#### Code Abiertas")
+            col1, col2 = st.columns(2)
+            with col1:
+                col1.markdown("Code to preprocess Abiertas in SPSS:")
+                with col1.container(height=250):
+                    st.code(getPreProcessAbiertas(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
+
+            with col2:
+                col2.markdown("Code to gen Abiertas tables in SPSS:")
+                with col2.container(height=250):
+                    st.code("none", line_numbers=True)
 
 
 
