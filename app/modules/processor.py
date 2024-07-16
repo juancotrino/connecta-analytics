@@ -61,7 +61,6 @@ def getPreProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
             variab=""
             for var, label in study_metadata.column_names_to_labels.items():
                 if re.search("^[PFSV].*[1-90].*A",var):
-                    print(prefix+" -   -  "+re.search(".*A",var).group())
                     if re.search(".*A",var).group()==prefix:
                         multis.append(var)
                         serie=True
