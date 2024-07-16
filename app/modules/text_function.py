@@ -2,6 +2,7 @@ from io import BytesIO
 import re
 import pyperclip
 import pyreadstat
+import numpy as np
 from unidecode import unidecode
 from difflib import SequenceMatcher
 
@@ -248,20 +249,12 @@ def processSavMulti(spss_file: BytesIO):
         apply_value_formats=False
     )
     vals=study_metadata.variable_value_labels
-    recodes="* Encoding: UTF-8.\n"
-    for line,scale in vals.items():
-        if re.search("^[FPS].*A.*[1-90]",line):
-            pref=re.search(".*A[^1-90]*",line).group()
-            num=re.search("A.*",line).group()[1:]
-            if not re.search("^[1-90]",num):
-                num=num[1:]
-            recodes+="RECODE "+pref+num+"(1="+num+").\n"
-    recodes+="EXECUTE."
     labels="* Encoding: UTF-8.\n"
     serie=False
     prev=""
     pref=""
     optqueue=[]
+    varmultis=[]
     for line, scale in vals.items():
         if re.search("^[FPS].*A.*[1-90]",line):
             if not serie:
@@ -270,6 +263,7 @@ def processSavMulti(spss_file: BytesIO):
                 pref=re.search(".*A",line).group()
                 option=scale.get(1).strip()
                 optqueue.append(option)
+                labels2=""
                 prev=line
             else:
                 if pref==re.search(".*A",line).group():
@@ -278,15 +272,18 @@ def processSavMulti(spss_file: BytesIO):
                         optqueue.append(option)
                         prev=line
                 else:
-                    labels+="VALUE LABELS "+first+" to "+ prev
+                    labels2+="VALUE LABELS "+first+" to "+ prev
                     num=re.search("A.*",first).group()[1:]
                     if not re.search("^[1-90]",num):
                         num=num[1:]
                     count=int(num)
                     for opt in optqueue:
-                        labels+="\n"+str(count)+" \""+opt+"\""
+                        labels2+="\n"+str(count)+" \""+opt+"\""
                         count+=1
-                    labels+=".\n\n"
+                    labels2+=".\n\n"
+                    if(len(np.unique(optqueue))>1):
+                        labels+=labels2
+                        varmultis.append(re.search(".*A",first).group())
                     optqueue=[]
                     first=line
                     pref=re.search(".*A",line).group()
@@ -294,17 +291,32 @@ def processSavMulti(spss_file: BytesIO):
                     optqueue.append(option)
                     prev=line
     if serie:
-        labels+="VALUE LABELS "+first+" to "+ prev
+        labels2+="VALUE LABELS "+first+" to "+ prev
         num=re.search("A.*",first).group()[1:]
         if not re.search("^[1-90]",num):
             num=num[1:]
         count=int(num)
         for opt in optqueue:
-            labels+="\n"+str(count)+" \""+opt+"\""
+            labels2+="\n"+str(count)+" \""+opt+"\""
             count+=1
-        labels+=".\n\n"
-
-    varia=""
+        labels2+=".\n\n"
+        if(len(np.unique(optqueue))>1):
+            labels+=labels2
+            varmultis.append(re.search(".*A",first).group())
+    if labels=="* Encoding: UTF-8.\n":
+        labels=""
+    recodes="* Encoding: UTF-8.\n"
+    for line,scale in vals.items():
+        if re.search("^[FPS].*A.*[1-90]",line):
+            pref=re.search(".*A[^1-90]*",line).group()
+            if pref in varmultis:
+                num=re.search("A.*",line).group()[1:]
+                if not re.search("^[1-90]",num):
+                    num=num[1:]
+                recodes+="RECODE "+pref+num+"(1="+num+").\n"
+    recodes+="EXECUTE."
+    if recodes=="* Encoding: UTF-8.\nEXECUTE.":
+        recodes=""
     return recodes,labels
 
 def similar(a, b):
@@ -319,3 +331,25 @@ def similar(a, b):
     #       st=str(study_metadata.value_labels.get("labels"+str(i)))
     #        print (study_metadata.value_labels.get("labels"+str(i)))
     #        print(re.search("\'.*\'",st[:-2]).group())
+
+
+def getAbiertasCode(txtC):
+    abiertascode=""
+    principal=""
+    subcodes=[]
+    options=[]
+    for line in txtC.splitlines():
+        if len(line.split())==1:
+            subcodes.append(line.split()[0])
+        elif len(line.split())>1:
+            if subcodes:
+                for cod in subcodes:
+                    abiertascode+="\nRECODE VARI ("+cod+"="+principal+")."
+                subcodes=[]
+            principal= line.split()[0]
+            options.append((principal," ".join(line.split()[1:])))
+    abiertascode+="\nVALUE LABELS VARI"
+    for num,option in options:
+        abiertascode+="\n"+num+" \""+option+"\""
+    abiertascode+="."
+    return abiertascode
