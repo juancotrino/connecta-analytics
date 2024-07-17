@@ -5,7 +5,7 @@ import pandas as pd
 
 import streamlit as st
 
-from app.modules.noel_proejct_registration import (
+from app.modules.study_homologation import (
     get_temp_file,
     read_sav_metadata,
     create_folder_structure,
@@ -45,8 +45,8 @@ def main():
         st.error(e)
 
     st.markdown("""
-    This is a tool that allows the creation of a folder tree structure for a new study
-    in a SharePoint directory that will be used by the Data Science team.
+    This service allows the homologation of databases that come from product test's surveys, into
+    the `Norma` format used in Connecta.
     """)
 
     st.header('Study files')

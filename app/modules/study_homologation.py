@@ -543,6 +543,6 @@ def process_study(spss_file_name: str, study_info: dict):
     final_data_template = assign_real_values(final_data_template, scales_data)
     final_data_template = assign_real_values(final_data_template, jr_scales_data)
 
-    final_data_template = final_data_template.replace({np.nan: None})
+    final_data_template = final_data_template.replace({np.nan: None}).drop_duplicates().reset_index(drop=True)
 
     return final_data_template
