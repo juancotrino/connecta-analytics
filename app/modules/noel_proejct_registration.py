@@ -87,7 +87,7 @@ def create_folder_structure(base_path: str):
 
     id_project_name = base_path.split('/')[-1]
     if id_project_name in studies_in_sharepoint:
-        raise NameError('Combination of ID, country and study name alreday exists.')
+        raise NameError('Combination of ID, country and study name alreday exists in SharePoint space: `Connecta - Ciencia de Datos/Documentos/estudios_externos/`.')
 
     sharepoint.create_folder(base_path)
 
@@ -284,21 +284,55 @@ def transponse_df(df: pd.DataFrame):
 
     return transformed_data
 
-def check_project_existance_in_bq(project_id: int):
-    bq = BigQueryClient()
-    bq.fetch_data(
+@st.cache_data(show_spinner=False, ttl=600)
+def get_current_studies(_bq: BigQueryClient):
+    return _bq.fetch_data(
         """
-        SELECT 1
-        FROM `connecta-analytics-app.normas.noel`
-        WHERE unique_key = value;
+        SELECT DISTINCT
+            study_number,
+            country
+        FROM `connecta-analytics-app.normas.noel`;
         """
     )
-    pass
 
-def load_to_bq(df: pd.DataFrame):
-    bq = BigQueryClient()
-    bq.load_data('noel', df)
+# @st.cache_data(show_spinner=False, ttl=600)
+def check_study_existance_in_bq(study_number: int, country: str, studies: pd. DataFrame):
 
+    study = studies[
+        (studies['study_number'] == study_number) &
+        (studies['country'] == country)
+    ]
+
+    if study.empty:
+        return False
+
+    return True
+
+
+def load_to_bq(df: pd.DataFrame, bq: BigQueryClient, action: str = 'load'):
+
+    study_number = df['study_number'].unique().astype(int)[0]
+    country = df['country'].unique()[0]
+
+    match action:
+        case 'update':
+            bq.delete_data(
+                """
+                DELETE `connecta-analytics-app.normas.noel`
+                WHERE study_number = {study_number}
+                    AND country = '{country}';
+                """.format(
+                    study_number=study_number,
+                    country=country
+                )
+            )
+
+            bq.load_data('noel', df)
+
+        case 'load':
+            bq.load_data('noel', df)
+
+@st.cache_data(show_spinner=False)
 def process_study(spss_file_name: str, study_info: dict):
 
     study_number = study_info['study_id']
@@ -511,6 +545,4 @@ def process_study(spss_file_name: str, study_info: dict):
 
     final_data_template = final_data_template.replace({np.nan: None})
 
-    load_to_bq(final_data_template)
-
-    return write_df_bytes(final_data_template)
+    return final_data_template

@@ -33,112 +33,114 @@ def main():
     try:
         # data = get_data_unique()
         data = get_data()
+
+
+        col11, col12 = st.columns(2)
+        col21, col22, col23, col24 = st.columns(4)
+        col31, col32, col33, col34 = st.columns(4)
+
+        filters_template = {
+            'category': ('Category', col11),
+            'sub_category': ('Sub Category', col12),
+            'client': ('Client', col21),
+            'study_name': ('Study Name', col22),
+            'brand': ('Brand', col23),
+            'sample': ('Sample', col24),
+            'age': ('Age', col31),
+            'gender': ('Gender', col32),
+            'ses': ('SES', col33),
+            'country': ('Country', col34),
+        }
+
+        filters = {filter_name: [] for filter_name in filters_template.keys()}
+
+        for filter_name, attributes in filters_template.items():
+            name, field = attributes
+            if name == 'Age':
+                if data['age'].isna().all():
+                    continue
+                disabled = len(data['age'].dropna().unique()) == 0
+                selection = field.slider(
+                    name,
+                    value=(
+                        int(min(data['age'].dropna().unique())) if not disabled else 0,
+                        int(max(data['age'].dropna().unique())) if not disabled else 0
+                    ),
+                    disabled=disabled
+                )
+                data = data[(data['age'] >= selection[0]) & (data['age'] <= selection[1])]
+            else:
+                selection = field.multiselect(name, sorted(data[filter_name].unique()))
+                if selection:
+                    data = data[data[filter_name].isin(selection)]
+
+            filters[filter_name] = selection
+
+        total_filters = [str(_filter) for _filter in list(itertools.chain.from_iterable(filters.values()))]
+
+        # scale_type = option_menu(
+        #     menu_title=None,
+        #     options=[
+        #         "Regular Scales",
+        #         "JR Scales"
+        #     ],
+        #     icons=[
+        #         "align-end",
+        #         "align-middle"
+        #     ], # https://icons.getbootstrap.com/
+        #     orientation="horizontal",
+        #     styles={
+        #         "nav-link-selected": {"background-color": "#F78E1E"},
+        #     }
+        # )
+
+        scale_type = st.radio(
+            'Scale types:',
+            options=[
+                "Regular Scales",
+                "JR Scales"
+            ],
+            horizontal=True
+        )
+
+        if scale_type == 'Regular Scales':
+            table = calculate_statistics_regular_scale(data)
+            st.dataframe(
+                table,
+                use_container_width=True,
+                column_config={
+                    'variable': 'Variable',
+                    'base': 'Base',
+                    'mean': 'Mean',
+                    'std': 'Standard Deviation',
+                }
+            )
+
+            st.download_button(
+                label="Download Data",
+                data=to_excel_bytes(table),
+                file_name=f'regular_{"_".join(total_filters)}.xlsx',
+                mime='application/xlsx'
+            )
+
+        elif scale_type == 'JR Scales':
+            table = calculate_statistics_jr_scale(data)
+            st.dataframe(
+                table,
+                use_container_width=True,
+                column_config={
+                    'variable': 'Variable',
+                    'base': 'Base',
+                    'mean': 'Mean',
+                    'std': 'Standard Deviation',
+                }
+            )
+            st.download_button(
+                label="Download Data",
+                data=to_excel_bytes(table),
+                file_name=f'jr_{"_".join(total_filters)}.xlsx',
+                mime='application/xlsx'
+            )
+
     except Exception as e:
         st.error(e)
-
-    col11, col12 = st.columns(2)
-    col21, col22, col23, col24 = st.columns(4)
-    col31, col32, col33, col34 = st.columns(4)
-
-    filters_template = {
-        'category': ('Category', col11),
-        'sub_category': ('Sub Category', col12),
-        'client': ('Client', col21),
-        'study_name': ('Study Name', col22),
-        'brand': ('Brand', col23),
-        'sample': ('Sample', col24),
-        'age': ('Age', col31),
-        'gender': ('Gender', col32),
-        'ses': ('SES', col33),
-        'country': ('Country', col34),
-    }
-
-    filters = {filter_name: [] for filter_name in filters_template.keys()}
-
-    for filter_name, attributes in filters_template.items():
-        name, field = attributes
-        if name == 'Age':
-            if data['age'].isna().all():
-                continue
-            disabled = len(data['age'].dropna().unique()) == 0
-            selection = field.slider(
-                name,
-                value=(
-                    int(min(data['age'].dropna().unique())) if not disabled else 0,
-                    int(max(data['age'].dropna().unique())) if not disabled else 0
-                ),
-                disabled=disabled
-            )
-            data = data[(data['age'] >= selection[0]) & (data['age'] <= selection[1])]
-        else:
-            selection = field.multiselect(name, sorted(data[filter_name].unique()))
-            if selection:
-                data = data[data[filter_name].isin(selection)]
-
-        filters[filter_name] = selection
-
-    total_filters = [str(_filter) for _filter in list(itertools.chain.from_iterable(filters.values()))]
-
-    # scale_type = option_menu(
-    #     menu_title=None,
-    #     options=[
-    #         "Regular Scales",
-    #         "JR Scales"
-    #     ],
-    #     icons=[
-    #         "align-end",
-    #         "align-middle"
-    #     ], # https://icons.getbootstrap.com/
-    #     orientation="horizontal",
-    #     styles={
-    #         "nav-link-selected": {"background-color": "#F78E1E"},
-    #     }
-    # )
-
-    scale_type = st.radio(
-        'Scale types:',
-        options=[
-            "Regular Scales",
-            "JR Scales"
-        ],
-        horizontal=True
-    )
-
-    if scale_type == 'Regular Scales':
-        table = calculate_statistics_regular_scale(data)
-        st.dataframe(
-            table,
-            use_container_width=True,
-            column_config={
-                'variable': 'Variable',
-                'base': 'Base',
-                'mean': 'Mean',
-                'std': 'Standard Deviation',
-            }
-        )
-
-        st.download_button(
-            label="Download Data",
-            data=to_excel_bytes(table),
-            file_name=f'regular_{"_".join(total_filters)}.xlsx',
-            mime='application/xlsx'
-        )
-
-    elif scale_type == 'JR Scales':
-        table = calculate_statistics_jr_scale(data)
-        st.dataframe(
-            table,
-            use_container_width=True,
-            column_config={
-                'variable': 'Variable',
-                'base': 'Base',
-                'mean': 'Mean',
-                'std': 'Standard Deviation',
-            }
-        )
-        st.download_button(
-            label="Download Data",
-            data=to_excel_bytes(table),
-            file_name=f'jr_{"_".join(total_filters)}.xlsx',
-            mime='application/xlsx'
-        )
