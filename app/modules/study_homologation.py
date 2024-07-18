@@ -80,16 +80,9 @@ def get_studies_info():
         projects_info = document.to_dict()
         return projects_info
 
-def create_folder_structure(base_path: str):
-    sharepoint = SharePoint()
-
+def check_sharepoint_folder_existance(id_study_name: str, sharepoint: SharePoint):
     studies_in_sharepoint = sharepoint.list_folders('Documentos compartidos/estudios_externos')
-
-    id_project_name = base_path.split('/')[-1]
-    if id_project_name in studies_in_sharepoint:
-        raise NameError('Combination of ID, country and study name alreday exists in SharePoint space: `Connecta - Ciencia de Datos/Documentos/estudios_externos/`.')
-
-    sharepoint.create_folder(base_path)
+    return id_study_name in studies_in_sharepoint
 
 def upload_file_to_sharepoint(base_path: str, file_content: BytesIO, file_name: str):
     sharepoint = SharePoint()
@@ -259,7 +252,14 @@ def get_logs(study_info: dict):
     logs_demographics = logs_demographics_df.to_markdown(headers='keys', tablefmt='psql', index=False)
     logs_variable_mapping = logs_variable_mapping_df.to_markdown(headers='keys', tablefmt='psql', index=False)
 
-    logs = "DEMOGRAPHICS:\n\n" + logs_demographics + "\n\n\nVARIABLE MAPPING:\n\n" + logs_variable_mapping
+    logs = (
+        "DEMOGRAPHICS:\n\n" +
+        logs_demographics +
+        "\n\n\nVARIABLE MAPPING:\n\n" +
+        logs_variable_mapping +
+        "\n\n\nLAST MODIFIED BY:\n\n" +
+        st.session_state['name']
+    )
 
     return write_txt_bytes(logs)
 

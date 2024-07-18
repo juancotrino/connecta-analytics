@@ -8,7 +8,7 @@ import streamlit as st
 from app.modules.study_homologation import (
     get_temp_file,
     read_sav_metadata,
-    create_folder_structure,
+    check_sharepoint_folder_existance,
     get_studies_info,
     upload_file_to_sharepoint,
     validate_data,
@@ -21,7 +21,7 @@ from app.modules.study_homologation import (
 )
 from app.modules.utils import get_countries
 
-from app.modules.cloud import BigQueryClient
+from app.modules.cloud import SharePoint, BigQueryClient
 
 def main():
     # -------------- SETTINGS --------------
@@ -209,8 +209,7 @@ def main():
 
                 overwrite_records_in_bq = st.checkbox("Overwrite records for this study, if they exist in BigQuery.")
 
-                create_button = st.form_submit_button('Process database')
-
+                create_button = st.form_submit_button('Process study')
 
     try:
         if study_id and country and study_name:
@@ -220,52 +219,66 @@ def main():
 
                 base_path = f'Documentos compartidos/estudios_externos/{id_study_name}'
                 if uploaded_file_docx and uploaded_file_sav:
+                    with st.status("Processing...", expanded=True) as status:
+                        with st.spinner('Creating folder structure...'):
+                            sp = SharePoint()
+                            study_exists_sp = check_sharepoint_folder_existance(id_study_name, sp)
+                            folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios_externos/{id_study_name}'
 
-                    with st.spinner('Creating folder structure...'):
-                        create_folder_structure(base_path)
-                        folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios_externos/{id_study_name}'
-                        st.success(
-                            f'Study root folder created successfully. Visit the new folder [here]({folder_url}).'
-                        )
+                            if study_exists_sp:
+                                st.warning(
+                                    'Combination of ID, country and study name alreday exists in SharePoint space: `Connecta - Ciencia de Datos/Documentos/estudios_externos/`. Its content will be overwritten.'
+                                )
+                                sp.create_folder(base_path)
+                                st.success(
+                                    f'Study folder successfully overwritten. Visit the folder [here]({folder_url}).'
+                                )
+                            else:
+                                sp.create_folder(base_path)
+                                st.success(
+                                    f'Study root folder created successfully. Visit the new folder [here]({folder_url}).'
+                                )
 
-                    with st.spinner('Uploading questionnaire and database to Sharepoint...'):
-                        upload_file_to_sharepoint(base_path, uploaded_file_docx, 'questionnaire.docx')
-                        upload_file_to_sharepoint(base_path, uploaded_file_sav, 'db.sav')
-                        st.success(
-                            f'Questionnaire and database uploaded successfully into above created folder.'
-                        )
-
-                    with st.spinner('Processing database...'):
-                        logs = get_logs(study_info)
-                        upload_file_to_sharepoint(base_path, logs, 'logs.txt')
-                        final_data_template = process_study(sav_file_name, study_info)
-                        processed_db = write_df_bytes(final_data_template)
-                        upload_file_to_sharepoint(base_path, processed_db, 'processed_db.xlsx')
-                        st.success(
-                            f'Database processed and loaded successfully into above created folder.'
-                        )
-
-                    with st.spinner('Checking BigQuery database...'):
-                        bq = BigQueryClient()
-                        studies = get_current_studies(bq)
-                        study_exists = check_study_existance_in_bq(int(study_id), country, studies)
-
-                    if study_exists:
-                        st.info('Data for this study already exists in BigQuery.')
-                        if overwrite_records_in_bq:
-                            with st.spinner('Updating registries in BigQuery...'):
-                                load_to_bq(final_data_template, bq, 'update')
-                                st.success('Data successfully updated in BigQuery database. All previous records for this study were overwritten.')
-
-                        else:
-                            st.warning(
-                                'Data was not updated in BigQuery database. If you want to update it, please check the `Overwrite` box above the `Process database` button in the form.'
+                        with st.spinner('Uploading questionnaire and database to Sharepoint...'):
+                            upload_file_to_sharepoint(base_path, uploaded_file_docx, 'questionnaire.docx')
+                            upload_file_to_sharepoint(base_path, uploaded_file_sav, 'db.sav')
+                            st.success(
+                                f'Questionnaire and database uploaded successfully into above created folder.'
                             )
 
-                    else:
-                        with st.spinner('Uploading to BigQuery...'):
-                            load_to_bq(final_data_template, bq)
-                            st.success('Data successfully uploaded into BigQuery database.')
+                        with st.spinner('Processing database...'):
+                            logs = get_logs(study_info)
+                            upload_file_to_sharepoint(base_path, logs, 'logs.txt')
+                            final_data_template = process_study(sav_file_name, study_info)
+                            processed_db = write_df_bytes(final_data_template)
+                            upload_file_to_sharepoint(base_path, processed_db, 'processed_db.xlsx')
+                            st.success(
+                                f'Database processed and loaded successfully into above created folder.'
+                            )
+
+                        with st.spinner('Checking BigQuery database...'):
+                            bq = BigQueryClient()
+                            studies = get_current_studies(bq)
+                            study_exists = check_study_existance_in_bq(int(study_id), country, studies)
+
+                        if study_exists:
+                            st.info('Data for this study already exists in BigQuery.')
+                            if overwrite_records_in_bq:
+                                with st.spinner('Updating registries in BigQuery...'):
+                                    load_to_bq(final_data_template, bq, 'update')
+                                    st.success('Data successfully updated in BigQuery database. All previous records for this study were overwritten.')
+
+                            else:
+                                st.warning(
+                                    'Data was not updated in BigQuery database. If you want to update it, please check the `Overwrite` box above the `Process database` button in the form.'
+                                )
+
+                        else:
+                            with st.spinner('Uploading to BigQuery...'):
+                                load_to_bq(final_data_template, bq)
+                                st.success('Data successfully uploaded into BigQuery database.')
+
+                        status.update(label="Study processed!", state="complete", expanded=False)
 
                 else:
                     st.error(
