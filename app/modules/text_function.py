@@ -272,7 +272,7 @@ def processSavMulti(spss_file: BytesIO):
                         optqueue.append(option)
                         prev=line
                 else:
-                    labels2+="VALUE LABELS "+first+" to "+ prev
+                    labels2="VALUE LABELS "+first+" to "+ prev
                     num=re.search("A.*",first).group()[1:]
                     if not re.search("^[1-90]",num):
                         num=num[1:]
