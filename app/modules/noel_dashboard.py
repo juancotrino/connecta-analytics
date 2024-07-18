@@ -21,7 +21,7 @@ def get_data_unique():
             gender,
             ses,
             country
-        FROM `connecta-analytics-app.normas.noel`;
+        FROM `connecta-analytics-app.normas.estudios_externos`;
         """
     )
 

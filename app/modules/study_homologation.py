@@ -291,7 +291,7 @@ def get_current_studies(_bq: BigQueryClient):
         SELECT DISTINCT
             study_number,
             country
-        FROM `connecta-analytics-app.normas.noel`;
+        FROM `connecta-analytics-app.normas.estudios_externos`;
         """
     )
 
@@ -318,7 +318,7 @@ def load_to_bq(df: pd.DataFrame, bq: BigQueryClient, action: str = 'load'):
         case 'update':
             bq.delete_data(
                 """
-                DELETE `connecta-analytics-app.normas.noel`
+                DELETE `connecta-analytics-app.normas.estudios_externos`
                 WHERE study_number = {study_number}
                     AND country = '{country}';
                 """.format(
@@ -327,10 +327,10 @@ def load_to_bq(df: pd.DataFrame, bq: BigQueryClient, action: str = 'load'):
                 )
             )
 
-            bq.load_data('noel', df)
+            bq.load_data('estudios_externos', df)
 
         case 'load':
-            bq.load_data('noel', df)
+            bq.load_data('estudios_externos', df)
 
 @st.cache_data(show_spinner=False)
 def process_study(spss_file_name: str, study_info: dict):
