@@ -12,11 +12,6 @@ from google.cloud import bigquery
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.sharepoint.client_context import ClientContext
 
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
 class SharePoint:
 
     def __init__(
@@ -104,30 +99,8 @@ class BigQueryClient:
         data: pd.DataFrame
     ):
 
-        try:
-            job = self.client.load_table_from_dataframe(data, f'{self.schema_id}.{table_name}')  # Make an API request.
-            job_result = job.result()  # Wait for the job to complete
-
-            # Gather information about the job result
-            result_info = {
-                "job_id": job.job_id,
-                "state": job.state,
-                "errors": job.errors,
-                "output_rows": job.output_rows
-            }
-
-            logger.debug(f"Job {job.job_id} completed with state {job.state}")
-            if job.errors:
-                logger.error(f"Job {job.job_id} encountered errors: {job.errors}")
-            else:
-                logger.info(f"Job {job.job_id} successfully loaded {job.output_rows} rows.")
-
-            return result_info
-
-        except Exception as e:
-            logger.error(f"Error loading data to BigQuery: {e}")
-            return {"error loading data to BigQuery": str(e)}
-
+        job = self.client.load_table_from_dataframe(data, f'{self.schema_id}.{table_name}')  # Make an API request.
+        job.result()  # Wait for the job to complete
 
     def fetch_data(
         self,
