@@ -124,6 +124,7 @@ jobs:
             SITE_URL=${{ secrets.SITE_URL }}
             CLIENT_ID=${{ secrets.CLIENT_ID }}
             CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}
+            BIGQUERY_SCHEMA_ID=${{ secrets.BIGQUERY_SCHEMA_ID }}
           # env_vars: |
           # #   NODE_ENV=production
           # #   TOKEN_EXPIRE=6400
