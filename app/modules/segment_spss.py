@@ -233,7 +233,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
             xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
 
             # Create a new Excel file
-            xlsx_file_name = f"{spss_file.name.split('.')[0].replace('Base ', '')}_chi2.xlsx"
+            xlsx_file_name = f"chi2_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
             wb = openpyxl.Workbook()
             wb.remove(wb.active)
 
