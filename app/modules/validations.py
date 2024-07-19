@@ -23,6 +23,12 @@ def validate_segmentation_spss_db(jobs: pd.DataFrame, temp_file_name: str) -> bo
             st.warning(f"Variables in condition are not present either in the SPSS database or in the `Variables` column. Scenario: {scenario['scenario_name']}")
             validations.append(False)
 
+        if scenario['correlation_variables'] and (
+            not any([variable in scenario['correlation_variables'] for variable in db_variables])
+        ):
+            st.warning(f"Variables in Correaltion Variables are not present in the SPSS database. Scenario: {scenario['scenario_name']}")
+            validations.append(False)
+
     return all(validations) if validations else True
 
 def validate_segmentation_spss_jobs(jobs: pd.DataFrame) -> bool:

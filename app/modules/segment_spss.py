@@ -13,11 +13,16 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import openpyxl
 from openpyxl.chart import BarChart, Reference
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Alignment, Font
 
 import pyreadstat
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2_contingency
+from scipy.stats import chi2_contingency, pearsonr
+
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 
 from app.modules.authenticator import get_inverted_scales_keywords
 
@@ -121,6 +126,55 @@ def process_chi2(
     else:
         return pd.DataFrame()
 
+def get_correlation_data(
+    file_path: str,
+    correlation_variables: list[str]
+):
+
+    data: pd.DataFrame = pyreadstat.read_sav(
+        file_path,
+        apply_value_formats=False
+    )[0]
+
+    return data[correlation_variables]
+
+def process_correlation(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+    # Initialize empty dataframes to store results
+    correlation_df = pd.DataFrame(index=data.columns, columns=data.columns)
+    p_value_df = pd.DataFrame(index=data.columns, columns=data.columns)
+
+    # Calculate Pearson's correlation coefficient and p-values
+    for col1 in data.columns:
+        if data[col1].notnull().sum() == 0:  # Skip column if it has no non-null values
+            continue
+        for col2 in data.columns:
+            if col2 == col1 or data[col2].notnull().sum() == 0:  # Skip column if it has no non-null values or if it's the same column
+                correlation_df.loc[col1, col2] = 1.0 if col1 == col2 else np.nan
+                p_value_df.loc[col1, col2] = 0.0 if col1 == col2 else np.nan
+                continue
+
+            # Drop rows with missing values in either column
+            valid_rows = data[[col1, col2]].dropna()
+            if valid_rows.shape[0] > 1:  # Ensure there are at least two data points
+                # Check for sufficient variance in the data
+                if np.var(valid_rows[col1]) == 0 or np.var(valid_rows[col2]) == 0:
+                    correlation_df.loc[col1, col2] = np.nan
+                    p_value_df.loc[col1, col2] = np.nan
+                else:
+                    corr, p_value = pearsonr(valid_rows[col1], valid_rows[col2])
+                    correlation_df.loc[col1, col2] = corr
+                    p_value_df.loc[col1, col2] = p_value
+            else:
+                correlation_df.loc[col1, col2] = np.nan
+                p_value_df.loc[col1, col2] = np.nan
+
+    # Convert the results to numeric type
+    correlation_df = correlation_df.astype(float)
+    p_value_df = p_value_df.astype(float)
+
+    return correlation_df, p_value_df
+
 def copy_axis_style(source_axis, invisible: bool):
     target_axis = copy(source_axis)
     target_axis.majorGridlines = copy_chart_lines(source_axis.majorGridlines, invisible)
@@ -206,6 +260,73 @@ def set_time_zone_to_file(zip_file: io.BytesIO, file: str):
         current_time.second
     )
 
+def format_ws(sheet):
+    """
+    Adjusts the row height of all rows in the given sheet based on their content.
+    """
+    max_row = sheet.max_row
+    max_column = sheet.max_column
+    sheet.column_dimensions["A"].width = 200 / 8.43
+    # sheet.row_dimensions[1].height = 100
+    # Apply bold formatting to the first two columns
+    for i, row in enumerate(sheet.iter_rows()):
+        if i == 0:
+            for cell in row:
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+        for cell in [row[0]]:  # First two columns
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+
+    # Set fixed column width for all columns
+    fixed_column_width = 100 / 8.43
+    for col in range(2, max_column + 1):
+        column_letter = get_column_letter(col)
+        sheet.column_dimensions[column_letter].width = fixed_column_width
+
+    # Set fixed row height for all rows
+    fixed_row_height = 80 / 1.33
+    for row in range(1, max_row + 1):
+        sheet.row_dimensions[row].height = fixed_row_height
+
+    # Apply the formatting to all cells excluding the first row and first column
+    for row in sheet.iter_rows(min_row=2, min_col=2, max_row=max_row, max_col=max_column):
+        for cell in row:
+            if cell.value < 0.01 and cell.value > 0:
+                cell.font = Font(color='000BDB')
+            elif cell.value >= 0.01 and cell.value < 0.05:
+                cell.font = Font(color='FFC179')
+
+            cell.number_format = '0.00'
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    # Clear existing content in the worksheet
+    for row in sheet.iter_rows(min_row=1, max_row=max_row, max_col=max_column):
+        for cell in row:
+            cell.value = None
+
+# def generate_graph_analysis(df: pd.DataFrame):
+#     def corrdot(*args, **kwargs):
+#         corr_r = args[0].corr(args[1], 'pearson')
+#         corr_text = f"{corr_r:2.2f}".replace("0.", ".")
+#         ax = plt.gca()
+#         ax.set_axis_off()
+#         marker_size = abs(corr_r) * 10000
+#         ax.scatter([.5], [.5], marker_size, [corr_r], alpha=0.6, cmap="coolwarm",
+#                 vmin=-1, vmax=1, transform=ax.transAxes)
+#         font_size = abs(corr_r) * 40 + 5
+#         ax.annotate(corr_text, [.5, .5,],  xycoords="axes fraction",
+#                     ha='center', va='center', fontsize=font_size)
+
+#     sns.set_theme(style='white', font_scale=1.6)
+#     # iris = sns.load_dataset('iris')
+#     g = sns.PairGrid(df, aspect=1.4, diag_sharey=False)
+#     g.map_lower(sns.regplot, lowess=True, ci=False, line_kws={'color': 'black'})
+#     g.map_diag(sns.histplot, line_kws={'color': 'black'}, kde=True)
+#     g.map_upper(corrdot)
+
+#     return g
+
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
     print('Started execution')
     temp_file_name = get_temp_file(spss_file)
@@ -230,12 +351,12 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
         if jobs['cross_variable'].any():
 
-            xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            chi2_xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
 
             # Create a new Excel file
-            xlsx_file_name = f"chi2_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
-            wb = openpyxl.Workbook()
-            wb.remove(wb.active)
+            chi2_xlsx_file_name = f"chi2_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
+            chi2_wb = openpyxl.Workbook()
+            chi2_wb.remove(chi2_wb.active)
 
             # Read the existing Excel file
             existing_file = f"static/templates/chart_template.xlsx"
@@ -252,6 +373,15 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
             if source_chart is None:
                 print("Chart not found in the specified location.")
                 exit()
+
+        if jobs['correlation_variables'].any():
+
+            corr_xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
+
+            # Create a new Excel file
+            corr_xlsx_file_name = f"correlations_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
+            corr_wb = openpyxl.Workbook()
+            corr_wb.remove(corr_wb.active)
 
         for _, job in jobs.iterrows():
             if job['variables']:
@@ -294,15 +424,56 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
                 )
 
                 # Create a new workbook object and select the active worksheet
-                wb.create_sheet(job['scenario_name'])
-                ws = wb[job['scenario_name']]
+                chi2_wb.create_sheet(job['scenario_name'])
+                chi2_ws = chi2_wb[job['scenario_name']]
 
                 # Write DataFrame content to the worksheet
                 for r in dataframe_to_rows(chi2_df, index=False, header=True):
-                    ws.append(r)
+                    chi2_ws.append(r)
 
                 # Create chart in the worksheet
-                create_chart(ws, source_chart, chi2_df, 'Intención de compra', "E3")
+                create_chart(chi2_ws, source_chart, chi2_df, 'Intención de compra', "E3")
+
+            if job['correlation_variables']:
+                if ',' in job['variables']:
+                    corr_variables = [variable.strip() for variable in job['correlation_variables'].split(',')]
+                else:
+                    corr_variables = [variable.strip() for variable in job['correlation_variables'].split('\n')]
+
+                correlation_data = get_correlation_data(sav_temp_file.name, corr_variables)
+                correlation_df, p_value_df = process_correlation(correlation_data)
+
+                correlation_df = correlation_df.rename(
+                    columns=metadata.column_names_to_labels,
+                    index=metadata.column_names_to_labels
+                ).reset_index(names='')
+
+                p_value_df = p_value_df.rename(
+                    columns=metadata.column_names_to_labels,
+                    index=metadata.column_names_to_labels
+                ).reset_index(names='')
+
+                # Create a new workbook object and select the active worksheet
+                corr_wb.create_sheet(job['scenario_name'])
+                corr_ws = corr_wb[job['scenario_name']]
+
+                # Write DataFrame content to the worksheet
+                for r in dataframe_to_rows(p_value_df, index=False, header=True):
+                    corr_ws.append(r)
+
+                format_ws(corr_ws)
+
+                start_row = 1
+                for r_idx, r in enumerate(dataframe_to_rows(correlation_df, index=False, header=True), start=start_row):
+                    for c_idx, value in enumerate(r, start=1):
+                        corr_ws.cell(row=r_idx, column=c_idx, value=value)
+
+                # pdf_graph_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+
+                # graph = generate_graph_analysis(correlation_data)
+                # graph.savefig(pdf_graph_temp_file.name)
+
+                # zip_file.write(pdf_graph_temp_file.name, arcname=f'{job["scenario_name"]}_correlation_statistical_graph.pdf')
 
             # Add the temporary sav file to the zip file with custom arcname
             zip_file.write(sav_temp_file.name, arcname=sav_file_name)
@@ -313,13 +484,23 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
         if jobs['cross_variable'].any():
             # Save the new Excel file
-            wb.save(xlsx_temp_file)
-            wb.close()
+            chi2_wb.save(chi2_xlsx_temp_file)
+            chi2_wb.close()
 
-            zip_file.write(f'{xlsx_temp_file.name}', arcname=xlsx_file_name)
-            set_time_zone_to_file(zip_file, xlsx_file_name)
-            xlsx_temp_file.close()
-            os.unlink(xlsx_temp_file.name)
+            zip_file.write(f'{chi2_xlsx_temp_file.name}', arcname=chi2_xlsx_file_name)
+            set_time_zone_to_file(zip_file, chi2_xlsx_file_name)
+            chi2_xlsx_temp_file.close()
+            os.unlink(chi2_xlsx_temp_file.name)
+
+        if jobs['correlation_variables'].any():
+            # Save the new Excel file
+            corr_wb.save(corr_xlsx_temp_file)
+            corr_wb.close()
+
+            zip_file.write(f'{corr_xlsx_temp_file.name}', arcname=corr_xlsx_file_name)
+            set_time_zone_to_file(zip_file, corr_xlsx_file_name)
+            corr_xlsx_temp_file.close()
+            os.unlink(corr_xlsx_temp_file.name)
 
     # Close and reset the BytesIO buffer
     zip_buffer.seek(0)

@@ -43,6 +43,7 @@ def main():
             'condition': st.column_config.TextColumn('Condition', required=False),
             'cross_variable': st.column_config.TextColumn('Cross Variable (Chi2)', width='small', required=False),
             'chi2_mode': st.column_config.SelectboxColumn('Mode', options=['T2B', 'TB'], default='T2B'),
+            'correlation_variables': st.column_config.TextColumn('Correlation Variables', required=False),
         }
 
         st.markdown('### Scenarios')
@@ -59,6 +60,7 @@ def main():
 
         jobs_df['variables'] = jobs_df['variables'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
         jobs_df['condition'] = jobs_df['condition'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
+        jobs_df['correlation_variables'] = jobs_df['correlation_variables'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
 
         jobs_validated = validate_segmentation_spss_jobs(jobs_df)
 
