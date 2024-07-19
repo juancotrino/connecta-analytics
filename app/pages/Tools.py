@@ -1,6 +1,7 @@
 import time
 from PIL import Image
 import streamlit as st
+import pandas as pd
 import pyreadstat
 
 from app.modules.text_function import categoryFinder, questionFinder
@@ -13,6 +14,7 @@ from app.modules.processor import processSav
 from app.modules.processor import getVarsSav
 from app.modules.processor import getCodeProcess
 from app.modules.processor import getCodePreProcess
+from app.modules.utils import get_temp_file, write_multiple_df_bytes
 
 def main():
     # -------------- SETTINGS --------------
@@ -113,3 +115,70 @@ def main():
             proces=st.button("Process All")
             if proces and qtypes and vars:
                 st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes))
+
+    with st.expander("Open-ended questions transformation"):
+        open_ended_questions_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='open_ended_questions_xlsx')
+        if open_ended_questions_xlsx:
+            temp_file_name_xlsx = get_temp_file(open_ended_questions_xlsx)
+
+            df = pd.read_excel(temp_file_name_xlsx)
+            df[df.columns[0]] = df[df.columns[0]].astype(str)
+
+            config = {
+                'questions': st.column_config.TextColumn('Questions', width='medium', required=True),
+            }
+
+            st.markdown('#### Groups of questions')
+
+            st.markdown("""
+                Add as many question groups as needed. Separate them with a comma `,`.
+            """)
+
+            available_questions = df.columns[1:].astype(str)
+            st.markdown(f"Avilable questions: `{'`, `'.join(available_questions)}`.")
+
+            with st.form('open_ended_transformation'):
+                questions = st.data_editor(
+                    pd.DataFrame(columns=[k for k in config.keys()]),
+                    num_rows="dynamic",
+                    width=400,
+                    key="questions_df",
+                    column_config=config
+                )
+
+                transform = st.form_submit_button('Transform')
+
+                if not questions.empty and transform:
+
+                    melted_df = df.melt(
+                        id_vars=[df.columns[0]],
+                        value_vars=df.columns[1:],
+                        var_name='question_id',
+                        value_name='answer'
+                    )
+
+                    melted_df[f'{melted_df.columns[1]}-{melted_df.columns[0]}'] = (
+                        melted_df[melted_df.columns[1]] + '-' + melted_df[melted_df.columns[0]]
+                    )
+
+
+                    group_questions_dict = {}
+                    for i, group in questions.iterrows():
+                        group_questions = [question.strip() for question in group['questions'].split(',')]
+                        melted_group_questions = melted_df[melted_df[melted_df.columns[1]].isin(group_questions)]
+                        melted_group_questions = melted_group_questions[[f'{melted_df.columns[1]}-{melted_df.columns[0]}', melted_df.columns[2]]]
+                        group_questions_dict['-'.join(group_questions)] = melted_group_questions
+
+                    transformed = write_multiple_df_bytes(group_questions_dict)
+
+
+        try:
+            st.download_button(
+                label="Download transformation",
+                data=transformed.getvalue(),
+                file_name=f'open-ended-transformed.xlsx',
+                mime='application/xlsx',
+                type='primary'
+            )
+        except:
+            pass
