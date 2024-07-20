@@ -5,7 +5,7 @@ import streamlit as st
 
 from app.modules.cloud import SharePoint, BigQueryClient
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def get_data_unique():
     bq = BigQueryClient()
     return bq.fetch_data(
