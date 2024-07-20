@@ -3,15 +3,20 @@ import itertools
 from PIL import Image
 import streamlit as st
 
+import numpy as np
+
 # from streamlit_option_menu import option_menu
 
 from app.modules.noel_dashboard import (
-    get_data,
     get_data_unique,
+    build_query,
+    get_filtered_data,
     to_excel_bytes,
     calculate_statistics_regular_scale,
     calculate_statistics_jr_scale
 )
+
+MINIMUM_MNUMBER_OF_FILTERS = 3
 
 def main():
     # -------------- SETTINGS --------------
@@ -30,10 +35,13 @@ def main():
     """)
     st.header('Filters')
 
-    try:
-        # data = get_data_unique()
-        data = get_data()
+    data = get_data_unique()
 
+    for column in data:
+        if column != 'age':
+            data[column] = data[column].replace({np.nan: ''})
+
+    with st.form("dashboard_filters"):
 
         col11, col12 = st.columns(2)
         col21, col22, col23, col24 = st.columns(4)
@@ -56,91 +64,82 @@ def main():
 
         for filter_name, attributes in filters_template.items():
             name, field = attributes
+
             if name == 'Age':
-                if data['age'].isna().all():
-                    continue
-                disabled = len(data['age'].dropna().unique()) == 0
-                selection = field.slider(
-                    name,
-                    value=(
-                        int(min(data['age'].dropna().unique())) if not disabled else 0,
-                        int(max(data['age'].dropna().unique())) if not disabled else 0
-                    ),
-                    disabled=disabled
-                )
-                data = data[(data['age'] >= selection[0]) & (data['age'] <= selection[1])]
+                selection = field.slider(name, value=(0, 100))
             else:
                 selection = field.multiselect(name, sorted(data[filter_name].unique()))
-                if selection:
-                    data = data[data[filter_name].isin(selection)]
 
             filters[filter_name] = selection
 
-        total_filters = [str(_filter) for _filter in list(itertools.chain.from_iterable(filters.values()))]
+        number_of_filters_selected = len([variable for variable, options in filters.items() if options])
+        generate_analysis = st.form_submit_button("Generate analysis")
 
-        # scale_type = option_menu(
-        #     menu_title=None,
-        #     options=[
-        #         "Regular Scales",
-        #         "JR Scales"
-        #     ],
-        #     icons=[
-        #         "align-end",
-        #         "align-middle"
-        #     ], # https://icons.getbootstrap.com/
-        #     orientation="horizontal",
-        #     styles={
-        #         "nav-link-selected": {"background-color": "#F78E1E"},
-        #     }
-        # )
+    try:
+        if generate_analysis:
+            if number_of_filters_selected <= MINIMUM_MNUMBER_OF_FILTERS:
+                st.error('You should select more than 3 filters.')
+            else:
+                with st.spinner("Fetching data from BigQuery..."):
+                    query = build_query(filters)
+                    filtered_data = get_filtered_data(query)
+                    st.session_state['filtered_data'] = filtered_data
 
-        scale_type = st.radio(
-            'Scale types:',
-            options=[
-                "Regular Scales",
-                "JR Scales"
-            ],
-            horizontal=True
-        )
+        if 'filtered_data' not in st.session_state:
+            st.session_state['filtered_data'] = None
 
-        if scale_type == 'Regular Scales':
-            table = calculate_statistics_regular_scale(data)
-            st.dataframe(
-                table,
-                use_container_width=True,
-                column_config={
-                    'variable': 'Variable',
-                    'base': 'Base',
-                    'mean': 'Mean',
-                    'std': 'Standard Deviation',
-                }
+        if st.session_state['filtered_data'] is not None:
+            filtered_data = st.session_state['filtered_data']
+
+            total_filters = [str(_filter) for _filter in list(itertools.chain.from_iterable(filters.values()))]
+
+            scale_type = st.radio(
+                'Scale types:',
+                options=[
+                    "Regular Scales",
+                    "JR Scales"
+                ],
+                horizontal=True
             )
 
-            st.download_button(
-                label="Download Data",
-                data=to_excel_bytes(table),
-                file_name=f'regular_{"_".join(total_filters)}.xlsx',
-                mime='application/xlsx'
-            )
+            if scale_type == 'Regular Scales':
+                table = calculate_statistics_regular_scale(filtered_data)
+                st.dataframe(
+                    table,
+                    use_container_width=True,
+                    column_config={
+                        'variable': 'Variable',
+                        'base': 'Base',
+                        'mean': 'Mean',
+                        'std': 'Standard Deviation',
+                    }
+                )
 
-        elif scale_type == 'JR Scales':
-            table = calculate_statistics_jr_scale(data)
-            st.dataframe(
-                table,
-                use_container_width=True,
-                column_config={
-                    'variable': 'Variable',
-                    'base': 'Base',
-                    'mean': 'Mean',
-                    'std': 'Standard Deviation',
-                }
-            )
-            st.download_button(
-                label="Download Data",
-                data=to_excel_bytes(table),
-                file_name=f'jr_{"_".join(total_filters)}.xlsx',
-                mime='application/xlsx'
-            )
+                st.download_button(
+                    label="Download Data",
+                    data=to_excel_bytes(table),
+                    file_name=f'regular_{"_".join(total_filters)}.xlsx',
+                    mime='application/xlsx'
+                )
+
+            elif scale_type == 'JR Scales':
+                table = calculate_statistics_jr_scale(filtered_data)
+                st.dataframe(
+                    table,
+                    use_container_width=True,
+                    column_config={
+                        'variable': 'Variable',
+                        'base': 'Base',
+                        'mean': 'Mean',
+                        'std': 'Standard Deviation',
+                    }
+                )
+                st.download_button(
+                    label="Download Data",
+                    data=to_excel_bytes(table),
+                    file_name=f'jr_{"_".join(total_filters)}.xlsx',
+                    mime='application/xlsx'
+                )
 
     except Exception as e:
         st.error(e)
