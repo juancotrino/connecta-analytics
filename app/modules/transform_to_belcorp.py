@@ -11,12 +11,7 @@ def prepare_variable_mapping(file_name_xlsx: str, file_name_sav: str):
     metadata_db = pyreadstat.read_sav(file_name_sav)[1]
     variable_mapping = pd.read_excel(file_name_xlsx, sheet_name='MAPEO')
 
-    time_columns = [col for col in variable_mapping.columns if col.startswith('time') and col != 'time_0']
-
-    for col in time_columns:
-        variable_mapping.loc[variable_mapping.index[-6:], col] = variable_mapping['time_0'].tail(6).values
-
-    inverted_gender = variable_mapping['time_0'].tail(1).values[0]
+    inverted_gender = variable_mapping[variable_mapping['belcorp'] == 'GENERO INV.']['time_0'].values[0]
 
     # connecta_study_value: belcorp_norma_values
     if inverted_gender:
@@ -29,7 +24,7 @@ def prepare_variable_mapping(file_name_xlsx: str, file_name_sav: str):
         'mexico': {1: 15, 2: 16, 3: 17, 4: 18, 5: 19, 6: 20, 7: 21}
     }
 
-    variable_mapping = variable_mapping.drop(variable_mapping.tail(1).index)
+    variable_mapping = variable_mapping.drop(variable_mapping[variable_mapping['belcorp'] == 'GENERO INV.'].index).reset_index(drop=True)
 
     variable_mapping['values'] = np.where(
         variable_mapping['belcorp'].isin(['IDCUEST', 'EDAD']),
@@ -42,7 +37,7 @@ def prepare_variable_mapping(file_name_xlsx: str, file_name_sav: str):
                 nse_equivalences,
                 np.where(
                     variable_mapping['belcorp'] == 'ALTERNATIVA',
-                    metadata_db.variable_value_labels[variable_mapping.iloc[-1, 1]],
+                    metadata_db.variable_value_labels[variable_mapping[variable_mapping['belcorp'] == 'ALTERNATIVA'].reset_index(drop=True).iloc[0, 1]],
                     None
                 )
             )
@@ -53,11 +48,11 @@ def prepare_variable_mapping(file_name_xlsx: str, file_name_sav: str):
 
 def separate_moments(variable_mapping: pd.DataFrame, df_db: pd.DataFrame):
     df_list = []
-    indexes = variable_mapping[variable_mapping['belcorp'].isin(variable_mapping['belcorp'].tail(5).values[:-1])]['time_0'].values.tolist()
 
-    for i, moment in enumerate(variable_mapping.columns[variable_mapping.columns.str.startswith('time')]):
-        df_moment = df_db[variable_mapping[moment].dropna().values].set_index(indexes)
-        df_moment['MOMENTO'] = i + 1
+    for moment in variable_mapping.columns[1:-1]:
+        indexes = variable_mapping[variable_mapping['belcorp'].isin(variable_mapping['belcorp'].tail(5).values[:-1])][moment].values.tolist()
+        df_moment = df_db[variable_mapping[moment].dropna().values[:-1]].set_index(indexes)
+        df_moment['MOMENTO'] = int(variable_mapping[variable_mapping['belcorp'] == 'MOMENT'][moment].values[0])
         df_list.append(df_moment.reset_index())
 
     return df_list
