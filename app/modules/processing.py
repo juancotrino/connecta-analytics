@@ -293,6 +293,23 @@ def write_statistical_siginificance_sheet(
     for row in range(1, ws_new.max_row + 1):
         ws_new.row_dimensions[row].height = fixed_row_height
 
+    # Iterate through the rows and columns starting from the second column
+    for row in ws_new.iter_rows(min_col=2):
+        for cell in row:
+            if cell.alignment.wrap_text:
+                # Preserve other alignment properties and set wrap_text to False
+                alignment = cell.alignment
+                new_alignment = Alignment(
+                    horizontal=alignment.horizontal,
+                    vertical=alignment.vertical,
+                    text_rotation=alignment.text_rotation,
+                    wrap_text=False,
+                    shrink_to_fit=alignment.shrink_to_fit,
+                    indent=alignment.indent,
+                    justifyLastLine=alignment.justifyLastLine,
+                    readingOrder=alignment.readingOrder
+                )
+                cell.alignment = new_alignment
 
 def write_penalty_sheet(result_df: pd.DataFrame, worksheet):
     # Split the DataFrame by unique questions
