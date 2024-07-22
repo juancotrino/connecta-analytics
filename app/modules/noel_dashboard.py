@@ -134,7 +134,6 @@ def calculate_statistics_regular_scale(data: pd.DataFrame, query: str | None = N
 
 def build_query(filters: dict[str, list[str | int]]) -> str:
     query = []
-    print(filters)
     for variable, options in filters.items():
         if variable == 'age' and options:
             sub_query = f'(({variable} >= {options[0]} AND {variable} <= {options[1]}) OR age IS NULL)'
