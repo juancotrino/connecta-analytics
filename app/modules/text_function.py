@@ -70,35 +70,38 @@ def genLabels(txtQues,txtLabels):
             continue
         idques=lab.split()[0]
         quest=" ".join(lab.split()[1:])
-        if re.search("^[DF].*[0-9].*-",idques):
-            preg=idques.split("-")[0]
-            if re.search("_",preg):
-                preg=preg.split("_")[0]
-            try:
-                labels+=questions[idquestions.index(preg)]
-            except:
-                labels+=preg+". "+" ".join(questions[idquestions.index(preg.split(".")[0])].split()[1:])
-        elif re.search("^[PS].*[0-9].*-",idques):
-            preg2=idques.split("-")[0]
-            if len(preg2.split("_"))>1:
-                preg=preg2.split("_")[0]
-                visit=preg2.split("_")[1]
-                labels+=preg+". "+visit+" "+ " ".join(questions[idquestions.index(preg)].split()[1:])
-        elif re.search("^[DFPS][0-9]",idques):
-            if len(idques.split("_"))>1:
-                preg=idques.split("_")[0]
-                visit=idques.split("_")[1]
-                if re.search(preg, quest):
+        try:
+            if re.search("^[DF].*[0-9].*-",idques):
+                preg=idques.split("-")[0]
+                if re.search("_",preg):
+                    preg=preg.split("_")[0]
+                try:
+                    labels+=questions[idquestions.index(preg)]
+                except:
+                    labels+=preg+". "+" ".join(questions[idquestions.index(preg.split(".")[0])].split()[1:])
+            elif re.search("^[PS].*[0-9].*-",idques):
+                preg2=idques.split("-")[0]
+                if len(preg2.split("_"))>1:
+                    preg=preg2.split("_")[0]
+                    visit=preg2.split("_")[1]
                     labels+=preg+". "+visit+" "+ " ".join(questions[idquestions.index(preg)].split()[1:])
+            elif re.search("^[DFPS][0-9]",idques):
+                if len(idques.split("_"))>1:
+                    preg=idques.split("_")[0]
+                    visit=idques.split("_")[1]
+                    if re.search(preg, quest):
+                        labels+=preg+". "+visit+" "+ " ".join(questions[idquestions.index(preg)].split()[1:])
+                    else:
+                        labels+=preg+". "+visit+ quest[1:]
                 else:
-                    labels+=preg+". "+visit+ quest[1:]
+                    if re.search(idques, quest):
+                        labels+=idques+". "+ " ".join(questions[idquestions.index(idques)].split()[1:])
+                    else:
+                        labels+=idques+". "+ quest[2:]
             else:
-                if re.search(idques, quest):
-                    labels+=idques+". "+ " ".join(questions[idquestions.index(idques)].split()[1:])
-                else:
-                    labels+=idques+". "+ quest[2:]
-        else:
-             labels+=lab
+                labels+=lab
+        except:
+            labels+=lab
         labels+="\n"
     return labels
 
