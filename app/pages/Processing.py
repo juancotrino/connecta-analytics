@@ -12,7 +12,6 @@ from app.modules.processor import (
     getCruces,
     getPreProcessAbiertas
 )
-from app.modules.penalty import calculate_penalties
 
 def main():
     # -------------- SETTINGS --------------
