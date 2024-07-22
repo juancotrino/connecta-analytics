@@ -25,14 +25,10 @@ def write_temp_excel(wb):
         with open(tmpfile.name, 'rb') as f:
             return BytesIO(f.read())
 
-def create_workbook(result_df: pd.DataFrame):
+def write_worksheet(result_df: pd.DataFrame, worksheet):
     # Split the DataFrame by unique questions
     unique_questions = result_df['question'].unique().tolist()
     dfs = {question: result_df[result_df['question'] == question].copy() for question in unique_questions}
-
-    # Create an Excel writer object
-    workbook = Workbook()
-    worksheet = workbook.active
 
     # Hide gridlines
     worksheet.sheet_view.showGridLines = False
@@ -85,74 +81,87 @@ def create_workbook(result_df: pd.DataFrame):
         # Update start_row for the next table, adding 2 rows of separation
         start_row += len(df) + 3
 
-    return write_temp_excel(workbook)
+    # return worksheet
 
 def calculate_penalties(xlsx_file: BytesIO):
 
     temp_file_name_xlsx = get_temp_file(xlsx_file)
 
-    df = pd.read_excel(temp_file_name_xlsx, header=None)
+    # Create a new Workbook
+    workbook = Workbook()
 
-    questions = df[0].dropna().unique().tolist()
-    samples = df.loc[1, 3:].values.tolist()
-    df.columns = ['question', 'grouped_variable', 'answer_option'] + samples
-    tables_separation_indexes = sorted(list(set([0] + df.index[df.isna().all(axis=1)].values.tolist() + [len(df)])))
-    tables_range_indexes = list(pairwise(tables_separation_indexes))
+    # Remove the default sheet created with the new workbook
+    default_sheet = workbook.active
+    workbook.remove(default_sheet)
 
-    results_dfs = []
+    sheets_dfs = pd.read_excel(temp_file_name_xlsx, header=None, sheet_name=None)
 
-    for question, (start, end) in zip(questions, tables_range_indexes):
-        question_df = df.loc[start:end, :]
+    # Iterate over all sheets
+    for sheet_name, df in sheets_dfs.items():
 
-        # Finding the index of the first occurrence
-        first_occurrence_index = question_df[question_df['grouped_variable'].str.contains('Total', na=False)].index[0]
+        questions = df[0].dropna().unique().tolist()
+        samples = df.loc[1, 3:].values.tolist()
+        df.columns = ['question', 'grouped_variable', 'answer_option'] + samples
+        tables_separation_indexes = sorted(list(set([0] + df.index[df.isna().all(axis=1)].values.tolist() + [len(df)])))
+        tables_range_indexes = list(pairwise(tables_separation_indexes))
 
-        grouped_variables = question_df.loc[:first_occurrence_index - 1].dropna(subset='grouped_variable')['grouped_variable'].to_list()
+        results_dfs = []
 
-        results_calculations = (
-            grouped_variables +
-            [f'MEAN {grouped_variable} VS. IC' for grouped_variable in grouped_variables] +
-            [f'PENALTY {grouped_variable}' for grouped_variable in grouped_variables if 'just' not in grouped_variable.lower()] +
-            ['TOTAL']
-        )
+        for question, (start, end) in zip(questions, tables_range_indexes):
+            question_df = df.loc[start:end, :]
 
-        base_inner_df = pd.DataFrame(index=results_calculations)
+            # Finding the index of the first occurrence
+            first_occurrence_index = question_df[question_df['grouped_variable'].str.contains('Total', na=False)].index[0]
 
-        for sample in samples:
-            for grouped_variable in grouped_variables:
-                sub_df = question_df.loc[first_occurrence_index:]
-                grouped_variable_index = sub_df[sub_df['grouped_variable'] == grouped_variable].index[0]
-                grouped_variable_df = sub_df.loc[grouped_variable_index:grouped_variable_index + 4]
+            grouped_variables = question_df.loc[:first_occurrence_index - 1].dropna(subset='grouped_variable')['grouped_variable'].to_list()
 
-                if grouped_variable_df[sample].sum() == 0:
-                    continue
+            results_calculations = (
+                grouped_variables +
+                [f'MEAN {grouped_variable} VS. IC' for grouped_variable in grouped_variables] +
+                [f'PENALTY {grouped_variable}' for grouped_variable in grouped_variables if 'just' not in grouped_variable.lower()] +
+                ['TOTAL']
+            )
 
-                total = sub_df[:1][sample].values[0]
+            base_inner_df = pd.DataFrame(index=results_calculations)
 
-                base_inner_df.loc[grouped_variable, sample] = (
-                    grouped_variable_df[sample].sum() / total
-                ) # Percentage
+            for sample in samples:
+                for grouped_variable in grouped_variables:
+                    sub_df = question_df.loc[first_occurrence_index:]
+                    grouped_variable_index = sub_df[sub_df['grouped_variable'] == grouped_variable].index[0]
+                    grouped_variable_df = sub_df.loc[grouped_variable_index:grouped_variable_index + 4]
 
-                base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample] = (
-                    (grouped_variable_df[sample] * np.array(list(range(0, 101, 25)))).sum() / grouped_variable_df[sample].sum()
-                ) # Mean
+                    if grouped_variable_df[sample].sum() == 0:
+                        continue
 
-            for grouped_variable in grouped_variables:
+                    total = sub_df[:1][sample].values[0]
 
-                if 'just' not in grouped_variable.lower():
-                    percentage = base_inner_df.loc[grouped_variable, sample]
-                    mean = base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample]
-                    jr_mean = base_inner_df.loc[f'MEAN {grouped_variables[1]} VS. IC', sample]
+                    base_inner_df.loc[grouped_variable, sample] = (
+                        grouped_variable_df[sample].sum() / total
+                    ) # Percentage
 
-                    base_inner_df.loc[f'PENALTY {grouped_variable}', sample] = (mean - jr_mean) * (percentage / total) * 100 # Penalty
+                    base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample] = (
+                        (grouped_variable_df[sample] * np.array(list(range(0, 101, 25)))).sum() / grouped_variable_df[sample].sum()
+                    ) # Mean
 
-            base_inner_df.loc['TOTAL', sample] = total # Total
+                for grouped_variable in grouped_variables:
 
-        base_inner_df = base_inner_df.reset_index(names='grouped_variable')
-        base_inner_df.insert(0, 'question', question)
+                    if 'just' not in grouped_variable.lower():
+                        percentage = base_inner_df.loc[grouped_variable, sample]
+                        mean = base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample]
+                        jr_mean = base_inner_df.loc[f'MEAN {grouped_variables[1]} VS. IC', sample]
 
-        results_dfs.append(base_inner_df)
+                        base_inner_df.loc[f'PENALTY {grouped_variable}', sample] = (mean - jr_mean) * (percentage / total) * 100 # Penalty
 
-    result_df = pd.concat(results_dfs).reset_index(drop=True)
+                base_inner_df.loc['TOTAL', sample] = total # Total
 
-    return create_workbook(result_df)
+            base_inner_df = base_inner_df.reset_index(names='grouped_variable')
+            base_inner_df.insert(0, 'question', question)
+
+            results_dfs.append(base_inner_df)
+
+        result_df = pd.concat(results_dfs).reset_index(drop=True)
+
+        worksheet = workbook.create_sheet(title=sheet_name)
+        write_worksheet(result_df, worksheet)
+
+    return write_temp_excel(workbook)

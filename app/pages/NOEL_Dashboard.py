@@ -41,39 +41,62 @@ def main():
         if column != 'age':
             data[column] = data[column].replace({np.nan: ''})
 
-    with st.form("dashboard_filters"):
+    # with st.form("dashboard_filters"):
 
-        col11, col12 = st.columns(2)
-        col21, col22, col23, col24 = st.columns(4)
-        col31, col32, col33, col34 = st.columns(4)
+    col11, col12 = st.columns(2)
+    col21, col22, col23, col24 = st.columns(4)
+    col31, col32, col33, col34 = st.columns(4)
 
-        filters_template = {
-            'category': ('Category', col11),
-            'sub_category': ('Sub Category', col12),
-            'client': ('Client', col21),
-            'study_name': ('Study Name', col22),
-            'brand': ('Brand', col23),
-            'sample': ('Sample', col24),
-            'age': ('Age', col31),
-            'gender': ('Gender', col32),
-            'ses': ('SES', col33),
-            'country': ('Country', col34),
-        }
+    filters_template = {
+        'category': ('Category', col11),
+        'sub_category': ('Sub Category', col12),
+        'client': ('Client', col21),
+        'study_name': ('Study Name', col22),
+        'brand': ('Brand', col23),
+        'sample': ('Sample', col24),
+        'age': ('Age', col31),
+        'gender': ('Gender', col32),
+        'ses': ('SES', col33),
+        'country': ('Country', col34),
+    }
 
-        filters = {filter_name: [] for filter_name in filters_template.keys()}
+    filters = {filter_name: [] for filter_name in filters_template.keys()}
 
-        for filter_name, attributes in filters_template.items():
-            name, field = attributes
+    for filter_name, attributes in filters_template.items():
+        name, field = attributes
+        if name == 'Age':
+            if data['age'].isna().all():
+                continue
+            disabled = len(data['age'].dropna().unique()) == 0
+            selection = field.slider(
+                name,
+                value=(
+                    int(min(data['age'].dropna().unique())) if not disabled else 0,
+                    int(max(data['age'].dropna().unique())) if not disabled else 0
+                ),
+                disabled=disabled
+            )
+            data = data[(data['age'] >= selection[0]) & (data['age'] <= selection[1])]
+        else:
+            selection = field.multiselect(name, sorted(data[filter_name].unique()))
+            if selection:
+                data = data[data[filter_name].isin(selection)]
 
-            if name == 'Age':
-                selection = field.slider(name, value=(0, 100))
-            else:
-                selection = field.multiselect(name, sorted(data[filter_name].unique()))
+        filters[filter_name] = selection
 
-            filters[filter_name] = selection
+        # for filter_name, attributes in filters_template.items():
+        #     name, field = attributes
 
-        number_of_filters_selected = len([variable for variable, options in filters.items() if options])
-        generate_analysis = st.form_submit_button("Generate analysis")
+        #     if name == 'Age':
+        #         selection = field.slider(name, value=(0, 100))
+        #     else:
+        #         selection = field.multiselect(name, sorted(data[filter_name].unique()))
+
+        #     filters[filter_name] = selection
+
+    number_of_filters_selected = len([variable for variable, options in filters.items() if options])
+    generate_analysis = st.button("Generate analysis")
+        # generate_analysis = st.form_submit_button("Generate analysis")
 
     try:
         if generate_analysis:
@@ -119,7 +142,8 @@ def main():
                     label="Download Data",
                     data=to_excel_bytes(table),
                     file_name=f'regular_{"_".join(total_filters)}.xlsx',
-                    mime='application/xlsx'
+                    mime='application/xlsx',
+                    type='primary'
                 )
 
             elif scale_type == 'JR Scales':
@@ -138,7 +162,8 @@ def main():
                     label="Download Data",
                     data=to_excel_bytes(table),
                     file_name=f'jr_{"_".join(total_filters)}.xlsx',
-                    mime='application/xlsx'
+                    mime='application/xlsx',
+                    type='primary'
                 )
 
     except Exception as e:
