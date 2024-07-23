@@ -445,7 +445,7 @@ def processing(xlsx_file: BytesIO):
                             mean = base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample]
                             jr_mean = base_inner_df.loc[f'MEAN {grouped_variables[1]} VS. IC', sample]
 
-                            base_inner_df.loc[f'PENALTY {grouped_variable}', sample] = (mean - jr_mean) * (percentage / total) * 100 # Penalty
+                            base_inner_df.loc[f'PENALTY {grouped_variable}', sample] = (mean - jr_mean) * percentage # Penalty
 
                     base_inner_df.loc['TOTAL', sample] = total # Total
 
@@ -527,7 +527,11 @@ def processing(xlsx_file: BytesIO):
             )
 
             combined_differences_df['Unnamed: 2'] = combined_differences_df['Unnamed: 2'].replace('', np.nan)
-            first_all_nan_index = combined_differences_df[combined_differences_df.isna().all(axis=1)].index[0]
+            nan_df = combined_differences_df[combined_differences_df.isna().all(axis=1)]
+            if not nan_df.empty:
+                first_all_nan_index = combined_differences_df[combined_differences_df.isna().all(axis=1)].index[0]
+            else:
+                first_all_nan_index = 2
 
             ws_new = wb_new.create_sheet(title=sheet_name)
 
