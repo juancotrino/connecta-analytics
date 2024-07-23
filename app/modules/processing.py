@@ -445,7 +445,7 @@ def processing(xlsx_file: BytesIO):
                             mean = base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample]
                             jr_mean = base_inner_df.loc[f'MEAN {grouped_variables[1]} VS. IC', sample]
 
-                            base_inner_df.loc[f'PENALTY {grouped_variable}', sample] = (mean - jr_mean) * (percentage / total) * 100 # Penalty
+                            base_inner_df.loc[f'PENALTY {grouped_variable}', sample] = (mean - jr_mean) * percentage # Penalty
 
                     base_inner_df.loc['TOTAL', sample] = total # Total
 
