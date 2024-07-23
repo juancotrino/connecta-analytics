@@ -12,12 +12,11 @@ from app.modules.processor import (
     getCruces,
     getPreProcessAbiertas
 )
-from app.modules.penalty import calculate_penalties
 
 def main():
     # -------------- SETTINGS --------------
     st.markdown("""
-    This tool calculates significant differences and formats the processing tables from SPSS in an `.xlsx` format.
+    This tool calculates significant significance and penalties and formats the processing tables from SPSS in an `.xlsx` format.
     """)
 
     st.header('SPSS Tables')
@@ -68,34 +67,6 @@ def main():
                 with col2.container(height=250):
                     st.code("none", line_numbers=True)
 
-
-
-    st.markdown('### Penalties')
-
-    with st.form('penalties_form'):
-        uploaded_file_penalty_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='penalty_xlsx')
-
-        calculate = st.form_submit_button('Calculate penalties')
-
-        if uploaded_file_penalty_xlsx and calculate:
-            with st.spinner('Calculating penalties...'):
-                try:
-                    penalties_results = calculate_penalties(uploaded_file_penalty_xlsx)
-                    st.success('Penalties calculated successfully.')
-                except Exception as e:
-                    st.error(e)
-
-    try:
-        st.download_button(
-            label="Download penalties",
-            data=penalties_results.getvalue(),
-            file_name=f'penalties.xlsx',
-            mime='application/xlsx',
-            type='primary'
-        )
-    except:
-        pass
-
     st.markdown('### Transform Database')
 
     with st.form('preprocessing_form'):
@@ -144,7 +115,7 @@ def main():
     except:
         pass
 
-    st.markdown('### Statistical Significance')
+    st.markdown('### Statistical Significance | Penalties')
 
     with st.form('processing_form'):
 
