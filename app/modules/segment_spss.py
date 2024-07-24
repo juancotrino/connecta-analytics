@@ -27,6 +27,7 @@ from scipy.stats import chi2_contingency, pearsonr
 # import seaborn as sns
 
 from app.modules.authenticator import get_inverted_scales_keywords
+from app.modules.utils import get_temp_file
 
 time_zone = timezone('America/Bogota')
 
@@ -258,32 +259,6 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     new_chart.series[0].data_points = data_points
     # copy_chart_style(source_chart, new_chart)
     print(new_chart.series[0].data_points[0])
-
-    # Apply color gradient
-    for bar, value in zip(data_points, dataframe.iloc[:, 1]):
-
-        color = get_color(value)
-
-        gradient_fill = GradientFillProperties(
-            gsLst=[
-                GradientStop(pos=0, prstClr='white'),  # Keep the gradient effect
-                GradientStop(pos=1, srgbClr=color),
-            ]
-        )
-
-        bar.graphicalProperties.gradFill = gradient_fill
-
-    worksheet.add_chart(new_chart, chart_destination)
-
-    # new_chart.series[0].data_points = data_points
-
-def get_temp_file(spss_file: BytesIO):
-    # Save BytesIO object to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(spss_file.getvalue())
-        temp_file_name = tmp_file.name
-
-    return temp_file_name
 
 def read_sav_metadata(file_name: str) -> pd.DataFrame:
     metadata =  pyreadstat.read_sav(
