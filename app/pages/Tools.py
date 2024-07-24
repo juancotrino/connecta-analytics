@@ -119,7 +119,7 @@ def main():
     with st.expander("Open-ended questions transformation"):
         open_ended_questions_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='open_ended_questions_xlsx')
         if open_ended_questions_xlsx:
-            temp_file_name_xlsx = get_temp_file(open_ended_questions_xlsx)
+            temp_file_name_xlsx = get_temp_file(open_ended_questions_xlsx, '.xlsx')
 
             df = pd.read_excel(temp_file_name_xlsx)
             df[df.columns[0]] = df[df.columns[0]].astype(str)
