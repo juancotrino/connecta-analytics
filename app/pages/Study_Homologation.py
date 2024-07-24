@@ -6,8 +6,6 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.study_homologation import (
-    get_temp_file,
-    read_sav_metadata,
     check_sharepoint_folder_existance,
     get_studies_info,
     upload_file_to_sharepoint,
@@ -15,11 +13,10 @@ from app.modules.study_homologation import (
     get_logs,
     process_study,
     load_to_bq,
-    write_df_bytes,
     check_study_existance_in_bq,
     get_current_studies
 )
-from app.modules.utils import get_countries
+from app.modules.utils import get_countries, write_bytes, get_temp_file, read_sav_metadata
 
 from app.modules.cloud import SharePoint, BigQueryClient
 
@@ -250,7 +247,7 @@ def main():
                             logs = get_logs(study_info)
                             upload_file_to_sharepoint(base_path, logs, 'logs.txt')
                             final_data_template = process_study(sav_file_name, study_info)
-                            processed_db = write_df_bytes(final_data_template)
+                            processed_db = write_bytes(final_data_template)
                             upload_file_to_sharepoint(base_path, processed_db, 'processed_db.xlsx')
                             st.success(
                                 f'Database processed and loaded successfully into above created folder.'

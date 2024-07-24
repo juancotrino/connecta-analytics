@@ -1,5 +1,4 @@
 from io import BytesIO
-import tempfile
 
 import numpy as np
 import pandas as pd
@@ -10,66 +9,8 @@ from firebase_admin import firestore
 import streamlit as st
 
 from app.modules.cloud import SharePoint, BigQueryClient
+from app.modules.utils import write_bytes
 
-def get_temp_file(spss_file: BytesIO):
-    # Save BytesIO object to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(spss_file.getvalue())
-        temp_file_name = tmp_file.name
-
-    return temp_file_name
-
-def read_sav_metadata(file_name: str) -> pd.DataFrame:
-    metadata =  pyreadstat.read_sav(
-        file_name,
-        apply_value_formats=False
-    )[1]
-
-    variable_info = pd.DataFrame([metadata.column_names_to_labels, metadata.variable_value_labels])
-    variable_info = variable_info.transpose()
-    variable_info.index.name = 'name'
-    variable_info.columns = ('label', 'values')
-    variable_info = variable_info.replace({None: ''})
-    variable_info['label'] = variable_info['label'].astype(str)
-    variable_info['values'] = variable_info['values'].astype(str)
-
-    return variable_info
-
-def write_df_bytes(df: pd.DataFrame):
-    # Use a context manager with BytesIO
-    bytes_io = BytesIO()
-
-    # Save the DataFrame to the BytesIO object as a CSV
-    df.to_excel(bytes_io, index=False)
-
-    # Reset the buffer's position to the beginning
-    bytes_io.seek(0)
-
-    return bytes_io
-
-def write_txt_bytes(text: str):
-
-    # Create a BytesIO object
-    output = BytesIO()
-
-    # Write the combined output to the BytesIO object
-    output.write(text.encode('utf-8'))
-
-    # Seek to the beginning of the BytesIO object to read its content from the start
-    output.seek(0)
-
-    return output
-
-# def write_temp_txt(text: str):
-#     with tempfile.NamedTemporaryFile() as tmpfile:
-
-
-#         # Write the markdown output to a txt file
-#         with open(tmpfile.name, 'w') as file:
-#             file.write(text)
-
-#         with open(tmpfile.name, 'rb') as f:
-#             return BytesIO(f.read())
 
 @st.cache_data(show_spinner=False)
 def get_studies_info():
@@ -261,7 +202,7 @@ def get_logs(study_info: dict):
         st.session_state['name']
     )
 
-    return write_txt_bytes(logs)
+    return write_bytes(logs)
 
 def transponse_df(df: pd.DataFrame):
 
