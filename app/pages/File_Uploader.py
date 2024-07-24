@@ -59,7 +59,7 @@ def main():
 
         selected_study = list(set([' '.join(study.split('_')[2:]).title() for study in filtered_studies if study.startswith(str(study_number))]))[0]
 
-        st.markdown(f'Upload to `{selected_study}` study for country: {country}')
+        st.info(f'Upload to `{selected_study}` study for country: {country}')
 
         st.subheader('Questionnaire')
 
