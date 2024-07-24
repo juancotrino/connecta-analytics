@@ -17,7 +17,11 @@ def main():
 
     st.markdown('Select study to upload files to its corresponding Sharepoint folder.')
 
-    countries_codes = get_countries()
+    try:
+        countries_codes = get_countries()
+    except Exception as e:
+        st.error(e)
+
     reversed_countries_codes = {value: key for key, value in countries_codes.items()}
 
     studies = get_sharepoint_studies('estudios')
@@ -67,10 +71,10 @@ def main():
             questionnaire_path = 'script/cuestionarios'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', questionnaire_path)
             if not files:
-                file_name = f'cuestionario_V1.docx'
+                file_name = f'{id_study_name}_Qu_V1.docx'
             else:
-                last_version_number = max(int(file.split('_')[1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'cuestionario_V{last_version_number + 1}.docx'
+                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                file_name = f'{id_study_name}_Qu_V{last_version_number + 1}.docx'
 
             with st.spinner('Uploading questionnaire to Sharepoint...'):
                 upload_file_to_sharepoint(f'{base_path}/{questionnaire_path}', uploaded_questionnaire, file_name)
@@ -87,11 +91,12 @@ def main():
         if uploaded_field_delivery and upload_field_delivery:
             field_delivery_path = 'generales/input'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', field_delivery_path)
+            files = [file for file in files if 'ECQ' in file]
             if not files:
-                file_name = f'entrega_campo_V1.docx'
+                file_name = f'{id_study_name}_ECQ_V1.docx'
             else:
-                last_version_number = max(int(file.split('_')[1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'entrega_campo_V{last_version_number + 1}.docx'
+                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                file_name = f'{id_study_name}_ECQ_V{last_version_number + 1}.docx'
 
             with st.spinner('Uploading field delivery to Sharepoint...'):
                 upload_file_to_sharepoint(f'{base_path}/{field_delivery_path}', uploaded_field_delivery, file_name)
@@ -109,10 +114,10 @@ def main():
             codes_book_path = 'codificacion/input'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', codes_book_path)
             if not files:
-                file_name = f'libro_codigos_V1.xlsx'
+                file_name = f'{id_study_name}_LC_V1.xlsx'
             else:
-                last_version_number = max(int(file.split('_')[1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'libro_codigos_V{last_version_number + 1}.xlsx'
+                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                file_name = f'{id_study_name}_LC_V{last_version_number + 1}.xlsx'
 
             with st.spinner('Uploading codes book to Sharepoint...'):
                 upload_file_to_sharepoint(f'{base_path}/{codes_book_path}', uploaded_questionnaire, file_name)
@@ -128,12 +133,13 @@ def main():
 
         if uploaded_processing_delivery and upload_processing_delivery:
             processing_delivery_path = 'generales/input'
-            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', codes_book_path)
+            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', processing_delivery_path)
+            files = [file for file in files if 'EPQ' in file]
             if not files:
-                file_name = f'entrega_procesamiento_V1.xlsx'
+                file_name = f'{id_study_name}_EPQ_V1.xlsx'
             else:
-                last_version_number = max(int(file.split('_')[1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'entrega_procesamiento_V{last_version_number + 1}.xlsx'
+                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                file_name = f'{id_study_name}_EPQ_V{last_version_number + 1}.xlsx'
 
             with st.spinner('Uploading processing delivery to Sharepoint...'):
                 upload_file_to_sharepoint(f'{base_path}/{processing_delivery_path}', uploaded_processing_delivery, file_name)

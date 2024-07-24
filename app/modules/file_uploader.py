@@ -4,7 +4,7 @@ from app.modules.cloud import SharePoint
 
 import streamlit as st
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=300)
 def get_sharepoint_studies(source: str):
     sharepoint = SharePoint()
     return sharepoint.list_folders(f'Documentos compartidos/{source}')
