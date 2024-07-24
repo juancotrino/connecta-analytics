@@ -12,6 +12,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import openpyxl
 from openpyxl.chart import BarChart, Reference
+from openpyxl.chart.marker import DataPoint
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, Font
@@ -207,30 +208,35 @@ def copy_chart_style(source_chart, target_chart):
 
 # Define function to get the color based on value
 def get_color(value):
-    if value == -1:
-        return '#FF0000'
-    elif -0.99 <= value < -0.9:
-        return '#FF4500'
-    elif -0.89 <= value < -0.7:
-        return '#FF8C00'
-    elif -0.69 <= value < -0.4:
-        return '#FFD700'
-    elif -0.39 <= value < -0.2:
-        return '#FFFF00'
-    elif -0.19 <= value < 0.0:
-        return '#FFFFE0'
-    elif 0.0 < value <= 0.19:
-        return '#ADFF2F'
-    elif 0.2 <= value < 0.39:
-        return '#7FFF00'
-    elif 0.4 <= value < 0.69:
-        return '#32CD32'
-    elif 0.7 <= value < 0.89:
-        return '#00FF00'
-    elif 0.9 <= value < 0.99:
-        return '#008000'
-    elif value == 1:
-        return '#006400'
+    match value:
+        case x if x == -1:
+            return '#FF0000'
+        case x if -0.99 <= x < -0.9:
+            return '#FF4500'
+        case x if -0.89 <= x < -0.7:
+            return '#FF8C00'
+        case x if -0.69 <= x < -0.4:
+            return '#FFD700'
+        case x if -0.39 <= x < -0.2:
+            return '#FFFF00'
+        case x if -0.19 <= x < 0.0:
+            return '#FFFFE0'
+        case x if x == 0:
+            return '#FFFFE0'
+        case x if 0.01 <= x <= 0.19:
+            return '#ADFF2F'
+        case x if 0.2 <= x < 0.39:
+            return '#7FFF00'
+        case x if 0.4 <= x < 0.69:
+            return '#32CD32'
+        case x if 0.7 <= x < 0.89:
+            return '#00FF00'
+        case x if 0.9 <= x < 0.99:
+            return '#008000'
+        case x if x == 1:
+            return '#006400'
+        case _:
+            return '#FFFFFF'
 
 def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destination):
     # If you have the data in a DataFrame
@@ -248,22 +254,28 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     new_chart.height = 20  # set height to 20 units
 
     # Copy the style from source to target chart
-    copy_chart_style(source_chart, new_chart)
+    data_points = [DataPoint(idx=i) for i in range(len(dataframe))]
+    new_chart.series[0].data_points = data_points
+    # copy_chart_style(source_chart, new_chart)
+    print(new_chart.series[0].data_points[0])
+
+    # Apply color gradient
+    for bar, value in zip(data_points, dataframe.iloc[:, 1]):
+
+        color = get_color(value)
+
+        gradient_fill = GradientFillProperties(
+            gsLst=[
+                GradientStop(pos=0, prstClr='white'),  # Keep the gradient effect
+                GradientStop(pos=1, srgbClr=color),
+            ]
+        )
+
+        bar.graphicalProperties.gradFill = gradient_fill
 
     worksheet.add_chart(new_chart, chart_destination)
 
-    # Apply color gradient
-    for i, bar in enumerate(new_chart.series[0].data_points):
-        print
-        value = data[i + 1][1]  # Skip the header row
-        color = get_color(value)
-        gradient_fill = GradientFillProperties(
-            stops=[
-                GradientStop(position=0, color=color),
-                GradientStop(position=1, color='FFFFFF')  # Keep the gradient effect
-            ]
-        )
-        bar.graphicalProperties.gradFill = gradient_fill
+    # new_chart.series[0].data_points = data_points
 
 def get_temp_file(spss_file: BytesIO):
     # Save BytesIO object to a temporary file
