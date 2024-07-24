@@ -25,7 +25,7 @@ def get_countries() -> dict[str, str]:
         return countries_iso_2_code
 
     else:
-        countries_iso_2_code = {
+        return {
             'Colombia': 'CO',
             'Mexico': 'MX',
             'Ecuador': 'EC',
