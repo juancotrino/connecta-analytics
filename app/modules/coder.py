@@ -46,15 +46,14 @@ def generate_open_ended_db(temp_file_name_xlsx: str, temp_file_name_sav: str):
         .dropna(subset='answer_txt')
         .reset_index(drop=True)
     )
-    # df = pd.read_excel('data/intercode_output_ai_8668.xlsx').dropna(how='all').reset_index(drop=True)
-    df = df[['ID', 'answer_txt', 'code_ai_micro_txt', 'code_ai_micro_num']]
-    df = df.rename(columns={'ID': 'respondent_id'})
+
+    if 'code_ai_micro_txt' in df.columns.to_list():
+        df = df.drop(columns='code_ai_micro_txt')
 
     df['question_code'] = df['respondent_id'].apply(lambda x: x.split('-')[0])
     df['respondent_id'] = df['respondent_id'].apply(lambda x: x.split('-')[1])
     df['question_code_number'] = df['question_code'].apply(lambda x: int(x.split('_')[0][1:]))
     df = df.sort_values(by='question_code_number').reset_index(drop=True)
-    df = df[['respondent_id', 'question_code', 'answer_txt', 'code_ai_micro_txt', 'code_ai_micro_num']]
     df['respondent_id'] = df['respondent_id'].astype(float)
     ordered_questions = df['question_code'].unique().tolist()
 
@@ -64,17 +63,19 @@ def generate_open_ended_db(temp_file_name_xlsx: str, temp_file_name_sav: str):
     pivoted_df = df.pivot(
         index='respondent_id',
         columns='question_code',
-        values=['answer_txt', 'code_ai_micro_txt', 'code_ai_micro_num']
+        values=['answer_txt', 'code_ai_micro_num']
     )
 
     answers: pd.DataFrame = pivoted_df['answer_txt'][ordered_questions]
     answers_codes: pd.DataFrame = pivoted_df['code_ai_micro_num'][ordered_questions]
+
     # Function to expand lists/tuples into columns
     def expand_lists(row, max_len):
         if isinstance(row, (list, tuple)):
             return pd.Series(row)
         else:
             return pd.Series([np.nan] * max_len)
+
     for column in answers_codes:
         # Determine the maximum length of lists/tuples
         max_len = answers_codes[column].dropna().apply(len).max()
