@@ -474,6 +474,7 @@ class Authenticator:
             st.session_state["username"] = None
             st.session_state["roles"] = None
             st.session_state["authentication_status"] = None
+            st.cache_data.clear()
             return None
 
         with st.expander("Account configurarion"):
