@@ -70,6 +70,7 @@ def main():
         if uploaded_questionnaire and upload_questionnaire:
             questionnaire_path = 'script/cuestionarios'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', questionnaire_path)
+            files = [file for file in files if 'Qu' in file]
             if not files:
                 file_name = f'{id_study_name}_Qu_V1.docx'
             else:
@@ -89,7 +90,7 @@ def main():
             upload_field_delivery = st.form_submit_button('Upload field delivery')
 
         if uploaded_field_delivery and upload_field_delivery:
-            field_delivery_path = 'generales/input'
+            field_delivery_path = 'script/entrega_campo'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', field_delivery_path)
             files = [file for file in files if 'ECQ' in file]
             if not files:
@@ -113,6 +114,7 @@ def main():
         if uploaded_codes_book and upload_codes_book:
             codes_book_path = 'codificacion/input'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', codes_book_path)
+            files = [file for file in files if 'LC' in file]
             if not files:
                 file_name = f'{id_study_name}_LC_V1.xlsx'
             else:
