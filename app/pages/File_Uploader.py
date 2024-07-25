@@ -146,3 +146,25 @@ def main():
                 st.success(
                     f"Processing delivery uploaded successfully into [study's folder]({folder_url}/{processing_delivery_path})."
                 )
+
+        st.subheader('Concept')
+
+        with st.form('upload_concept_form'):
+            uploaded_concept = st.file_uploader("Upload `.pptx` concept file", type=["pptx"], key='concept_pptx')
+            upload_concept = st.form_submit_button('Upload concept')
+
+        if uploaded_concept and upload_concept:
+            concept_path = 'script/conceptos'
+            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', concept_path)
+            files = [file for file in files if 'EST' in file]
+            if not files:
+                file_name = f'{id_study_name}_EST_V1.xlsx'
+            else:
+                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                file_name = f'{id_study_name}_EST_V{last_version_number + 1}.pptx'
+
+            with st.spinner('Uploading concept to Sharepoint...'):
+                upload_file_to_sharepoint(f'{base_path}/{concept_path}', uploaded_concept, file_name)
+                st.success(
+                    f"Concept uploaded successfully into [study's folder]({folder_url}/{concept_path})."
+                )
