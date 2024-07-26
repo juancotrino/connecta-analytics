@@ -1,8 +1,5 @@
-import time
-from PIL import Image
 import streamlit as st
 import pandas as pd
-import pyreadstat
 
 from app.modules.text_function import categoryFinder, questionFinder
 from app.modules.text_function import genRecodes
@@ -14,7 +11,8 @@ from app.modules.processor import processSav
 from app.modules.processor import getVarsSav
 from app.modules.processor import getCodeProcess
 from app.modules.processor import getCodePreProcess
-from app.modules.utils import get_temp_file, write_multiple_df_bytes
+from app.modules.coder import transform_open_ended, generate_open_ended_db
+from app.modules.utils import get_temp_file, write_multiple_df_bytes, write_temp_sav
 
 def main():
     # -------------- SETTINGS --------------
@@ -117,9 +115,10 @@ def main():
                 st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes))
 
     with st.expander("Open-ended questions transformation"):
-        open_ended_questions_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='open_ended_questions_xlsx')
+        st.markdown('### First phase')
+        open_ended_questions_xlsx = st.file_uploader("Upload `.xlsx` file", type=["xlsx"], key='open_ended_questions_xlsx')
         if open_ended_questions_xlsx:
-            temp_file_name_xlsx = get_temp_file(open_ended_questions_xlsx)
+            temp_file_name_xlsx = get_temp_file(open_ended_questions_xlsx, '.xlsx')
 
             df = pd.read_excel(temp_file_name_xlsx)
             df[df.columns[0]] = df[df.columns[0]].astype(str)
@@ -149,35 +148,41 @@ def main():
                 transform = st.form_submit_button('Transform')
 
                 if not questions.empty and transform:
-
-                    melted_df = df.melt(
-                        id_vars=[df.columns[0]],
-                        value_vars=df.columns[1:],
-                        var_name='question_id',
-                        value_name='answer'
-                    )
-
-                    melted_df[f'{melted_df.columns[1]}-{melted_df.columns[0]}'] = (
-                        melted_df[melted_df.columns[1]] + '-' + melted_df[melted_df.columns[0]]
-                    )
-
-
-                    group_questions_dict = {}
-                    for i, group in questions.iterrows():
-                        group_questions = [question.strip() for question in group['questions'].split(',')]
-                        melted_group_questions = melted_df[melted_df[melted_df.columns[1]].isin(group_questions)]
-                        melted_group_questions = melted_group_questions[[f'{melted_df.columns[1]}-{melted_df.columns[0]}', melted_df.columns[2]]]
-                        group_questions_dict['-'.join(group_questions)] = melted_group_questions
-
+                    group_questions_dict = transform_open_ended(questions, df)
                     transformed = write_multiple_df_bytes(group_questions_dict)
-
 
         try:
             st.download_button(
                 label="Download transformation",
                 data=transformed.getvalue(),
-                file_name=f'open-ended-transformed.xlsx',
+                file_name=f'open_ended_transformed.xlsx',
                 mime='application/xlsx',
+                type='primary'
+            )
+        except:
+            pass
+
+        st.markdown('### Second phase')
+        with st.form('open_ended_coded_transformation'):
+            open_ended_questions_coded_xlsx = st.file_uploader("Upload `.xlsx` file", type=["xlsx"], key='open_ended_questions_coded_xlsx')
+            closed_questions_db_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='closed_questions_db_sav')
+
+            transform = st.form_submit_button('Transform')
+
+            if open_ended_questions_coded_xlsx and closed_questions_db_sav and transform:
+                temp_file_name_xlsx = get_temp_file(open_ended_questions_coded_xlsx, '.xlsx')
+                temp_file_name_sav = get_temp_file(closed_questions_db_sav)
+
+                final_df, metadata = generate_open_ended_db(temp_file_name_xlsx, temp_file_name_sav)
+
+                final_db = write_temp_sav(final_df, metadata)
+
+        try:
+            st.download_button(
+                label="Download transformation",
+                data=final_db.getvalue(),
+                file_name=f'open_ended_coded_transformed.sav',
+                mime='application/sav',
                 type='primary'
             )
         except:

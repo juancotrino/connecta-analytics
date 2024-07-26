@@ -61,6 +61,14 @@ class SharePoint:
         self.ctx.load(folders).execute_query()
         return [folder.name for folder in folders]
 
+    def list_files(self, file_url: str):
+        # file_url is the sharepoint url from which you need the list of files
+        library_root = self.ctx.web.get_folder_by_server_relative_url(file_url)
+        files = library_root.get_files()
+        self.ctx.load(files)
+        self.ctx.execute_query()
+        return [file.properties["Name"] for file in files]
+
     def upload_file(self, folder: str, file_content: BytesIO, file_name: str):
         self.ctx.web.get_folder_by_server_relative_url(f'{folder}/').upload_file(file_name, file_content).execute_query()
 

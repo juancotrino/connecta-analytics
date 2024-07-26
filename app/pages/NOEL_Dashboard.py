@@ -1,6 +1,4 @@
-import time
 import itertools
-from PIL import Image
 import streamlit as st
 
 import numpy as np

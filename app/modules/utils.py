@@ -4,6 +4,7 @@ import tempfile
 import requests
 
 import pandas as pd
+import pyreadstat
 
 import streamlit as st
 
@@ -14,12 +15,22 @@ def get_countries() -> dict[str, str]:
 
     response = requests.get(url)
 
-    countries_info = response.json()[1]
+    if response.status_code == 200:
 
-    country_names = [country['name'] for country in countries_info if 'Latin America & Caribbean' in country['region']['value']]
-    countries_iso_2_code = {country['name']: country['iso2Code'] for country in countries_info if country['name'] in country_names}
+        countries_info = response.json()[1]
 
-    return countries_iso_2_code
+        country_names = [country['name'] for country in countries_info if 'Latin America & Caribbean' in country['region']['value']]
+        countries_iso_2_code = {country['name']: country['iso2Code'] for country in countries_info if country['name'] in country_names}
+
+        return countries_iso_2_code
+
+    else:
+        return {
+            'Colombia': 'CO',
+            'Mexico': 'MX',
+            'Ecuador': 'EC',
+            'Peru': 'PE'
+        }
 
 def get_authorized_pages_names(pages_roles: dict):
     files = sorted(os.listdir('app/pages'))
@@ -33,9 +44,9 @@ def get_authorized_pages_names(pages_roles: dict):
 
     return pages_to_show
 
-def get_temp_file(file: BytesIO):
+def get_temp_file(file: BytesIO, suffix: str | None = None):
     # Save BytesIO object to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
         tmp_file.write(file.getvalue())
         temp_file_name = tmp_file.name
 
@@ -58,3 +69,48 @@ def write_multiple_df_bytes(dfs_dict: dict[str, pd.DataFrame]) -> BytesIO:
 
     output.seek(0)
     return output
+
+def write_bytes(data: pd.DataFrame | str):
+    # Use a context manager with BytesIO
+    bytes_io = BytesIO()
+
+    if isinstance(data, pd.DataFrame):
+        # Save the DataFrame to the BytesIO object
+        data.to_excel(bytes_io, index=False)
+    elif isinstance(data, str):
+        # Write the combined output to the BytesIO object
+        bytes_io.write(data.encode('utf-8'))
+
+    # Reset the buffer's position to the beginning
+    bytes_io.seek(0)
+
+    return bytes_io
+
+def read_sav_metadata(file_name: str) -> pd.DataFrame:
+    metadata =  pyreadstat.read_sav(
+        file_name,
+        apply_value_formats=False
+    )[1]
+
+    variable_info = pd.DataFrame([metadata.column_names_to_labels, metadata.variable_value_labels])
+    variable_info = variable_info.transpose()
+    variable_info.index.name = 'name'
+    variable_info.columns = ('label', 'values')
+    variable_info = variable_info.replace({None: ''})
+    variable_info['label'] = variable_info['label'].astype(str)
+    variable_info['values'] = variable_info['values'].astype(str)
+
+    return variable_info
+
+def write_temp_sav(df: pd.DataFrame, metadata):
+    with tempfile.NamedTemporaryFile() as tmpfile:
+        # Write the DataFrame to the temporary SPSS file
+        pyreadstat.write_sav(
+            df,
+            tmpfile.name,
+            column_labels=metadata.column_names_to_labels,
+            variable_value_labels=metadata.variable_value_labels
+        )
+
+        with open(tmpfile.name, 'rb') as f:
+            return BytesIO(f.read())
