@@ -10,7 +10,8 @@ from app.modules.processor import (
     getSegmentCode,
     getPenaltysCode,
     getCruces,
-    getPreProcessAbiertas
+    getPreProcessAbiertas,
+    getProcessAbiertas
 )
 
 def main():
@@ -37,7 +38,7 @@ def main():
             with col2:
                 col2.markdown("Code to segment base by references:")
                 with col2.container(height=250):
-                    st.code(getSegmentCode(uploaded_file_process_sav), line_numbers=True)
+                    st.code(getSegmentCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
             st.markdown("### Code SPSS")
             col1, col2, col3  = st.columns(3)
             with col1:
@@ -65,7 +66,7 @@ def main():
             with col2:
                 col2.markdown("Code to gen Abiertas tables in SPSS:")
                 with col2.container(height=250):
-                    st.code("none", line_numbers=True)
+                    st.code(getProcessAbiertas(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
 
     st.markdown('### Transform Database')
 
