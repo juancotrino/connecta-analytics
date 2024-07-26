@@ -25,9 +25,10 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     preprocesscode+=getCloneCodeVars(spss_file,xlsx_file)
     return preprocesscode
 
-def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
+def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
+
     file_xlsx = get_temp_file(xlsx_file)
-    varsList=pd.read_excel(file_xlsx,usecols="A,B",skiprows=3,names=["vars","varsTypes"]).dropna()
+    varsList=pd.read_excel(file_xlsx,usecols="A,B,E",skiprows=3,names=["vars","varsTypes","descendOrder"]).dropna(subset=["vars"])
     colVarsList=pd.melt(pd.read_excel(file_xlsx,nrows=2),var_name="colVars",value_name="colVarsNames").drop(0)
     result=""
     colvars=colVarsList.iloc[:,0]
@@ -41,8 +42,12 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
 
     for i in range(len(varsList)):
         if varsList.iloc[i][1]!="A":
-            result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars)
+            if varsList.iloc[i][2]!="D":
+                result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude)
+            else:
+                result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,descendingorder=True,includeall=checkinclude)
     return result
+
 
 def getPreProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
     result=""
@@ -107,7 +112,7 @@ def getAbiertasPreCode(var,lcTable):
     abiertascode+=".\nEXECUTE.\n"
     return abiertascode
 
-def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
+def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
     result=""
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
@@ -165,7 +170,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
                 for end in net[1]:
                     if count[end]>0:
                         listafinalorde.append(end)
-        result+=writeAbiertasQuestion(varAbierta,colvars,listafinalorde)
+        result+=writeAbiertasQuestion(varAbierta,colvars,listafinalorde,includeall=checkinclude)
 
         listatotaluniq=list(set(listatotal))
         for net in listNetos:
@@ -197,7 +202,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
                 for newvar in newmultis:
                     result+=" "+newvar
                 result+=".\nEXECUTE.\n\nformats NETO_"+nombreneto+"(f8.0).\nVALUE LABELS NETO_"+nombreneto+" 1 \"NETO "+net[0].strip()+"\".\nEXECUTE.\n"
-                result+=writeQuestion("NETO_"+nombreneto,"T",colvars)
+                result+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude)
     return result
 
 def getPenaltysCode(xlsx_file: BytesIO):
@@ -236,14 +241,14 @@ def getPenaltysCode(xlsx_file: BytesIO):
     except:
         return "No Penaltys to calculated"
 
-def getCruces(xlsx_file: BytesIO):
+def getCruces(xlsx_file: BytesIO,checkinclude=False):
     try:
         file_xlsx = get_temp_file(xlsx_file)
         varsList=pd.read_excel(file_xlsx,usecols="G,H,I",skiprows=3,names=["vars","varsTypes","crossVars"]).dropna()
         crosscode=""
         for i in range(len(varsList)):
             for crossvar in varsList.iloc[i][2].split():
-                crosscode+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],[crossvar])
+                crosscode+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],[crossvar],includeall=checkinclude)
         return crosscode
     except:
         return "No cruces"
@@ -353,7 +358,7 @@ def getCodePreProcess(spss_file: BytesIO,inversevars="",columnVars="",namedatase
         filterdatabase+="SELECT IF (REF.1 = "+str(int(refindex))+").\nEXECUTE.\n\n"
     return agrupresult,inverserecodes,columnsclone,filterdatabase
 
-def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
+def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt,checkinclude=False):
     result=""
     varsProcess=[var for var in varsTxt.splitlines()]
     qtypes=[qtype for qtype in qtypesTxt.splitlines()]
@@ -367,7 +372,7 @@ def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt):
 
     for var in varsProcess:
         qtype=qtypes[varsProcess.index(var)]
-        result+=writeQuestion(var,colvars,qtype,result)
+        result+=writeQuestion(var,colvars,qtype,result,includeall=checkinclude)
     return result
 
 def writeAgrupMulti(prefix,listVars,label):
@@ -500,7 +505,7 @@ def getSegmentCode(spss_file: BytesIO,xlsx_file: BytesIO):
     except:
         return "References variable not is REF.1"
 
-def writeQuestion(varName,qtype, colVars):
+def writeQuestion(varName,qtype, colVars,descendingorder=False,includeall=False):
     txt=""
     if qtype=="M":
         varName="$"+re.search(".*A",varName).group()[:-1]
@@ -527,6 +532,8 @@ def writeQuestion(varName,qtype, colVars):
         txt+=" [&cat1, 5, 4, 3, 2, 1, &cat2] "
     elif qtype in ["M"]:
         txt+=" ORDER=D KEY=COUNT "
+    elif descendingorder:
+        txt+=" ORDER=D KEY=VALUE "
     else:
         txt+=" ORDER=A KEY=VALUE "
 
@@ -538,7 +545,11 @@ def writeQuestion(varName,qtype, colVars):
     txt+="\n  /CATEGORIES VARIABLES=TOTAL "
     for colvar in colVars:
         txt+= colvar+" "
-    txt+="ORDER=A EMPTY=EXCLUDE"
+    if includeall:
+        txt+="ORDER=A EMPTY=INCLUDE"
+    else:
+        txt+="ORDER=A EMPTY=EXCLUDE"
+
     txt+=("\n  /CRITERIA CILEVEL=95\n  /COMPARETEST TYPE=PROP ALPHA=0.05 ADJUST=BONFERRONI ORIGIN=COLUMN INCLUDEMRSETS=YES"
         + "\n  CATEGORIES=SUBTOTALS MERGE=YES STYLE=SIMPLE SHOWSIG=NO.\n")
     return txt
