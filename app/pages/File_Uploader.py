@@ -70,6 +70,7 @@ def main():
         if uploaded_questionnaire and upload_questionnaire:
             questionnaire_path = 'script/cuestionarios'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', questionnaire_path)
+            files = [file for file in files if 'Qu' in file]
             if not files:
                 file_name = f'{id_study_name}_Qu_V1.docx'
             else:
@@ -89,7 +90,7 @@ def main():
             upload_field_delivery = st.form_submit_button('Upload field delivery')
 
         if uploaded_field_delivery and upload_field_delivery:
-            field_delivery_path = 'generales/input'
+            field_delivery_path = 'script/entrega_campo'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', field_delivery_path)
             files = [file for file in files if 'ECQ' in file]
             if not files:
@@ -113,6 +114,7 @@ def main():
         if uploaded_codes_book and upload_codes_book:
             codes_book_path = 'codificacion/input'
             files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', codes_book_path)
+            files = [file for file in files if 'LC' in file]
             if not files:
                 file_name = f'{id_study_name}_LC_V1.xlsx'
             else:
@@ -145,4 +147,26 @@ def main():
                 upload_file_to_sharepoint(f'{base_path}/{processing_delivery_path}', uploaded_processing_delivery, file_name)
                 st.success(
                     f"Processing delivery uploaded successfully into [study's folder]({folder_url}/{processing_delivery_path})."
+                )
+
+        st.subheader('Concept')
+
+        with st.form('upload_concept_form'):
+            uploaded_concept = st.file_uploader("Upload `.pptx` concept file", type=["pptx"], key='concept_pptx')
+            upload_concept = st.form_submit_button('Upload concept')
+
+        if uploaded_concept and upload_concept:
+            concept_path = 'script/conceptos'
+            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', concept_path)
+            files = [file for file in files if 'EST' in file]
+            if not files:
+                file_name = f'{id_study_name}_EST_V1.xlsx'
+            else:
+                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                file_name = f'{id_study_name}_EST_V{last_version_number + 1}.pptx'
+
+            with st.spinner('Uploading concept to Sharepoint...'):
+                upload_file_to_sharepoint(f'{base_path}/{concept_path}', uploaded_concept, file_name)
+                st.success(
+                    f"Concept uploaded successfully into [study's folder]({folder_url}/{concept_path})."
                 )
