@@ -246,81 +246,84 @@ def processSav(spss_file:BytesIO):
 
 
 def processSavMulti(spss_file: BytesIO):
-    temp_file_name = get_temp_file(spss_file)
-    data, study_metadata = pyreadstat.read_sav(
-        temp_file_name,
-        apply_value_formats=False
-    )
-    vals=study_metadata.variable_value_labels
-    labels="* Encoding: UTF-8.\n"
-    serie=False
-    prev=""
-    pref=""
-    optqueue=[]
-    varmultis=[]
-    for line, scale in vals.items():
-        if re.search("^[FPS].*A.*[1-90]",line):
-            if not serie:
-                serie=True
-                first=line
-                pref=re.search(".*A",line).group()
-                option=scale.get(1).strip()
-                optqueue.append(option)
-                labels2=""
-                prev=line
-            else:
-                if pref==re.search(".*A",line).group():
-                    if len(scale)>=1:
-                        option=scale.get(1).strip()
-                        optqueue.append(option)
-                        prev=line
-                else:
-                    labels2="VALUE LABELS "+first+" to "+ prev
-                    num=re.search("A.*",first).group()[1:]
-                    if not re.search("^[1-90]",num):
-                        num=num[1:]
-                    count=int(num)
-                    for opt in optqueue:
-                        labels2+="\n"+str(count)+" \""+opt+"\""
-                        count+=1
-                    labels2+=".\n\n"
-                    if(len(np.unique(optqueue))>1):
-                        labels+=labels2
-                        varmultis.append(re.search(".*A",first).group())
-                    optqueue=[]
+    try:
+        temp_file_name = get_temp_file(spss_file)
+        data, study_metadata = pyreadstat.read_sav(
+            temp_file_name,
+            apply_value_formats=False
+        )
+        vals=study_metadata.variable_value_labels
+        labels="* Encoding: UTF-8.\n"
+        serie=False
+        prev=""
+        pref=""
+        optqueue=[]
+        varmultis=[]
+        for line, scale in vals.items():
+            if re.search("^[FPS].*A.*[1-90]",line):
+                if not serie:
+                    serie=True
                     first=line
                     pref=re.search(".*A",line).group()
                     option=scale.get(1).strip()
                     optqueue.append(option)
+                    labels2=""
                     prev=line
-    if serie:
-        labels2+="VALUE LABELS "+first+" to "+ prev
-        num=re.search("A.*",first).group()[1:]
-        if not re.search("^[1-90]",num):
-            num=num[1:]
-        count=int(num)
-        for opt in optqueue:
-            labels2+="\n"+str(count)+" \""+opt+"\""
-            count+=1
-        labels2+=".\n\n"
-        if(len(np.unique(optqueue))>1):
-            labels+=labels2
-            varmultis.append(re.search(".*A",first).group())
-    if labels=="* Encoding: UTF-8.\n":
-        labels=""
-    recodes="* Encoding: UTF-8.\n"
-    for line,scale in vals.items():
-        if re.search("^[FPS].*A.*[1-90]",line):
-            pref=re.search(".*A[^1-90]*",line).group()
-            if pref in varmultis:
-                num=re.search("A.*",line).group()[1:]
-                if not re.search("^[1-90]",num):
-                    num=num[1:]
-                recodes+="RECODE "+pref+num+"(1="+num+").\n"
-    recodes+="EXECUTE."
-    if recodes=="* Encoding: UTF-8.\nEXECUTE.":
-        recodes=""
-    return recodes,labels
+                else:
+                    if pref==re.search(".*A",line).group():
+                        if len(scale)>=1:
+                            option=scale.get(1).strip()
+                            optqueue.append(option)
+                            prev=line
+                    else:
+                        labels2="VALUE LABELS "+first+" to "+ prev
+                        num=re.search("A.*",first).group()[1:]
+                        if not re.search("^[1-90]",num):
+                            num=num[1:]
+                        count=int(num)
+                        for opt in optqueue:
+                            labels2+="\n"+str(count)+" \""+opt+"\""
+                            count+=1
+                        labels2+=".\n\n"
+                        if(len(np.unique(optqueue))>1):
+                            labels+=labels2
+                            varmultis.append(re.search(".*A",first).group())
+                        optqueue=[]
+                        first=line
+                        pref=re.search(".*A",line).group()
+                        option=scale.get(1).strip()
+                        optqueue.append(option)
+                        prev=line
+        if serie:
+            labels2+="VALUE LABELS "+first+" to "+ prev
+            num=re.search("A.*",first).group()[1:]
+            if not re.search("^[1-90]",num):
+                num=num[1:]
+            count=int(num)
+            for opt in optqueue:
+                labels2+="\n"+str(count)+" \""+opt+"\""
+                count+=1
+            labels2+=".\n\n"
+            if(len(np.unique(optqueue))>1):
+                labels+=labels2
+                varmultis.append(re.search(".*A",first).group())
+        if labels=="* Encoding: UTF-8.\n":
+            labels=""
+        recodes="* Encoding: UTF-8.\n"
+        for line,scale in vals.items():
+            if re.search("^[FPS].*A.*[1-90]",line):
+                pref=re.search(".*A[^1-90]*",line).group()
+                if pref in varmultis:
+                    num=re.search("A.*",line).group()[1:]
+                    if not re.search("^[1-90]",num):
+                        num=num[1:]
+                    recodes+="RECODE "+pref+num+"(1="+num+").\n"
+        recodes+="EXECUTE."
+        if recodes=="* Encoding: UTF-8.\nEXECUTE.":
+            recodes=""
+        return recodes,labels
+    except:
+        return "",""
 
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
