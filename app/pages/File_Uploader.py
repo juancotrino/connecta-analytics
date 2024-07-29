@@ -44,10 +44,10 @@ def main():
 
     col1, col2 = st.columns(2)
 
-    study_number = col1.selectbox('Study number', options=sudies_numbers, index=None ,placeholder='Select study number')
+    study_number = col1.selectbox('Study number', options=sudies_numbers, index=None , placeholder='Select study number')
 
     studies_countries_codes = [study.split('_')[1].upper() for study in filtered_studies if study.startswith(str(study_number))]
-    studies_countries = [reversed_countries_codes[country_code] for country_code in studies_countries_codes]
+    studies_countries = sorted(list(set([reversed_countries_codes[country_code] for country_code in studies_countries_codes])))
 
     country = col2.selectbox('Country', options=studies_countries, index=None ,placeholder='Select study country')
 
