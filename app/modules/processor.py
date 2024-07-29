@@ -11,7 +11,8 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     file_xlsx = get_temp_file(xlsx_file)
     varsList=pd.read_excel(file_xlsx,usecols="A,B",skiprows=3,names=["vars","varsTypes"])
     colVarsList=pd.melt(pd.read_excel(file_xlsx,nrows=2),var_name="colVars",value_name="colVarsNames").drop(0)
-    inverseVarsList=pd.read_excel(file_xlsx,usecols="A,E",skiprows=3,names=["vars","inverses"]).dropna().iloc[:,0]
+    inverseVarsList=pd.read_excel(file_xlsx,usecols="A,E",skiprows=3,names=["vars","inverses"]).dropna()
+    inverseVarsList=inverseVarsList[inverseVarsList["inverses"]=="I"].iloc[:,0]
     scaleVarsList=pd.read_excel(file_xlsx,usecols="A,D",skiprows=3,names=["vars","scale"]).dropna()
 
     preprocesscode=""
@@ -161,6 +162,10 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False)
             if net[0]!="First" and net[0]!="End":
                 if any(count[ele]>0 for ele in net[1]):
                     listafinalorde.append(990+num)
+                    result+="\nADD VALUE LABEL "
+                    for multivar in multis:
+                        result+=multivar+" "
+                    result+=str(990+num) + " \"NETO "+net[0]+"\".\nEXECUTE.\n"
                     num+=1
             if net[0]!="End":
                 for i in count.most_common():
@@ -554,7 +559,7 @@ def writeQuestion(varName,qtype, colVars,descendingorder=False,includeall=False)
         + "\n  CATEGORIES=SUBTOTALS MERGE=YES STYLE=SIMPLE SHOWSIG=NO.\n")
     return txt
 
-def writeAbiertasQuestion(varName,colVars,orderlist):
+def writeAbiertasQuestion(varName,colVars,orderlist,includeall=False):
     txt=""
     varName="$"+re.search(".*A",varName).group()[:-1]
     txt+="\nCTABLES\n  /VLABELS VARIABLES="+varName+" TOTAL "
@@ -570,7 +575,10 @@ def writeAbiertasQuestion(varName,colVars,orderlist):
     txt+="\n  /CATEGORIES VARIABLES=TOTAL "
     for colvar in colVars:
         txt+= colvar+" "
-    txt+="ORDER=A EMPTY=EXCLUDE"
+    if includeall:
+        txt+="ORDER=A EMPTY=INCLUDE"
+    else:
+        txt+="ORDER=A EMPTY=EXCLUDE"
     txt+=("\n  /CRITERIA CILEVEL=95\n  /COMPARETEST TYPE=PROP ALPHA=0.05 ADJUST=BONFERRONI ORIGIN=COLUMN INCLUDEMRSETS=YES"
         + "\n  CATEGORIES=SUBTOTALS MERGE=YES STYLE=SIMPLE SHOWSIG=NO.\n")
     return txt

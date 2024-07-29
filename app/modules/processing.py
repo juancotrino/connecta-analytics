@@ -366,6 +366,21 @@ def processing(xlsx_file: BytesIO):
     # Load the existing Excel file
     wb_existing = load_workbook(temp_file_name_xlsx)
 
+    for sheet in wb_existing:
+        if not sheet.title.lower().startswith('penal'):
+            wstemp=wb_existing[sheet.title]
+            maxcol=wstemp.max_column
+            for rowi in range(1,wstemp.max_row+1):
+                valb=wstemp["B"+str(rowi)].value
+                if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
+                    for rowf in range(rowi+1,wstemp.max_row+1):
+                        if valb==wstemp["B"+str(rowf)].value:
+                            for i in range(2,maxcol+1):
+                                wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
+
+                            break
+    wb_existing.save(temp_file_name_xlsx)
+
     # Create a new Workbook
     wb_new = Workbook()
 
