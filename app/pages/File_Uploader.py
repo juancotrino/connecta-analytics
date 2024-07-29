@@ -3,7 +3,8 @@ import streamlit as st
 from app.modules.file_uploader import (
     get_sharepoint_studies,
     upload_file_to_sharepoint,
-    get_last_file_version_in_sharepoint
+    get_last_file_version_in_sharepoint,
+    get_upload_files_info
 )
 from app.modules.utils import get_countries
 
@@ -44,129 +45,56 @@ def main():
 
     col1, col2 = st.columns(2)
 
-    study_number = col1.selectbox('Study number', options=sudies_numbers, index=None , placeholder='Select study number')
+    study_number = col1.selectbox('Study number', options=sudies_numbers, index=None, placeholder='Select study number')
 
     studies_countries_codes = [study.split('_')[1].upper() for study in filtered_studies if study.startswith(str(study_number))]
-    studies_countries = sorted(list(set([reversed_countries_codes[country_code] for country_code in studies_countries_codes])))
+    studies_countries = set([reversed_countries_codes[country_code] for country_code in studies_countries_codes])
 
-    country = col2.selectbox('Country', options=studies_countries, index=None ,placeholder='Select study country')
+    if len(studies_countries) > 1:
+        country = col2.selectbox('Country', options=list(set(studies_countries)), index=None, placeholder='Select study country')
+    else:
+        country = col2.selectbox('Country', options=studies_countries)
 
-    if study_number and country:
+    if study_number and country and len(studies_countries_codes) != studies_countries:
+        specific_studies = sorted([' '.join(study.split('_')[2:]).title() for study in filtered_studies if study.startswith(f'{study_number}_{countries_codes[country].lower()}')])
+        if len(specific_studies) > 1:
+            specific_study = st.radio('Select study:', options=specific_studies, index=None)
+        else:
+            specific_study = specific_studies[0]
+
+    if study_number and country and specific_study:
         country_code = countries_codes[country]
-        id_study_name = [study for study in filtered_studies if study.startswith(f'{study_number}_{country_code.lower()}')][0]
+        id_study_name = f"{study_number}_{country_code.lower()}_{specific_study.replace(' ', '_').lower()}"
         base_path = f'Documentos compartidos/estudios/{id_study_name}'
         folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios/{id_study_name}'
 
-        selected_study = list(set([' '.join(study.split('_')[2:]).title() for study in filtered_studies if study.startswith(str(study_number))]))[0]
+        st.info(f'Upload to `{specific_study}` study for country: {country}')
 
-        st.info(f'Upload to `{selected_study}` study for country: {country}')
+        files_info = get_upload_files_info()
 
-        st.subheader('Questionnaire')
+        for title, file_info in files_info.items():
+            st.subheader(title.replace('_', ' ').capitalize())
 
-        with st.form('upload_questionnaire_form'):
-            uploaded_questionnaire = st.file_uploader("Upload `.docx` questionnaire file", type=["docx"], key='questionnaire_docx')
-            upload_questionnaire = st.form_submit_button('Upload questionnaire')
-
-        if uploaded_questionnaire and upload_questionnaire:
-            questionnaire_path = 'script/cuestionarios'
-            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', questionnaire_path)
-            files = [file for file in files if 'Qu' in file]
-            if not files:
-                file_name = f'{id_study_name}_Qu_V1.docx'
-            else:
-                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'{id_study_name}_Qu_V{last_version_number + 1}.docx'
-
-            with st.spinner('Uploading questionnaire to Sharepoint...'):
-                upload_file_to_sharepoint(f'{base_path}/{questionnaire_path}', uploaded_questionnaire, file_name)
-                st.success(
-                    f"Questionnaire uploaded successfully into [study's folder]({folder_url}/{questionnaire_path})."
+            with st.form(f'upload_{title}_form'):
+                uploaded_file = st.file_uploader(
+                    f"Upload `.{file_info['file_type']}` {title.replace('_', ' ')} file",
+                    type=[file_info['file_type']],
+                    key=f"{title.replace('_', ' ')}_{file_info['file_type']}"
                 )
+                upload_file = st.form_submit_button(f"Upload {title.replace('_', ' ')}")
 
-        st.subheader('Field delivery')
+            if uploaded_file and upload_file:
+                file_path = file_info['path']
+                files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', file_path)
+                files = [file for file in files if file_info['acronym'] in file]
+                if not files:
+                    file_name = f"{id_study_name}_{file_info['acronym']}_V1.{file_info['file_type']}"
+                else:
+                    last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                    file_name = f"{id_study_name}_{file_info['acronym']}_V{last_version_number + 1}.{file_info['file_type']}"
 
-        with st.form('upload_field_delivery_form'):
-            uploaded_field_delivery = st.file_uploader("Upload `.docx` field delivery file", type=["docx"], key='field_delivery_docx')
-            upload_field_delivery = st.form_submit_button('Upload field delivery')
-
-        if uploaded_field_delivery and upload_field_delivery:
-            field_delivery_path = 'script/entrega_campo'
-            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', field_delivery_path)
-            files = [file for file in files if 'ECQ' in file]
-            if not files:
-                file_name = f'{id_study_name}_ECQ_V1.docx'
-            else:
-                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'{id_study_name}_ECQ_V{last_version_number + 1}.docx'
-
-            with st.spinner('Uploading field delivery to Sharepoint...'):
-                upload_file_to_sharepoint(f'{base_path}/{field_delivery_path}', uploaded_field_delivery, file_name)
-                st.success(
-                    f"Field delivery uploaded successfully into [study's folder]({folder_url}/{field_delivery_path})."
-                )
-
-        st.subheader('Codes book')
-
-        with st.form('upload_codes_book_form'):
-            uploaded_codes_book = st.file_uploader("Upload `.xlsx` codes book file", type=["xlsx"], key='codes_book_xlsx')
-            upload_codes_book = st.form_submit_button('Upload codes book')
-
-        if uploaded_codes_book and upload_codes_book:
-            codes_book_path = 'codificacion/input'
-            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', codes_book_path)
-            files = [file for file in files if 'LC' in file]
-            if not files:
-                file_name = f'{id_study_name}_LC_V1.xlsx'
-            else:
-                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'{id_study_name}_LC_V{last_version_number + 1}.xlsx'
-
-            with st.spinner('Uploading codes book to Sharepoint...'):
-                upload_file_to_sharepoint(f'{base_path}/{codes_book_path}', uploaded_questionnaire, file_name)
-                st.success(
-                    f"Codes book uploaded successfully into [study's folder]({folder_url}/{codes_book_path})."
-                )
-
-        st.subheader('Processing delivery')
-
-        with st.form('upload_processing_delivery_form'):
-            uploaded_processing_delivery = st.file_uploader("Upload `.xlsx` processing delivery file", type=["xlsx"], key='processing_delivery_xlsx')
-            upload_processing_delivery = st.form_submit_button('Upload processing delivery')
-
-        if uploaded_processing_delivery and upload_processing_delivery:
-            processing_delivery_path = 'generales/input'
-            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', processing_delivery_path)
-            files = [file for file in files if 'EPQ' in file]
-            if not files:
-                file_name = f'{id_study_name}_EPQ_V1.xlsx'
-            else:
-                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'{id_study_name}_EPQ_V{last_version_number + 1}.xlsx'
-
-            with st.spinner('Uploading processing delivery to Sharepoint...'):
-                upload_file_to_sharepoint(f'{base_path}/{processing_delivery_path}', uploaded_processing_delivery, file_name)
-                st.success(
-                    f"Processing delivery uploaded successfully into [study's folder]({folder_url}/{processing_delivery_path})."
-                )
-
-        st.subheader('Concept')
-
-        with st.form('upload_concept_form'):
-            uploaded_concept = st.file_uploader("Upload `.pptx` concept file", type=["pptx"], key='concept_pptx')
-            upload_concept = st.form_submit_button('Upload concept')
-
-        if uploaded_concept and upload_concept:
-            concept_path = 'script/conceptos'
-            files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', concept_path)
-            files = [file for file in files if 'EST' in file]
-            if not files:
-                file_name = f'{id_study_name}_EST_V1.xlsx'
-            else:
-                last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                file_name = f'{id_study_name}_EST_V{last_version_number + 1}.pptx'
-
-            with st.spinner('Uploading concept to Sharepoint...'):
-                upload_file_to_sharepoint(f'{base_path}/{concept_path}', uploaded_concept, file_name)
-                st.success(
-                    f"Concept uploaded successfully into [study's folder]({folder_url}/{concept_path})."
-                )
+                with st.spinner(f"Uploading {title.replace('_', ' ')} to Sharepoint..."):
+                    upload_file_to_sharepoint(f'{base_path}/{file_path}', uploaded_file, file_name)
+                    st.success(
+                        f"{title.replace('_', ' ').capitalize()} uploaded successfully into [study's folder]({folder_url}/{file_path})."
+                    )
