@@ -28,7 +28,7 @@ def main():
         studies_data = get_studies()
 
         st.dataframe(
-            studies_data,
+            studies_data.set_index('study_id'),
             column_config={column: column.replace('_', ' ').capitalize() for column in studies_data.columns},
             use_container_width=True
         )

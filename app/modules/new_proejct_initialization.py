@@ -100,7 +100,7 @@ def get_studies():
             'supervisor': ['Juan', 'Alejandra', 'Valentina', 'Natalia', 'Maria'],
             'status': ['Propuesta', 'En ejecución', 'Cancelado', 'No aprobado', 'Finalizado'],
         }
-    ).set_index('study_id')
+    )
 
     # Apply the emoji mapping to the 'status' column
     studies_data['study_name'] = studies_data['study_name'].str.replace('_', ' ').str.capitalize()
