@@ -348,7 +348,7 @@ def format_ws(sheet):
 
 #     return g
 
-def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
+def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scales: bool):
     print('Started execution')
     temp_file_name = get_temp_file(spss_file)
 
@@ -359,7 +359,10 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO):
 
     survey_data = survey_data.dropna(how='all')
 
-    inverted_scales_keywords = get_inverted_scales_keywords()
+    if transform_inverted_scales:
+        inverted_scales_keywords = get_inverted_scales_keywords()
+    else:
+        inverted_scales_keywords = []
 
     # Create a BytesIO object to store the zip file
     zip_buffer = io.BytesIO()
