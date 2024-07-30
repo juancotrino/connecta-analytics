@@ -16,7 +16,7 @@ def get_upload_files_info():
     document = db.collection("settings").document('upload_files').get()
 
     if document.exists:
-        files_info = document.to_dict()
+        files_info = dict(sorted(document.to_dict().items()))
         return files_info
 
 def upload_file_to_sharepoint(base_path: str, file_content: BytesIO, file_name: str):

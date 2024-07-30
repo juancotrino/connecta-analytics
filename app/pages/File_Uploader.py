@@ -48,19 +48,20 @@ def main():
     study_number = col1.selectbox('Study number', options=sudies_numbers, index=None, placeholder='Select study number')
 
     studies_countries_codes = [study.split('_')[1].upper() for study in filtered_studies if study.startswith(str(study_number))]
-    studies_countries = set([reversed_countries_codes[country_code] for country_code in studies_countries_codes])
+    studies_countries = sorted(list(set([reversed_countries_codes[country_code] for country_code in studies_countries_codes])))
 
     if len(studies_countries) > 1:
-        country = col2.selectbox('Country', options=list(set(studies_countries)), index=None, placeholder='Select study country')
+        country = col2.selectbox('Country', options=studies_countries, index=None, placeholder='Select study country')
     else:
         country = col2.selectbox('Country', options=studies_countries)
 
-    if study_number and country and len(studies_countries_codes) != studies_countries:
+    if study_number and country and len(studies_countries_codes) != len(studies_countries):
         specific_studies = sorted([' '.join(study.split('_')[2:]).title() for study in filtered_studies if study.startswith(f'{study_number}_{countries_codes[country].lower()}')])
         if len(specific_studies) > 1:
             specific_study = st.radio('Select study:', options=specific_studies, index=None)
-        else:
-            specific_study = specific_studies[0]
+    elif study_number and country:
+        specific_studies = sorted([' '.join(study.split('_')[2:]).title() for study in filtered_studies if study.startswith(f'{study_number}_{countries_codes[country].lower()}')])
+        specific_study = specific_studies[0]
 
     if study_number and country and specific_study:
         country_code = countries_codes[country]

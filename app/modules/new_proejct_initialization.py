@@ -58,7 +58,10 @@ def create_folder_structure(base_path: str):
         "procesamiento/quantum_files",
         "script/conceptos",
         "script/cuestionarios",
-        "script/entrega_campo"
+        "script/entrega_campo",
+        "consultoria/propuestas",
+        "consultoria/informes",
+        "consultoria/guias",
     ]
 
     sharepoint = SharePoint()
@@ -70,3 +73,40 @@ def create_folder_structure(base_path: str):
         raise NameError('Combination of ID, country and study name alreday exists.')
 
     sharepoint.create_folder_structure(base_path, dirs)
+
+def get_studies():
+    from datetime import datetime
+
+    # Dictionary mapping statuses to emojis
+    status_emojis = {
+        'Propuesta': '💡 Propuesta',
+        'En ejecución': '🔨 En ejecución',
+        'Cancelado': '❌ Cancelado',
+        'No aprobado': '🚫 No aprobado',
+        'Finalizado': '✅ Finalizado'
+    }
+
+    studies_data = pd.DataFrame(
+        {
+            'study_id': [1111, 2222, 3333, 4444, 5555],
+            'study_name': ['test1', 'test2', 'test3', 'test4', 'test5'],
+            'study_type': ['cualitativo', 'cuantitativo', 'informacion_secundaria', 'neuromaketing', 'cualitativo'],
+            'description': ['description1', 'description2', '', 'description4', 'description5'],
+            'country': ['colombia', 'colombia', 'colombia', 'mexico', 'ecuador'],
+            'client': ['Noel', 'Noel', 'Belcorp', 'Noel', 'Nacional de Chocolates'],
+            'value': [1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000.54],
+            'creation_date': [datetime(2021, 5, 12), datetime(2022, 1, 23), datetime(2022, 8, 2), datetime(2023, 2, 15), datetime(2024, 2, 26),],
+            'last_update_date': [datetime(2021, 5, 12), datetime(2022, 1, 23), datetime(2022, 8, 2), datetime(2023, 2, 15), datetime(2024, 2, 26),],
+            'supervisor': ['Juan', 'Alejandra', 'Valentina', 'Natalia', 'Maria'],
+            'status': ['Propuesta', 'En ejecución', 'Cancelado', 'No aprobado', 'Finalizado'],
+        }
+    ).set_index('study_id')
+
+    # Apply the emoji mapping to the 'status' column
+    studies_data['study_name'] = studies_data['study_name'].str.replace('_', ' ').str.capitalize()
+    studies_data['study_type'] = studies_data['study_type'].str.replace('_', ' ').str.capitalize()
+    studies_data['description'] = studies_data['description'].str.replace('_', ' ').str.capitalize()
+    studies_data['country'] = studies_data['country'].str.replace('_', ' ').str.capitalize()
+    studies_data['status'] = studies_data['status'].apply(lambda x: status_emojis.get(x, x))
+
+    return studies_data

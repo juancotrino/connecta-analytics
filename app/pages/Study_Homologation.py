@@ -26,7 +26,12 @@ def main():
     try:
         countries_iso_2_code = get_countries()
     except Exception as e:
-        countries_iso_2_code = {'Colombia': 'CO'}
+        countries_iso_2_code = {
+            'Colombia': 'CO',
+            'Mexico': 'MX',
+            'Ecuador': 'EC',
+            'Peru': 'PE'
+        }
         st.error(e)
 
     try:
