@@ -358,6 +358,14 @@ def write_penalty_sheet(result_df: pd.DataFrame, worksheet):
         # Update start_row for the next table, adding 2 rows of separation
         start_row += len(df) + 3
 
+def delete_row_with_merged_ranges(sheet, idx):
+    sheet.delete_rows(idx)
+    for mcr in sheet.merged_cells:
+        if idx < mcr.min_row:
+            mcr.shift(row_shift=-1)
+        elif idx < mcr.max_row:
+            mcr.shrink(bottom=1)
+
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
@@ -377,7 +385,8 @@ def processing(xlsx_file: BytesIO):
                         if valb==wstemp["B"+str(rowf)].value:
                             for i in range(2,maxcol+1):
                                 wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
-
+                            for j in range(11):
+                                delete_row_with_merged_ranges(wstemp,rowf-7)
                             break
     wb_existing.save(temp_file_name_xlsx)
 
