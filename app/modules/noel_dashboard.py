@@ -7,7 +7,7 @@ from app.modules.cloud import SharePoint, BigQueryClient
 
 @st.cache_data(show_spinner=False)
 def get_data_unique():
-    bq = BigQueryClient()
+    bq = BigQueryClient('normas')
     return bq.fetch_data(
         """
         SELECT DISTINCT
@@ -151,7 +151,7 @@ def build_query(filters: dict[str, list[str | int]]) -> str:
 @st.cache_data(show_spinner=False)
 def get_filtered_data(query: str):
 
-    bq = BigQueryClient()
+    bq = BigQueryClient('normas')
 
     return bq.fetch_data(
         """

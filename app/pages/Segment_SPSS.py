@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.help import help_segment_spss
-from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata
+from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata, create_zip
 from app.modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
 
 
@@ -29,6 +29,8 @@ def main():
             metadata_df,
             use_container_width=True
         )
+
+    zip_path = None
 
     with st.form('segment_spss_form'):
 
@@ -68,29 +70,33 @@ def main():
         if uploaded_file:
             db_validated = validate_segmentation_spss_db(jobs_df, temp_file_name)
 
+        transform_inverted_scales = st.checkbox('Transform inverted scales')
+
         process = st.form_submit_button('Process scenarios')
 
         if jobs_validated and db_validated and not jobs_df.empty:
             if uploaded_file and process:
                 with st.spinner('Processing...'):
                     try:
-                        results = segment_spss(jobs_df, uploaded_file)
+                        files = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
+                        zip_path = create_zip('segmented_data.zip', files)
                     except Exception as e:
                         st.error(e)
         elif not uploaded_file and process:
             st.error('Missing SAV file')
 
-    try:
+    if zip_path:
         # Offer the zip file for download
-        st.download_button(
-            label="Download segmented data",
-            data=results.getvalue(),
-            file_name='segmented_data.zip',
-            mime='application/zip',
-            type='primary'
-        )
-    except:
-        pass
+        with open(zip_path, "rb") as f:
+            st.download_button(
+                label="Download segmented data",
+                data=f,
+                file_name='segmented_data.zip',
+                mime='application/zip',
+                type='primary'
+            )
+    # except:
+    #     pass
 
                         # # Send POST request
                         # response = requests.post("your_endpoint_url", json=data)
