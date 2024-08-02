@@ -25,6 +25,7 @@ from scipy.stats import chi2_contingency, pearsonr
 # import matplotlib.pyplot as plt
 # import seaborn as sns
 
+from app.modules.cloud import CloudStorageClient
 from app.modules.authenticator import get_inverted_scales_keywords
 from app.modules.utils import get_temp_file
 
@@ -357,6 +358,14 @@ def create_zip(zip_name: str, files: dict):
             os.unlink(file_temp_name)
             set_time_zone_to_file(zipf, file_name)
     return zip_path
+
+def upload_to_gcs(source_file_name: str, destination_blob_name: str):
+    gcs = CloudStorageClient('connecta-temp-data')
+    return gcs.upload_to_gcs(source_file_name, destination_blob_name)
+
+def delete_gcs(blob_name: str):
+    gcs = CloudStorageClient('connecta-temp-data')
+    gcs.delete_from_gcs(blob_name)
 
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scales: bool):
     # print('Started execution')

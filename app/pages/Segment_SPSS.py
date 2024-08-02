@@ -1,10 +1,10 @@
-import time
 import ast
+from datetime import datetime
 import pandas as pd
 import streamlit as st
 
 from app.modules.help import help_segment_spss
-from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata, create_zip
+from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata, create_zip, upload_to_gcs, delete_gcs
 from app.modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
 
 
@@ -31,7 +31,8 @@ def main():
             use_container_width=True
         )
 
-    zip_path = None
+    if 'gcs_path' not in st.session_state:
+        st.session_state['gcs_path'] = None
 
     with st.form('segment_spss_form'):
 
@@ -81,40 +82,42 @@ def main():
                     try:
                         files = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
                         zip_path = create_zip('segmented_data.zip', files)
-                        time.sleep(0.1)
+                        file_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                        st.session_state['gcs_path'] = upload_to_gcs(zip_path, f'segmented_data_{file_timestamp}.zip')
                     except Exception as e:
                         st.error(e)
         elif not uploaded_file and process:
             st.error('Missing SAV file')
 
-    if zip_path:
-        # Offer the zip file for download
-        with open(zip_path, "rb") as f:
-            st.download_button(
-                label="Download segmented data",
-                data=f,
-                file_name='segmented_data.zip',
-                mime='application/zip',
-                type='primary'
-            )
-    # except:
-    #     pass
+    if st.session_state['gcs_path']:
 
-                        # # Send POST request
-                        # response = requests.post("your_endpoint_url", json=data)
+        # Create a button to download the file and execute the additional action
+        if st.button('Download segmented data', type='primary'):
+            st.markdown(f"""
+                <iframe src="{st.session_state['gcs_path']}" ></iframe>
+            """, unsafe_allow_html=True)
 
-                        # # Check if request was successful
-                        # if response.status_code == 200:
-                        #     # Perform action to send scenarios
-                        #     st.write("Scenarios sent!")
+            delete_gcs(st.session_state['gcs_path'].split('/')[-1])
 
-                        #     # Offer the zip file for download
-                        #     st.download_button(
-                        #         label="Download Segmented Data",
-                        #         data=response.content,
-                        #         file_name=f"segmented_data_{uploaded_file.name}.zip",
-                        #         mime="application/zip"
-                        #     )
+            del st.session_state['gcs_path']
 
-                        # else:
-                        #     st.write("Error occurred while processing the request.")
+            st.rerun()
+
+        # # Send POST request
+        # response = requests.post("your_endpoint_url", json=data)
+
+        # # Check if request was successful
+        # if response.status_code == 200:
+        #     # Perform action to send scenarios
+        #     st.write("Scenarios sent!")
+
+        #     # Offer the zip file for download
+        #     st.download_button(
+        #         label="Download Segmented Data",
+        #         data=response.content,
+        #         file_name=f"segmented_data_{uploaded_file.name}.zip",
+        #         mime="application/zip"
+        #     )
+
+        # else:
+        #     st.write("Error occurred while processing the request.")
