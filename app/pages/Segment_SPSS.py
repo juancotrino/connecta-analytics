@@ -30,6 +30,8 @@ def main():
             use_container_width=True
         )
 
+    results = None
+
     with st.form('segment_spss_form'):
 
         st.write("Fill the parameters for the segmentation")
@@ -82,7 +84,7 @@ def main():
         elif not uploaded_file and process:
             st.error('Missing SAV file')
 
-    try:
+    if results:
         # Offer the zip file for download
         st.download_button(
             label="Download segmented data",
@@ -91,8 +93,8 @@ def main():
             mime='application/zip',
             type='primary'
         )
-    except:
-        pass
+    # except:
+    #     pass
 
                         # # Send POST request
                         # response = requests.post("your_endpoint_url", json=data)

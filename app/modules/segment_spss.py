@@ -349,7 +349,7 @@ def format_ws(sheet):
 #     return g
 
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scales: bool):
-    print('Started execution')
+    # print('Started execution')
     temp_file_name = get_temp_file(spss_file)
 
     survey_data, metadata = pyreadstat.read_sav(
