@@ -1,3 +1,4 @@
+import time
 import ast
 from datetime import datetime
 import pandas as pd
@@ -96,7 +97,7 @@ def main():
             st.markdown(f"""
                 <iframe src="{st.session_state['gcs_path']}" ></iframe>
             """, unsafe_allow_html=True)
-
+            time.sleep(1)
             delete_gcs(st.session_state['gcs_path'].split('/')[-1])
 
             del st.session_state['gcs_path']
