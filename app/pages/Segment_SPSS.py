@@ -1,3 +1,4 @@
+import time
 import ast
 import pandas as pd
 import streamlit as st
@@ -80,6 +81,7 @@ def main():
                     try:
                         files = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
                         zip_path = create_zip('segmented_data.zip', files)
+                        time.sleep(0.1)
                     except Exception as e:
                         st.error(e)
         elif not uploaded_file and process:
