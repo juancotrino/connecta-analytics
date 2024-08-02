@@ -259,7 +259,7 @@ def main():
                             )
 
                         with st.spinner('Checking BigQuery database...'):
-                            bq = BigQueryClient()
+                            bq = BigQueryClient('normas')
                             studies = get_current_studies(bq)
                             study_exists = check_study_existance_in_bq(int(study_id), country, studies)
 
