@@ -68,13 +68,15 @@ def main():
         if uploaded_file:
             db_validated = validate_segmentation_spss_db(jobs_df, temp_file_name)
 
+        transform_inverted_scales = st.checkbox('Transform inverted scales')
+
         process = st.form_submit_button('Process scenarios')
 
         if jobs_validated and db_validated and not jobs_df.empty:
             if uploaded_file and process:
                 with st.spinner('Processing...'):
                     try:
-                        results = segment_spss(jobs_df, uploaded_file)
+                        results = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
                     except Exception as e:
                         st.error(e)
         elif not uploaded_file and process:

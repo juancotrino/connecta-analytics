@@ -26,7 +26,12 @@ def main():
     try:
         countries_iso_2_code = get_countries()
     except Exception as e:
-        countries_iso_2_code = {'Colombia': 'CO'}
+        countries_iso_2_code = {
+            'Colombia': 'CO',
+            'Mexico': 'MX',
+            'Ecuador': 'EC',
+            'Peru': 'PE'
+        }
         st.error(e)
 
     try:
@@ -254,7 +259,7 @@ def main():
                             )
 
                         with st.spinner('Checking BigQuery database...'):
-                            bq = BigQueryClient()
+                            bq = BigQueryClient('normas')
                             studies = get_current_studies(bq)
                             study_exists = check_study_existance_in_bq(int(study_id), country, studies)
 

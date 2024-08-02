@@ -96,9 +96,10 @@ def handle_rate_limit(func):
     return wrapper
 
 class BigQueryClient:
-    def __init__(self) -> None:
+    def __init__(self, data_set: str) -> None:
         self.client = bigquery.Client()
         self.schema_id = os.getenv('BIGQUERY_SCHEMA_ID')
+        self.data_set = data_set
 
     @handle_rate_limit
     def load_data(
@@ -107,7 +108,7 @@ class BigQueryClient:
         data: pd.DataFrame
     ):
 
-        job = self.client.load_table_from_dataframe(data, f'{self.schema_id}.{table_name}')  # Make an API request.
+        job = self.client.load_table_from_dataframe(data, f'{self.schema_id}.{self.data_set}.{table_name}')  # Make an API request.
         job.result()  # Wait for the job to complete
 
     def fetch_data(
@@ -144,13 +145,14 @@ class BigQueryClient:
             year,
             cycle,
             CONCAT(year, '_', cycle) AS period
-        FROM `{schema}.{table_name}`
+        FROM `{schema}.{data_set}.{table_name}`
         WHERE country = '{country}'
             {source_query}
             AND study = '{study}'
         ORDER BY year, cycle
         """.format(
             schema=self.schema_id,
+            data_set=self.data_set,
             table_name=table_name,
             country=country,
             study=study,
