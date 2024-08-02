@@ -70,16 +70,23 @@ def write_multiple_df_bytes(dfs_dict: dict[str, pd.DataFrame]) -> BytesIO:
     output.seek(0)
     return output
 
-def write_bytes(data: pd.DataFrame | str):
+def write_bytes(data: pd.DataFrame | str, metadata = None):
     # Use a context manager with BytesIO
     bytes_io = BytesIO()
 
-    if isinstance(data, pd.DataFrame):
+    if isinstance(data, pd.DataFrame) and not metadata:
         # Save the DataFrame to the BytesIO object
         data.to_excel(bytes_io, index=False)
     elif isinstance(data, str):
         # Write the combined output to the BytesIO object
         bytes_io.write(data.encode('utf-8'))
+    elif isinstance(data, pd.DataFrame) and metadata:
+        pyreadstat.write_sav(
+            data,
+            bytes_io,
+            column_labels=metadata.column_names_to_labels,
+            variable_value_labels=metadata.variable_value_labels
+        )
 
     # Reset the buffer's position to the beginning
     bytes_io.seek(0)
