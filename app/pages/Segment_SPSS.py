@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.help import help_segment_spss
-from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata
+from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata, create_zip
 from app.modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
 
 
@@ -30,7 +30,7 @@ def main():
             use_container_width=True
         )
 
-    results = None
+    zip_path = None
 
     with st.form('segment_spss_form'):
 
@@ -78,21 +78,23 @@ def main():
             if uploaded_file and process:
                 with st.spinner('Processing...'):
                     try:
-                        results = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
+                        files = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
+                        zip_path = create_zip('segmented_data.zip', files)
                     except Exception as e:
                         st.error(e)
         elif not uploaded_file and process:
             st.error('Missing SAV file')
 
-    if results:
+    if zip_path:
         # Offer the zip file for download
-        st.download_button(
-            label="Download segmented data",
-            data=results.getvalue(),
-            file_name='segmented_data.zip',
-            mime='application/zip',
-            type='primary'
-        )
+        with open(zip_path, "rb") as f:
+            st.download_button(
+                label="Download segmented data",
+                data=f,
+                file_name='segmented_data.zip',
+                mime='application/zip',
+                type='primary'
+            )
     # except:
     #     pass
 
