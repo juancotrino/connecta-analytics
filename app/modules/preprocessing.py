@@ -25,9 +25,9 @@ def read_sav_file(filename: str):
 
     return db, metadata
 
-def get_questions(metadata) -> list[str]:
+def get_questions(metadata, question_type: str) -> list[str]:
     # Regular expression pattern to match strings that start with 'P' followed by a digit
-    pattern = re.compile(r'^P\d')
+    pattern = re.compile(rf'^{question_type}\d')
     return [question for question in metadata.column_names if pattern.match(question)]
 
 def get_column_labels(metadata, questions: list[str]) -> dict[str, str]:
@@ -80,14 +80,14 @@ def get_column_labels_final(
     questions: list[str],
     question_format_mapping: dict[str, str]
 ):
-    return {question_format_mapping[k].split('_')[0]: v for k, v in metadata.__dict__['column_names_to_labels'].items() if k in questions}
+    return {question_format_mapping[k].split('_')[0]: v for k, v in metadata.column_names_to_labels.items() if k in questions}
 
 def get_variable_value_labels_final(
     metadata,
     questions: list[str],
     question_format_mapping: dict[str, str]
 ):
-    return {question_format_mapping[k].split('_')[0]: v for k, v in metadata.__dict__['variable_value_labels'].items() if k in questions}
+    return {question_format_mapping[k].split('_')[0]: v for k, v in metadata.variable_value_labels.items() if k in questions}
 
 def get_temp_file(file: BytesIO):
     # Save BytesIO object to a temporary file
@@ -115,7 +115,8 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
     temp_file_name_sav = get_temp_file(sav_file)
     db, metadata = read_sav_file(temp_file_name_sav)
 
-    questions = get_questions(metadata)
+    questions = get_questions(metadata, 'P')
+    filter_questions = get_questions(metadata, 'F')
     column_labels = get_column_labels(metadata, questions)
     variable_value_labels = get_variable_value_labels(metadata, questions)
 
@@ -162,6 +163,9 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
     final_rows = []
     for _, row in db.iterrows():
         variable_value = {}
+        filter_questions_value = {}
+
+        filter_questions_value = {question: row[question] for question in filter_questions}
 
         for visit, sample in visit_sample_combinations:
             visit_sample_questions = [question for question in formatted_questions if question.split('_')[1] == visit and question.split('_')[2] == sample]
@@ -171,6 +175,8 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
                 'visit': int(visit[1:]),
                 'REF': row[f'REF.{sample[1:]}']
             }
+
+            final_row.update(filter_questions_value)
 
             for j in visit_sample_questions:
                 variable = j.split('_')[0]
@@ -200,9 +206,23 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
     )
 
     column_labels_final = get_column_labels_final(metadata, questions, question_format_mapping)
+    column_labels_final.update(
+        get_column_labels_final(
+            metadata,
+            filter_questions,
+            {k: k for k, _ in metadata.column_names_to_labels.items()}
+        )
+    )
     column_labels_final['visit_sample'] = 'visit_sample'
 
     variable_value_labels_final = get_variable_value_labels_final(metadata, questions, question_format_mapping)
+    variable_value_labels_final.update(
+        get_variable_value_labels_final(
+            metadata,
+            filter_questions,
+            {k: k for k, _ in metadata.column_names_to_labels.items()}
+        )
+    )
     variable_value_labels_final['visit_sample'] = sample_visit_value_labels
 
     # Iterate through the unique product references
