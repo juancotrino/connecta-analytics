@@ -477,7 +477,7 @@ class Authenticator:
             st.cache_data.clear()
             return None
 
-        with st.expander("Account configurarion"):
+        with st.expander("Account configuration"):
 
             user_tab1, user_tab2 = st.tabs(["Reset password", "Update user details"])
             with user_tab1:
