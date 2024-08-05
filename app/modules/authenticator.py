@@ -358,7 +358,7 @@ class Authenticator:
             token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
 
         if (
-            token
+            token and isinstance(token, dict)
             and token["exp_date"] > datetime.now(timezone.utc).timestamp()
             and {"name", "username"}.issubset(set(token))
         ):
