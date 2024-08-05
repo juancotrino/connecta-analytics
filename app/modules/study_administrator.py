@@ -126,13 +126,14 @@ def create_study_df(study_data: dict[str, list[int | str | float | datetime]]):
     bq.load_data('study', study_data_df)
 
     get_studies.clear()
+    get_sudies_ids_country.clear()
 
 @st.cache_data(show_spinner=False)
 def get_sudies_ids_country():
     bq = BigQueryClient('business_data')
     return bq.fetch_data(
         f"""
-        SELECT study_id, country FROM `{bq.schema_id}.{bq.data_set}.study`
+        SELECT study_id, country, study_name FROM `{bq.schema_id}.{bq.data_set}.study`
         """
     )
 
