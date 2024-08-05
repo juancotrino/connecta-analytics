@@ -14,7 +14,7 @@ from app.modules.study_administrator import (
     upload_file_to_sharepoint,
     get_last_file_version_in_sharepoint,
     get_upload_files_info,
-    split_frame,
+    get_id_number,
     get_number_of_studies
 )
 from app.modules.utils import get_countries
@@ -69,19 +69,12 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs(['Studies viewer', 'Create study', 'Edit study', 'File uploader'])
 
     with tab1:
-        # studies_data = get_studies()
 
         status = st.container()
 
         number_of_studies = get_number_of_studies()
 
         pagination = st.container()
-
-        # st.dataframe(
-        #     studies_data[studies_data['status'] == status] if status else studies_data,
-        #     column_config={column: column.replace('_', ' ').capitalize() for column in studies_data.columns},
-        #     use_container_width=True
-        # )
 
         bottom_menu = st.columns((4, 1, 1))
         with bottom_menu[2]:
@@ -97,6 +90,11 @@ def main():
             st.markdown(f"Page **{current_page}** of **{total_pages}** ")
 
         paginated_data = get_studies(batch_size, batch_size * (current_page - 1))
+
+        # If last cached study is not the last one in BQ, clear studies cache and rerun
+        if current_page == 1 and paginated_data.index.values[0] != get_id_number() - 1:
+            get_studies.clear()
+            st.rerun()
 
         selected_status = status.selectbox(
             'Filter by status',

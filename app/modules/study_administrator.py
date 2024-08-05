@@ -105,7 +105,7 @@ def get_business_data():
         business_data = document.to_dict()
         return business_data
 
-def get_id_number():
+def get_id_number() -> int:
     bq = BigQueryClient('business_data')
     last_study_number = bq.fetch_data(
         f"""
