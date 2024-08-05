@@ -189,19 +189,21 @@ def main():
         col1, col2 = st.columns(2)
 
         study_id = col1.selectbox('Study ID', options=reversed(sudies_ids), index=None, placeholder='Select study ID', key='study_id_edit')
-        studies_countries = sudies_ids_country[sudies_ids_country['study_id'] == study_id]['country'].sort_values()
+        studies_countries = sudies_ids_country[sudies_ids_country['study_id'] == study_id]['country'].sort_values().unique()
 
         if len(studies_countries) > 1:
             country = col2.selectbox('Country', options=studies_countries, index=None, placeholder='Select study country', key='country_edit')
+        elif len(studies_countries) == 1:
+            country = col2.text_input('Country', studies_countries[0], disabled=True, key='country_edit')
         else:
-            country = col2.selectbox('Country', options=studies_countries, key='country_edit')
+            country = None
 
         if study_id and country and len(studies_countries) > 1:
             specific_studies = sudies_ids_country[
                 (sudies_ids_country['study_id'] == study_id) &
                 (sudies_ids_country['country'] == country)
             ]['study_name'].sort_values().reset_index(drop=True)
-            if len(specific_studies) > 1:
+            if len(list(set(specific_studies))) > 1:
                 specific_study = st.radio('Select study:', options=specific_studies, index=None)
         elif study_id and country:
             specific_studies = sudies_ids_country[
@@ -231,10 +233,11 @@ def main():
                 )
 
                 study_types: list = business_data['study_types']
-                study_type = st.selectbox(
+                study_type = st.multiselect(
                     'Study type',
                     options=study_types,
-                    index=study_types.index(study_data['study_type'].values[0].capitalize()),
+                    default=study_data['study_type'],
+                    # index=study_types.index(study_data['study_type'].values[0].capitalize()),
                     placeholder="Select study type..."
                 )
 
@@ -256,14 +259,6 @@ def main():
                     'Client',
                     options=clients,
                     index=clients.index(study_data['client'].values[0]),
-                    disabled=True
-                )
-
-                country = st.selectbox(
-                    'Country',
-                    options=countries_iso_2_code.keys(),
-                    index=list(countries_iso_2_code.keys()).index(study_data['country'].values[0].capitalize()),
-                    placeholder="Select country...",
                     disabled=True
                 )
 
@@ -315,27 +310,27 @@ def main():
         col1, col2 = st.columns(2)
 
         study_id = col1.selectbox('Study ID', options=reversed(sudies_ids), index=None, placeholder='Select study ID', key='study_id_file_uploader')
-
-        # studies_countries_codes = [study.split('_')[1].upper() for study in filtered_studies if study.startswith(str(study_id))]
-        studies_countries = sudies_ids_country[sudies_ids_country['study_id'] == study_id]['country'].sort_values(ascending=False)
+        studies_countries = sudies_ids_country[sudies_ids_country['study_id'] == study_id]['country'].sort_values().unique()
 
         if len(studies_countries) > 1:
             country = col2.selectbox('Country', options=studies_countries, index=None, placeholder='Select study country', key='country_file_uploader')
+        elif len(studies_countries) == 1:
+            country = col2.text_input('Country', studies_countries[0], disabled=True, key='country_file_uploader')
         else:
-            country = col2.selectbox('Country', options=studies_countries, key='country_file_uploader')
+            country = None
 
         if study_id and country and len(studies_countries) > 1:
             specific_studies = sudies_ids_country[
                 (sudies_ids_country['study_id'] == study_id) &
                 (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values()
-            if len(specific_studies) > 1:
+            ]['study_name'].sort_values().reset_index(drop=True)
+            if len(list(set(specific_studies))) > 1:
                 specific_study = st.radio('Select study:', options=specific_studies, index=None)
         elif study_id and country:
             specific_studies = sudies_ids_country[
                 (sudies_ids_country['study_id'] == study_id) &
                 (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values()
+            ]['study_name'].sort_values().reset_index(drop=True)
             specific_study = specific_studies[0]
 
         if study_id and country and specific_study:
