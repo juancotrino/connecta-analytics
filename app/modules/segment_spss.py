@@ -246,10 +246,10 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     # Copy the style from source to target chart
     copy_chart_style(source_chart, new_chart)
 
+    positions = [0, 74000, 83000, 100000]
     for i, value in enumerate(dataframe.iloc[:, 1], start=0):  # assuming values are in the second column
         color = get_color(value)
-        positions = [0, 74000, 83000, 100000]
-        gsLst = [GradientStop(pos=i, srgbClr='FFFFFF') if i == 0 else GradientStop(pos=i, srgbClr=color) for i in positions]
+        gsLst = [GradientStop(pos=pos, srgbClr='FFFFFF') if pos == 0 else GradientStop(pos=pos, srgbClr=color) for pos in positions]
         spPr = GraphicalProperties(gradFill=GradientFillProperties(gsLst=gsLst))
         dp = DataPoint(idx=i, spPr=spPr)
         new_chart.series[0].dPt.append(dp)
