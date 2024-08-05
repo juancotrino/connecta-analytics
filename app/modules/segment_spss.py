@@ -16,6 +16,8 @@ from openpyxl.chart.marker import DataPoint
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, Font
+from openpyxl.drawing.colors import ColorChoice
+from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.drawing.fill import GradientStop, GradientFillProperties
 
 import pyreadstat
@@ -211,34 +213,20 @@ def copy_chart_style(source_chart, target_chart):
 # Define function to get the color based on value
 def get_color(value):
     match value:
-        case x if x == -1:
-            return '#FF0000'
-        case x if -0.99 <= x < -0.9:
-            return '#FF4500'
-        case x if -0.89 <= x < -0.7:
-            return '#FF8C00'
-        case x if -0.69 <= x < -0.4:
-            return '#FFD700'
-        case x if -0.39 <= x < -0.2:
-            return '#FFFF00'
-        case x if -0.19 <= x < 0.0:
-            return '#FFFFE0'
-        case x if x == 0:
-            return '#FFFFE0'
-        case x if 0.01 <= x <= 0.19:
-            return '#ADFF2F'
-        case x if 0.2 <= x < 0.39:
-            return '#7FFF00'
-        case x if 0.4 <= x < 0.69:
-            return '#32CD32'
-        case x if 0.7 <= x < 0.89:
-            return '#00FF00'
-        case x if 0.9 <= x < 0.99:
-            return '#008000'
+        case x if 0 < x < 0.2:
+            return 'E1E483'  # light green
+        case x if 0.2 <= x < 0.4:
+            return 'C2DB7F'  # green
+        case x if 0.4 <= x < 0.7:
+            return '8FCE80'  # lime green
+        case x if 0.7 <= x < 0.9:
+            return '78C37E'  # green
+        case x if 0.9 <= x < 1.0:
+            return '63BF7E'  # dark green
         case x if x == 1:
-            return '#006400'
+            return '62BE7B'  # dark green
         case _:
-            return '#FFFFFF'
+            return 'FFFFFF'  # white
 
 def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destination):
     # If you have the data in a DataFrame
@@ -256,10 +244,18 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     new_chart.height = 20  # set height to 20 units
 
     # Copy the style from source to target chart
-    data_points = [DataPoint(idx=i) for i in range(len(dataframe))]
-    new_chart.series[0].data_points = data_points
-    # copy_chart_style(source_chart, new_chart)
-    print(new_chart.series[0].data_points[0])
+    copy_chart_style(source_chart, new_chart)
+
+    for i, value in enumerate(dataframe.iloc[:, 1], start=0):  # assuming values are in the second column
+        color = get_color(value)
+        positions = [0, 74000, 83000, 100000]
+        gsLst = [GradientStop(pos=i, srgbClr='FFFFFF') if i == 0 else GradientStop(pos=i, srgbClr=color) for i in positions]
+        spPr = GraphicalProperties(gradFill=GradientFillProperties(gsLst=gsLst))
+        dp = DataPoint(idx=i, spPr=spPr)
+        new_chart.series[0].dPt.append(dp)
+
+    # print(new_chart.series[0].data_points[0])
+    worksheet.add_chart(new_chart, chart_destination)
 
 def read_sav_metadata(file_name: str) -> pd.DataFrame:
     metadata =  pyreadstat.read_sav(
