@@ -348,10 +348,14 @@ def getPenaltysCode(xlsx_file: BytesIO):
             if typevar=="J":
                 var1=varsList.iloc[i][0]
                 var2=""
-                for penal in penaltyList:
-                    if re.search("_.*",var1).group()==re.search("_.*",penal).group():
+                try:
+                    for penal in penaltyList:
+                        if re.search("_.*",var1).group()==re.search("_.*",penal).group():
+                            var2=penal
+                            break
+                except:
+                    for penal in penaltyList:
                         var2=penal
-                        break
                 penaltyCode+=("\nCTABLES"
                     +"\n  /VLABELS VARIABLES="+var1+" "+ ref+" DISPLAY=LABEL  /VLABELS VARIABLES="+var2+ " DISPLAY=NONE"
                     +"\n  /PCOMPUTE &cat3 = EXPR([4] + [5])"
