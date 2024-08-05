@@ -2,6 +2,7 @@ from collections import Counter
 from io import BytesIO
 import re
 import pandas as pd
+import numpy as np
 import math
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
@@ -34,7 +35,11 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
     colVarsList=pd.melt(pd.read_excel(file_xlsx,nrows=2),var_name="colVars",value_name="colVarsNames").drop(0)
     result=""
     colvars=colVarsList.iloc[:,0]
-
+    temp_file_name = get_temp_file(spss_file)
+    data, study_metadata = pyreadstat.read_sav(
+        temp_file_name,
+        apply_value_formats=False
+    )
     for i in range(len(colvars)):
         var=colvars[i+1]
         if re.search("^[PFSV].*[1-90].*A",var):
@@ -48,28 +53,37 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
                 result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude)
             else:
                 result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,descendingorder=True,includeall=checkinclude)
-            if varsList.iloc[i][2] and varsList.iloc[i][3]:
+            if not np.isnan(varsList.iloc[i][2]) and not np.isnan(varsList.iloc[i][3]):
+                varlabeloriginal=""
+                for var, label in study_metadata.column_names_to_labels.items():
+                    if var==varsList.iloc[i][0]:
+                        varlabeloriginal=label
                 for tipo in str(varsList.iloc[i][3]).split():
                     if tipo=="T2B":
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=1) (4=1) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+" - "+tipo+"\".\nEXECUTE.\n"
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="MB":
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+" - "+tipo+"\"."
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="B2B":
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=SYSMIS) (2=1) (1=1).\nEXECUTE.\n"
+                        result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+" - "+tipo+"\"."
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="B3B":
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=1) (1=1).\nEXECUTE.\n"
+                        result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+" - "+tipo+"\"."
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
+                result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+"\"."
         elif varsList.iloc[i][1]=="A":
             result+=getProcessAbiertas(spss_file,xlsx_file,checkinclude,varsList.iloc[i][0])
     return result
@@ -159,10 +173,13 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
         if namevar=="" or namevar==varsList.iloc[i][0]:
             lcTable=pd.read_excel(file_xlsx,sheet_name=varsList.iloc[i][1],usecols="A,B",skiprows=1,names=["vars","sheetNames"]).dropna()
             varAbierta=varsList.iloc[i][0]
+            varlabeloriginal=""
             after=False
             prefix=re.search("^[PFSV].*[1-90].*A",varAbierta).group()
             multis=[]
             for var, label in study_metadata.column_names_to_labels.items():
+                if var==varAbierta:
+                    varlabeloriginal=label
                 if re.search("^[PFSV].*[1-90].*A",var):
                     if re.search(".*A",var).group()==prefix:
                         multis.append(var)
@@ -241,12 +258,15 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                     result+=".\nEXECUTE.\n\nformats NETO_"+nombreneto+"(f8.0).\nVALUE LABELS NETO_"+nombreneto+" 1 \"NETO "+net[0].strip()+"\".\nEXECUTE.\n"
                     result+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude)
 
+
             if varsList.iloc[i][2] and varsList.iloc[i][3]:
+                prefix=re.search("^[PFSV].*[1-90].*A",varAbierta).group()
                 for tipo in str(varsList.iloc[i][3]).split():
                     if tipo=="T2B":
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=1) (4=1) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        result+= writeAgrupMulti(prefix,multis,varlabeloriginal+" - "+tipo)
                         condition1=data[varsList.iloc[i][2]]==5
                         condition2=data[varsList.iloc[i][2]]==4
                         filtro=condition1|condition2
@@ -264,6 +284,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        result+= writeAgrupMulti(prefix,multis,varlabeloriginal+" - "+tipo)
                         filtro=data[varsList.iloc[i][2]]==3
                         result+=writeAbiertasQuestion(varAbierta,colvars,getListOrderConditions(multis,data,listNetos,filtro),includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                         listatotal=[]
@@ -279,6 +300,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=SYSMIS) (2=1) (1=1).\nEXECUTE.\n"
+                        result+= writeAgrupMulti(prefix,multis,varlabeloriginal+" - "+tipo)
                         condition1=data[varsList.iloc[i][2]]==1
                         condition2=data[varsList.iloc[i][2]]==2
                         filtro=condition1|condition2
@@ -296,6 +318,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=1) (1=1).\nEXECUTE.\n"
+                        result+= writeAgrupMulti(prefix,multis,varlabeloriginal+" - "+tipo)
                         condition1=data[varsList.iloc[i][2]]==1
                         condition2=data[varsList.iloc[i][2]]==2
                         condition3=data[varsList.iloc[i][2]]==3
@@ -310,6 +333,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                             if net[0]!="First" and net[0]!="End" and any(count2[ele]>0 for ele in net[1]):
                                 nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                                 result+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
+            result+= writeAgrupMulti(prefix,multis,varlabeloriginal)
     return result
 
 def getListOrderConditions(multis,data,listNetos,condition):
@@ -513,7 +537,7 @@ def writeAgrupMulti(prefix,listVars,label):
         txt= "\nMRSETS\n  /MCGROUP NAME=$"+prefix[:-1]+" LABEL='"+str(label) +"'\n    VARIABLES="
         for var in listVars:
             txt+=var+" "
-        txt+="\n  /DISPLAY NAME=[$"+prefix[:-1]+"].\n"
+        txt+=".\n"
         return txt
     except:
         return ""
