@@ -82,7 +82,7 @@ def generate_open_ended_db(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
         # Apply the function and concatenate the results with the original dataframe
         expanded_cols = answers_codes[column].apply(expand_lists, max_len=max_len)
-        expanded_cols.columns = [f'{column}_{i + 1}' for i in range(max_len)]
+        expanded_cols.columns = [f'{column}A{i + 1}' for i in range(max_len)]
         answers_codes = pd.concat([answers_codes.drop(columns=[column]), expanded_cols], axis=1)
 
     transformed_df = answers.merge(answers_codes, left_index=True, right_index=True).reset_index()
