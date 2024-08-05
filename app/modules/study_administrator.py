@@ -105,7 +105,7 @@ def get_business_data():
         business_data = document.to_dict()
         return business_data
 
-def get_id_number() -> int:
+def get_last_id_number() -> int:
     bq = BigQueryClient('business_data')
     last_study_number = bq.fetch_data(
         f"""
@@ -113,14 +113,13 @@ def get_id_number() -> int:
         """
     )['study_id'][0]
 
-    return last_study_number + 1
+    return last_study_number
 
 def create_study_df(study_data: dict[str, list[int | str | float | datetime]]):
     study_data_df = pd.DataFrame(study_data)
     current_time = datetime.now(time_zone)
     study_data_df['creation_date'] = current_time
     study_data_df['last_update_date'] = current_time
-    study_data_df['study_id'] = get_id_number()
 
     bq = BigQueryClient('business_data')
     bq.load_data('study', study_data_df)

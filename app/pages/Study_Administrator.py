@@ -10,11 +10,11 @@ from app.modules.study_administrator import (
     get_sudies_ids_country,
     get_study_data,
     update_study_data,
-    get_sharepoint_studies,
+    # get_sharepoint_studies,
     upload_file_to_sharepoint,
     get_last_file_version_in_sharepoint,
     get_upload_files_info,
-    get_id_number,
+    get_last_id_number,
     get_number_of_studies
 )
 from app.modules.utils import get_countries
@@ -45,26 +45,32 @@ def main():
     except Exception as e:
         st.error(e)
 
-    reversed_countries_codes = {value: key for key, value in countries_codes.items()}
+    # reversed_countries_codes = {value: key for key, value in countries_codes.items()}
 
-    studies = get_sharepoint_studies('estudios')
+    # studies = get_sharepoint_studies('estudios')
 
-    filtered_studies = list(
-        set(
-            [
-                study
-                for study in studies
-                if (
-                    study.split('_')[0].isdigit() and
-                    len(study.split('_')[1]) == 2 and
-                    study.split('_')[1].upper() in countries_codes.values()
-                )
-            ]
-        )
-    )
+    # filtered_studies = list(
+    #     set(
+    #         [
+    #             study
+    #             for study in studies
+    #             if (
+    #                 study.split('_')[0].isdigit() and
+    #                 len(study.split('_')[1]) == 2 and
+    #                 study.split('_')[1].upper() in countries_codes.values()
+    #             )
+    #         ]
+    #     )
+    # )
+
+    last_id_number = get_last_id_number()
 
     sudies_ids_country = get_sudies_ids_country()
     sudies_ids = sudies_ids_country['study_id'].sort_values().unique().tolist()
+
+    if last_id_number != max(sudies_ids):
+        get_sudies_ids_country.clear()
+        st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(['Studies viewer', 'Create study', 'Edit study', 'File uploader'])
 
@@ -92,7 +98,7 @@ def main():
         paginated_data = get_studies(batch_size, batch_size * (current_page - 1))
 
         # If last cached study is not the last one in BQ, clear studies cache and rerun
-        if current_page == 1 and paginated_data.index.values[0] != get_id_number() - 1:
+        if current_page == 1 and paginated_data.index.values[0] != last_id_number:
             get_studies.clear()
             st.rerun()
 
@@ -163,6 +169,7 @@ def main():
                 with st.spinner('Creating study...'):
                     combinations = list(itertools.product(study_types, countries))
                     study_data = {
+                        'study_id': [last_id_number + 1] * len(combinations),
                         'study_name': [study_name] * len(combinations),
                         'study_type': [combination[0] for combination in combinations],
                         'description': [description] * len(combinations),
@@ -193,14 +200,14 @@ def main():
             specific_studies = sudies_ids_country[
                 (sudies_ids_country['study_id'] == study_id) &
                 (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values()
+            ]['study_name'].sort_values().reset_index(drop=True)
             if len(specific_studies) > 1:
                 specific_study = st.radio('Select study:', options=specific_studies, index=None)
         elif study_id and country:
             specific_studies = sudies_ids_country[
                 (sudies_ids_country['study_id'] == study_id) &
                 (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values()
+            ]['study_name'].sort_values().reset_index(drop=True)
             specific_study = specific_studies[0]
 
         if study_id and country:
