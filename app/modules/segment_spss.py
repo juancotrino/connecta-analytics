@@ -25,6 +25,7 @@ from scipy.stats import chi2_contingency, pearsonr
 # import matplotlib.pyplot as plt
 # import seaborn as sns
 
+from app.modules.cloud import CloudStorageClient
 from app.modules.authenticator import get_inverted_scales_keywords
 from app.modules.utils import get_temp_file
 
@@ -348,8 +349,26 @@ def format_ws(sheet):
 
 #     return g
 
+def create_zip(zip_name: str, files: dict):
+    temp_dir = tempfile.gettempdir()
+    zip_path = os.path.join(temp_dir, zip_name)
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        for file_name, file_temp_name in files.items():
+            zipf.write(file_temp_name, file_name)
+            os.unlink(file_temp_name)
+            set_time_zone_to_file(zipf, file_name)
+    return zip_path
+
+def upload_to_gcs(source_file_name: str, destination_blob_name: str):
+    gcs = CloudStorageClient('connecta-temp-data')
+    return gcs.upload_to_gcs(source_file_name, destination_blob_name)
+
+def delete_gcs(blob_name: str):
+    gcs = CloudStorageClient('connecta-temp-data')
+    gcs.delete_from_gcs(blob_name)
+
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scales: bool):
-    print('Started execution')
+    # print('Started execution')
     temp_file_name = get_temp_file(spss_file)
 
     survey_data, metadata = pyreadstat.read_sav(
@@ -357,176 +376,166 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
         apply_value_formats=False
     )
 
-    survey_data = survey_data.dropna(how='all')
+    survey_data: pd.DataFrame = survey_data.dropna(how='all')
 
     if transform_inverted_scales:
         inverted_scales_keywords = get_inverted_scales_keywords()
     else:
         inverted_scales_keywords = []
 
-    # Create a BytesIO object to store the zip file
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+    files = {}
 
-        jobs_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
-        jobs.to_excel(jobs_temp_file.name, index=False)
-        zip_file.write(f'{jobs_temp_file.name}', arcname='scenarios.xlsx')
-        set_time_zone_to_file(zip_file, 'scenarios.xlsx')
+    jobs_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    jobs.to_excel(jobs_temp_file.name, index=False)
+    files['scenarios.xlsx'] = jobs_temp_file.name
 
-        if jobs['cross_variable'].any():
+    if jobs['cross_variable'].any():
 
-            chi2_xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        chi2_xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
 
-            # Create a new Excel file
-            chi2_xlsx_file_name = f"chi2_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
-            chi2_wb = openpyxl.Workbook()
-            chi2_wb.remove(chi2_wb.active)
+        # Create a new Excel file
+        chi2_xlsx_file_name = f"chi2_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
+        chi2_wb = openpyxl.Workbook()
+        chi2_wb.remove(chi2_wb.active)
 
-            # Read the existing Excel file
-            existing_file = f"static/templates/chart_template.xlsx"
-            wb_existing = openpyxl.load_workbook(existing_file)
-            ws_existing = wb_existing.active
+        # Read the existing Excel file
+        existing_file = f"static/templates/chart_template.xlsx"
+        wb_existing = openpyxl.load_workbook(existing_file)
+        ws_existing = wb_existing.active
 
-            # Find the chart in the existing worksheet
-            source_chart = None
-            for chart_obj in ws_existing._charts:
-                if isinstance(chart_obj, BarChart):
-                    source_chart = chart_obj
-                    break
+        # Find the chart in the existing worksheet
+        source_chart = None
+        for chart_obj in ws_existing._charts:
+            if isinstance(chart_obj, BarChart):
+                source_chart = chart_obj
+                break
 
-            if source_chart is None:
-                print("Chart not found in the specified location.")
-                exit()
+        if source_chart is None:
+            print("Chart not found in the specified location.")
+            exit()
 
-        if jobs['correlation_variables'].any():
+    if jobs['correlation_variables'].any():
 
-            corr_xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        corr_xlsx_temp_file = tempfile.NamedTemporaryFile(delete=False)
 
-            # Create a new Excel file
-            corr_xlsx_file_name = f"correlations_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
-            corr_wb = openpyxl.Workbook()
-            corr_wb.remove(corr_wb.active)
+        # Create a new Excel file
+        corr_xlsx_file_name = f"correlations_{spss_file.name.split('.')[0].replace('Base ', '')}.xlsx"
+        corr_wb = openpyxl.Workbook()
+        corr_wb.remove(corr_wb.active)
 
-        for _, job in jobs.iterrows():
-            if job['variables']:
-                if ',' in job['variables']:
-                    variables = [variable.strip() for variable in job['variables'].split(',')]
-                else:
-                    variables = [variable.strip() for variable in job['variables'].split('\n')]
+    for _, job in jobs.iterrows():
+        if job['variables']:
+            if ',' in job['variables']:
+                variables = [variable.strip() for variable in job['variables'].split(',')]
             else:
-                variables = survey_data.columns.to_list()
+                variables = [variable.strip() for variable in job['variables'].split('\n')]
+        else:
+            variables = survey_data.columns.to_list()
 
-            if job['condition']:
-                try:
-                    filtered_data = survey_data[variables].query(job['condition'])
-                except SyntaxError as e:
-                    raise e
-            else:
-                filtered_data = survey_data[variables]
+        if job['condition']:
+            try:
+                filtered_data = survey_data[variables].query(job['condition'])
+            except SyntaxError as e:
+                raise e
+        else:
+            filtered_data = survey_data[variables]
 
-            if filtered_data.empty:
-                raise ValueError(f'Conditions produced an empty database for scenario: {job["scenario_name"]}')
+        if filtered_data.empty:
+            raise ValueError(f'Conditions produced an empty database for scenario: {job["scenario_name"]}')
 
-            # Write filtered data to a temporary sav file
-            sav_file_name = f"{spss_file.name.split('.')[0].replace('Base ', '')}_{job['scenario_name']}.sav"
-            sav_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            pyreadstat.write_sav(
-                filtered_data,
+        # Write filtered data to a temporary sav file
+        sav_file_name = f"{spss_file.name.split('.')[0].replace('Base ', '')}_{job['scenario_name']}.sav"
+        sav_temp_file = tempfile.NamedTemporaryFile(delete=False)
+
+        pyreadstat.write_sav(
+            filtered_data,
+            sav_temp_file.name,
+            column_labels={k: v for k, v in metadata.column_names_to_labels.items() if k in variables},
+            variable_value_labels={k: v for k, v in metadata.variable_value_labels.items() if k in variables},
+        )
+
+        if job['cross_variable']:
+            correction = False
+            chi2_df = process_chi2(
                 sav_temp_file.name,
-                column_labels={k: v for k, v in metadata.__dict__['column_names_to_labels'].items() if k in variables},
-                variable_value_labels={k: v for k, v in metadata.__dict__['variable_value_labels'].items() if k in variables},
+                job['cross_variable'],
+                job['chi2_mode'],
+                inverted_scales_keywords,
+                correction,
             )
 
-            if job['cross_variable']:
-                correction = False
-                chi2_df = process_chi2(
-                    sav_temp_file.name,
-                    job['cross_variable'],
-                    job['chi2_mode'],
-                    inverted_scales_keywords,
-                    correction,
-                )
+            # Create a new workbook object and select the active worksheet
+            chi2_wb.create_sheet(job['scenario_name'])
+            chi2_ws = chi2_wb[job['scenario_name']]
 
-                # Create a new workbook object and select the active worksheet
-                chi2_wb.create_sheet(job['scenario_name'])
-                chi2_ws = chi2_wb[job['scenario_name']]
+            # Write DataFrame content to the worksheet
+            for r in dataframe_to_rows(chi2_df, index=False, header=True):
+                chi2_ws.append(r)
 
-                # Write DataFrame content to the worksheet
-                for r in dataframe_to_rows(chi2_df, index=False, header=True):
-                    chi2_ws.append(r)
+            # Create chart in the worksheet
+            create_chart(chi2_ws, source_chart, chi2_df, 'Intención de compra', "E3")
 
-                # Create chart in the worksheet
-                create_chart(chi2_ws, source_chart, chi2_df, 'Intención de compra', "E3")
+        if job['correlation_variables']:
+            if ',' in job['variables']:
+                corr_variables = [variable.strip() for variable in job['correlation_variables'].split(',')]
+            else:
+                corr_variables = [variable.strip() for variable in job['correlation_variables'].split('\n')]
 
-            if job['correlation_variables']:
-                if ',' in job['variables']:
-                    corr_variables = [variable.strip() for variable in job['correlation_variables'].split(',')]
-                else:
-                    corr_variables = [variable.strip() for variable in job['correlation_variables'].split('\n')]
+            correlation_data = get_correlation_data(sav_temp_file.name, corr_variables)
+            correlation_df, p_value_df = process_correlation(correlation_data)
 
-                correlation_data = get_correlation_data(sav_temp_file.name, corr_variables)
-                correlation_df, p_value_df = process_correlation(correlation_data)
+            correlation_df = correlation_df.rename(
+                columns=metadata.column_names_to_labels,
+                index=metadata.column_names_to_labels
+            ).reset_index(names='')
 
-                correlation_df = correlation_df.rename(
-                    columns=metadata.column_names_to_labels,
-                    index=metadata.column_names_to_labels
-                ).reset_index(names='')
+            p_value_df = p_value_df.rename(
+                columns=metadata.column_names_to_labels,
+                index=metadata.column_names_to_labels
+            ).reset_index(names='')
 
-                p_value_df = p_value_df.rename(
-                    columns=metadata.column_names_to_labels,
-                    index=metadata.column_names_to_labels
-                ).reset_index(names='')
+            # Create a new workbook object and select the active worksheet
+            corr_wb.create_sheet(job['scenario_name'])
+            corr_ws = corr_wb[job['scenario_name']]
 
-                # Create a new workbook object and select the active worksheet
-                corr_wb.create_sheet(job['scenario_name'])
-                corr_ws = corr_wb[job['scenario_name']]
+            # Write DataFrame content to the worksheet
+            for r in dataframe_to_rows(p_value_df, index=False, header=True):
+                corr_ws.append(r)
 
-                # Write DataFrame content to the worksheet
-                for r in dataframe_to_rows(p_value_df, index=False, header=True):
-                    corr_ws.append(r)
+            format_ws(corr_ws)
 
-                format_ws(corr_ws)
+            start_row = 1
+            for r_idx, r in enumerate(dataframe_to_rows(correlation_df, index=False, header=True), start=start_row):
+                for c_idx, value in enumerate(r, start=1):
+                    corr_ws.cell(row=r_idx, column=c_idx, value=value)
 
-                start_row = 1
-                for r_idx, r in enumerate(dataframe_to_rows(correlation_df, index=False, header=True), start=start_row):
-                    for c_idx, value in enumerate(r, start=1):
-                        corr_ws.cell(row=r_idx, column=c_idx, value=value)
+            # pdf_graph_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
 
-                # pdf_graph_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+            # graph = generate_graph_analysis(correlation_data)
+            # graph.savefig(pdf_graph_temp_file.name)
 
-                # graph = generate_graph_analysis(correlation_data)
-                # graph.savefig(pdf_graph_temp_file.name)
+            # zip_file.write(pdf_graph_temp_file.name, arcname=f'{job["scenario_name"]}_correlation_statistical_graph.pdf')
 
-                # zip_file.write(pdf_graph_temp_file.name, arcname=f'{job["scenario_name"]}_correlation_statistical_graph.pdf')
+        # Add the temporary sav file to the zip file with custom arcname
+        files[sav_file_name] = sav_temp_file.name
 
-            # Add the temporary sav file to the zip file with custom arcname
-            zip_file.write(sav_temp_file.name, arcname=sav_file_name)
-            set_time_zone_to_file(zip_file, sav_file_name)
-            # Close and delete the temporary sav file
-            sav_temp_file.close()
-            os.unlink(sav_temp_file.name)
+        # Close and delete the temporary sav file
+        sav_temp_file.close()
 
-        if jobs['cross_variable'].any():
-            # Save the new Excel file
-            chi2_wb.save(chi2_xlsx_temp_file)
-            chi2_wb.close()
+    if jobs['cross_variable'].any():
+        # Save the new Excel file
+        chi2_wb.save(chi2_xlsx_temp_file)
+        chi2_wb.close()
 
-            zip_file.write(f'{chi2_xlsx_temp_file.name}', arcname=chi2_xlsx_file_name)
-            set_time_zone_to_file(zip_file, chi2_xlsx_file_name)
-            chi2_xlsx_temp_file.close()
-            os.unlink(chi2_xlsx_temp_file.name)
+        files[chi2_xlsx_file_name] = chi2_xlsx_temp_file.name
+        chi2_xlsx_temp_file.close()
 
-        if jobs['correlation_variables'].any():
-            # Save the new Excel file
-            corr_wb.save(corr_xlsx_temp_file)
-            corr_wb.close()
+    if jobs['correlation_variables'].any():
+        # Save the new Excel file
+        corr_wb.save(corr_xlsx_temp_file)
+        corr_wb.close()
 
-            zip_file.write(f'{corr_xlsx_temp_file.name}', arcname=corr_xlsx_file_name)
-            set_time_zone_to_file(zip_file, corr_xlsx_file_name)
-            corr_xlsx_temp_file.close()
-            os.unlink(corr_xlsx_temp_file.name)
+        files[corr_xlsx_file_name] = corr_xlsx_temp_file.name
+        corr_xlsx_temp_file.close()
 
-    # Close and reset the BytesIO buffer
-    zip_buffer.seek(0)
-
-    return zip_buffer
+    return files
