@@ -358,6 +358,14 @@ def write_penalty_sheet(result_df: pd.DataFrame, worksheet):
         # Update start_row for the next table, adding 2 rows of separation
         start_row += len(df) + 3
 
+def delete_row_with_merged_ranges(sheet, idx):
+    sheet.delete_rows(idx)
+    for mcr in sheet.merged_cells:
+        if idx < mcr.min_row:
+            mcr.shift(row_shift=-1)
+        elif idx < mcr.max_row:
+            mcr.shrink(bottom=1)
+
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
@@ -365,6 +373,29 @@ def processing(xlsx_file: BytesIO):
 
     # Load the existing Excel file
     wb_existing = load_workbook(temp_file_name_xlsx)
+
+    for sheet in wb_existing:
+        if not sheet.title.lower().startswith('penal'):
+            wstemp=wb_existing[sheet.title]
+            maxcol=wstemp.max_column
+            for rowi in range(1,wstemp.max_row+1):
+                valb=wstemp["B"+str(rowi)].value
+                if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
+                    for rowf in range(rowi+1,wstemp.max_row+1):
+                        if valb==wstemp["B"+str(rowf)].value:
+                            for i in range(2,maxcol+1):
+                                wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
+                            for j in range(11):
+                                delete_row_with_merged_ranges(wstemp,rowf-7)
+                            break
+    # for sheet in wb_existing:
+    #     if not sheet.title.lower().startswith('penal'):
+    #         wstemp=wb_existing[sheet.title]
+    #         for rowi in range(wstemp.max_row+1,1,-1):
+    #             if not wstemp["D"+str(rowi)].value:
+    #                 delete_row_with_merged_ranges(wstemp,rowi)
+
+    wb_existing.save(temp_file_name_xlsx)
 
     # Create a new Workbook
     wb_new = Workbook()

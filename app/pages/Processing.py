@@ -57,18 +57,6 @@ def main():
                 with col3.container(height=250):
                     st.code(getCruces(uploaded_file_process_xlsx,checkinclude), line_numbers=True)
 
-            st.markdown("#### Code Abiertas")
-            col1, col2 = st.columns(2)
-            with col1:
-                col1.markdown("Code to preprocess Abiertas in SPSS:")
-                with col1.container(height=250):
-                    st.code(getPreProcessAbiertas(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
-
-            with col2:
-                col2.markdown("Code to gen Abiertas tables in SPSS:")
-                with col2.container(height=250):
-                    st.code(getProcessAbiertas(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude), line_numbers=True)
-
     st.markdown('### Transform Database')
 
     with st.form('preprocessing_form'):

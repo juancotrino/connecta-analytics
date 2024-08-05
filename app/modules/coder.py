@@ -58,6 +58,7 @@ def generate_open_ended_db(temp_file_name_xlsx: str, temp_file_name_sav: str):
     ordered_questions = df['question_code'].unique().tolist()
 
     df = df.dropna(subset='code_ai_micro_num')
+    print(df)
     df['code_ai_micro_num'] = df['code_ai_micro_num'].apply(lambda x: ast.literal_eval(x))
 
     pivoted_df = df.pivot(
