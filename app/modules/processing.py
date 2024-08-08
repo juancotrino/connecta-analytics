@@ -366,6 +366,20 @@ def delete_row_with_merged_ranges(sheet, idx):
         elif idx < mcr.max_row:
             mcr.shrink(bottom=1)
 
+def transform_headers(data: pd.DataFrame):
+    c=0
+    new_columns = []
+    for column in data.loc[0,:]:
+        if pd.isnull(column):
+            new_columns.append(f'Unnamed: {c}')
+            c += 1
+        else:
+            new_columns.append(column)
+
+    data.columns = new_columns
+    data = data.drop(0).reset_index(drop=True)
+    return data
+
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
@@ -388,12 +402,12 @@ def processing(xlsx_file: BytesIO):
                             for j in range(11):
                                 delete_row_with_merged_ranges(wstemp,rowf-7)
                             break
-    # for sheet in wb_existing:
-    #     if not sheet.title.lower().startswith('penal'):
-    #         wstemp=wb_existing[sheet.title]
-    #         for rowi in range(wstemp.max_row+1,1,-1):
-    #             if not wstemp["D"+str(rowi)].value:
-    #                 delete_row_with_merged_ranges(wstemp,rowi)
+    for sheet in wb_existing:
+        if not sheet.title.lower().startswith('penal'):
+            wstemp=wb_existing[sheet.title]
+            for rowi in range(wstemp.max_row+1,1,-1):
+                if not wstemp["D"+str(rowi)].value:
+                    delete_row_with_merged_ranges(wstemp,rowi)
 
     wb_existing.save(temp_file_name_xlsx)
 
@@ -492,7 +506,9 @@ def processing(xlsx_file: BytesIO):
 
         else:
             ws_existing = wb_existing[sheet_name]
-
+            if not 'TOTAL' in data.columns:
+                data = transform_headers(data)
+                delete_row_with_merged_ranges(ws_existing,0)
             # data = pd.read_excel(temp_file_name_xlsx, sheet_name=sheet_name)
             data['Unnamed: 2'] = (
                 pd.to_numeric(data['Unnamed: 2'], errors='coerce')
@@ -502,6 +518,7 @@ def processing(xlsx_file: BytesIO):
             data_differences = data.copy()
 
             value_type = data['Unnamed: 2'].apply(lambda x: type(x))
+
             float_types = value_type[value_type == float]
 
             question_groups = group_consecutive_indexes(list(float_types.index))
