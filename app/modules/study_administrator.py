@@ -137,15 +137,16 @@ def get_sudies_ids_country():
     )
 
 @st.cache_data(show_spinner=False)
-def get_study_data(study_id: int, country: str):
+def get_study_data(study_id: int, country: str | None = None):
     bq = BigQueryClient('business_data')
-    return bq.fetch_data(
-        f"""
+    query = f"""
         SELECT * FROM `{bq.schema_id}.{bq.data_set}.study`
         WHERE study_id = {study_id}
-            AND country = '{country}'
-        """
-    )
+    """
+    if country:
+        query += f" AND country = '{country}'"
+
+    return bq.fetch_data(query)
 
 @st.cache_data(show_spinner=False)
 def get_number_of_studies() -> int:
@@ -158,30 +159,23 @@ def get_number_of_studies() -> int:
 
 def update_study_data(study_data: dict[str, str]):
     bq = BigQueryClient('business_data')
-    study_id = study_data['study_id']
-    country = study_data['country']
-    study_type = study_data['study_type']
-    value = study_data['value']
-    description = study_data['description']
-    supervisor = study_data['supervisor']
-    status = study_data['status']
-    last_update_date = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
-    get_studies.clear()
-
-    return bq.fetch_data(
+    bq.delete_data(
         f"""
-        UPDATE `{bq.schema_id}.{bq.data_set}.study`
-        SET study_type = '{study_type}',
-            value = {value},
-            description = '{description}',
-            supervisor = '{supervisor}',
-            status = '{status}',
-            last_update_date = '{last_update_date}'
-        WHERE study_id = {study_id}
-            AND country = '{country}';
+        DELETE `{bq.schema_id}.{bq.data_set}.study`
+        WHERE study_id = {study_data['study_id'][0]}
         """
     )
+
+    study_data_df = pd.DataFrame(study_data)
+    current_time = datetime.now(time_zone)
+    study_data_df['last_update_date'] = current_time
+    study_data_df['source'] = 'app'
+
+    bq.load_data('study', study_data_df)
+
+    get_studies.clear()
+    get_study_data.clear()
 
 @st.cache_data(show_spinner=False, ttl=60)
 def get_sharepoint_studies(source: str):

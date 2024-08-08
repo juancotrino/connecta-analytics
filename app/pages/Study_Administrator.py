@@ -96,6 +96,7 @@ def main():
             st.markdown(f"Page **{current_page}** of **{total_pages}** ")
 
         paginated_data = get_studies(batch_size, batch_size * (current_page - 1))
+        paginated_data = paginated_data.drop(columns='source')
 
         # If last cached study is not the last one in BQ, clear studies cache and rerun
         if current_page == 1 and paginated_data.index.values[0] != last_id_number:
@@ -186,58 +187,33 @@ def main():
 
     with tab3:
 
-        col1, col2 = st.columns(2)
+        study_id = st.selectbox('Study ID', options=reversed(sudies_ids), index=None, placeholder='Select study ID', key='study_id_edit')
 
-        study_id = col1.selectbox('Study ID', options=reversed(sudies_ids), index=None, placeholder='Select study ID', key='study_id_edit')
-        studies_countries = sudies_ids_country[sudies_ids_country['study_id'] == study_id]['country'].sort_values().unique()
-
-        if len(studies_countries) > 1:
-            country = col2.selectbox('Country', options=studies_countries, index=None, placeholder='Select study country', key='country_edit')
-        elif len(studies_countries) == 1:
-            country = col2.text_input('Country', studies_countries[0], disabled=True, key='country_edit')
-        else:
-            country = None
-
-        if study_id and country and len(studies_countries) > 1:
-            specific_studies = sudies_ids_country[
-                (sudies_ids_country['study_id'] == study_id) &
-                (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values().reset_index(drop=True)
-            if len(list(set(specific_studies))) > 1:
-                specific_study = st.radio('Select study:', options=specific_studies, index=None)
-        elif study_id and country:
-            specific_studies = sudies_ids_country[
-                (sudies_ids_country['study_id'] == study_id) &
-                (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values().reset_index(drop=True)
-            specific_study = specific_studies[0]
-
-        if study_id and country:
+        if study_id:
 
             with st.form('edit_study'):
                 with st.spinner('Fetching study data...'):
-                    study_data = get_study_data(study_id, country)
+                    study_data = get_study_data(study_id)
 
                 study_name = st.text_input(
                     'Study name',
-                    value=study_data['study_name'].values[0].replace('_', ' ').capitalize(),
-                    disabled=True
+                    value=study_data['study_name'].values[0],
+                    disabled=True if study_data['source'].values[0] == 'app' else False
                 )
 
                 statuses: list = business_data['statuses']
                 status = st.selectbox(
                     'Status',
                     options=statuses,
-                    index=statuses.index(study_data['status'].values[0].capitalize()),
+                    index=statuses.index(study_data['status'].values[0]),
                     placeholder="Select status..."
                 )
 
                 study_types: list = business_data['study_types']
-                study_type = st.multiselect(
+                study_types_selected = st.multiselect(
                     'Study type',
                     options=study_types,
-                    default=study_data['study_type'],
-                    # index=study_types.index(study_data['study_type'].values[0].capitalize()),
+                    default=study_data['study_type'].unique(),
                     placeholder="Select study type..."
                 )
 
@@ -262,6 +238,13 @@ def main():
                     disabled=True
                 )
 
+                countries = st.multiselect(
+                    'Country',
+                    default=study_data['country'].unique(),
+                    options=countries_iso_2_code.keys(),
+                    placeholder="Select country..."
+                )
+
                 description = st.text_area(
                     'Description',
                     value=study_data['description'].values[0]
@@ -275,47 +258,53 @@ def main():
                     placeholder="Select supervisor..."
                 )
 
+                creation_date = study_data['creation_date'].values[0]
+
                 edit_study = st.form_submit_button('Edit study', type='primary')
 
                 if edit_study:
                     with st.spinner('Updating study...'):
+                        combinations = list(itertools.product(study_types_selected, countries))
                         updated_study_data = {
-                            'study_id': study_id,
-                            'country': country,
-                            'study_type': study_type,
-                            'value': value,
-                            'description': description,
-                            'supervisor': supervisor,
-                            'status': status
+                            'study_id': [study_id] * len(combinations),
+                            'study_name': [study_name] * len(combinations),
+                            'study_type': [combination[0] for combination in combinations],
+                            'description': [description] * len(combinations),
+                            'country': [combination[1] for combination in combinations],
+                            'client': [client] * len(combinations),
+                            'value': [value] * len(combinations),
+                            'currency': [currency] * len(combinations),
+                            'creation_date': [creation_date] * len(combinations),
+                            'supervisor': [supervisor] * len(combinations),
+                            'status': [status] * len(combinations),
                         }
                         update_study_data(updated_study_data)
                     st.success('Study updated successfully')
 
                     if status == 'En ejecución':
-                        country_code = countries_iso_2_code[country].lower()
-                        id_study_name = f"{study_id}_{country_code}_{study_name.replace(' ', '_').lower()}"
-                        base_path = f'Documentos compartidos/estudios/{id_study_name}'
-                        try:
-                            with st.spinner('Creating folder in SharePoint...'):
-                                create_folder_structure(base_path)
-                                folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios/{id_study_name}'
-                                st.success(
-                                    f'Study root folder created successfully. Visit the new folder [here]({folder_url}).'
-                                )
-                        except Exception as e:
-                            st.error(e)
+                        for country in countries:
+                            country_code = countries_iso_2_code[country].lower()
+                            id_study_name = f"{study_id}_{country_code}_{study_name.replace(' ', '_').lower()}"
+                            base_path = f'Documentos compartidos/estudios/{id_study_name}'
+                            try:
+                                with st.spinner('Creating folder in SharePoint...'):
+                                    create_folder_structure(base_path)
+                                    folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios/{id_study_name}'
+                                    st.success(
+                                        f'Study root folder created successfully for country `{country}`. Visit the new folder [here]({folder_url}).'
+                                    )
+                            except Exception as e:
+                                st.error(e)
 
     with tab4:
 
-        col1, col2 = st.columns(2)
-
-        study_id = col1.selectbox('Study ID', options=reversed(sudies_ids), index=None, placeholder='Select study ID', key='study_id_file_uploader')
+        study_id = st.selectbox('Study ID', options=reversed(sudies_ids), index=None, placeholder='Select study ID', key='study_id_file_uploader')
         studies_countries = sudies_ids_country[sudies_ids_country['study_id'] == study_id]['country'].sort_values().unique()
 
         if len(studies_countries) > 1:
-            country = col2.selectbox('Country', options=studies_countries, index=None, placeholder='Select study country', key='country_file_uploader')
+            country = st.selectbox('Country', options=studies_countries, index=None, placeholder='Select study country', key='country_file_uploader')
         elif len(studies_countries) == 1:
-            country = col2.text_input('Country', studies_countries[0], disabled=True, key='country_file_uploader')
+            country = st.text_input('Country', studies_countries[0], disabled=True, key='country_file_uploader')
         else:
             country = None
 
