@@ -53,7 +53,7 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
                 result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude)
             else:
                 result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,descendingorder=True,includeall=checkinclude)
-            if not np.isnan(varsList.iloc[i][2]) and not np.isnan(varsList.iloc[i][3]):
+            if not pd.isnull(varsList.iloc[i][2]) and not pd.isnull(varsList.iloc[i][3]) and not varsList.iloc[i][3] in ["I","D"]:
                 varlabeloriginal=""
                 for var, label in study_metadata.column_names_to_labels.items():
                     if var==varsList.iloc[i][0]:
@@ -133,7 +133,7 @@ def getAbiertasPreCode(var,lcTable):
     subcodes=[]
     options=[]
     for i in range(len(lcTable)):
-        if lcTable.iloc[i][0]=="NETO":
+        if str(lcTable.iloc[i][0]).strip()=="NETO":
             continue
         if lcTable.isnull().iloc[i][1]:
             subcodes.append(lcTable.iloc[i][0])
