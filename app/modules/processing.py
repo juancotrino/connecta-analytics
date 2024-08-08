@@ -506,7 +506,7 @@ def processing(xlsx_file: BytesIO):
 
         else:
             ws_existing = wb_existing[sheet_name]
-            if not 'TOTAL' in data.columns:
+            if 'TOTAL' not in data.columns:
                 data = transform_headers(data)
                 delete_row_with_merged_ranges(ws_existing,0)
             # data = pd.read_excel(temp_file_name_xlsx, sheet_name=sheet_name)
