@@ -308,19 +308,16 @@ def main():
         else:
             country = None
 
-        if study_id and country and len(studies_countries) > 1:
-            specific_studies = sudies_ids_country[
-                (sudies_ids_country['study_id'] == study_id) &
-                (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values().reset_index(drop=True)
+        specific_studies = sudies_ids_country[
+            (sudies_ids_country['study_id'] == study_id) &
+            (sudies_ids_country['country'] == country)
+        ]['study_name'].sort_values().reset_index(drop=True)
+
+        if study_id and country:
             if len(list(set(specific_studies))) > 1:
                 specific_study = st.radio('Select study:', options=specific_studies, index=None)
-        elif study_id and country:
-            specific_studies = sudies_ids_country[
-                (sudies_ids_country['study_id'] == study_id) &
-                (sudies_ids_country['country'] == country)
-            ]['study_name'].sort_values().reset_index(drop=True)
-            specific_study = specific_studies[0]
+            else:
+                specific_study = specific_studies[0]
 
         if study_id and country and specific_study:
             country_code = countries_codes[country]
