@@ -110,13 +110,19 @@ def read_sav_metadata(file_name: str) -> pd.DataFrame:
     return variable_info
 
 def write_temp_sav(df: pd.DataFrame, metadata):
+
+    variable_format = {column: 'F20.0' for column in df.columns}
+    variable_format.update({column: '' for column in df.select_dtypes(include=['object']).columns})
+
     with tempfile.NamedTemporaryFile() as tmpfile:
         # Write the DataFrame to the temporary SPSS file
         pyreadstat.write_sav(
             df,
             tmpfile.name,
             column_labels=metadata.column_names_to_labels,
-            variable_value_labels=metadata.variable_value_labels
+            variable_value_labels=metadata.variable_value_labels,
+            variable_measure={column: 'nominal' for column in df.columns},
+            variable_format=variable_format
         )
 
         with open(tmpfile.name, 'rb') as f:
