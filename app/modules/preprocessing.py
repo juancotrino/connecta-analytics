@@ -162,12 +162,11 @@ def preprocessing(sav_file: BytesIO, visit_names: list[str]):
 
     final_rows = []
     for _, row in db.iterrows():
-        variable_value = {}
         filter_questions_value = {}
-
         filter_questions_value = {question: row[question] for question in filter_questions}
 
         for visit, sample in visit_sample_combinations:
+            variable_value = {}
             visit_sample_questions = [question for question in formatted_questions if question.split('_')[1] == visit and question.split('_')[2] == sample]
 
             final_row = {
