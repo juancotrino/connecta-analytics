@@ -1,4 +1,5 @@
 import ast
+import re
 
 import numpy as np
 import pandas as pd
@@ -26,6 +27,40 @@ def transform_open_ended(questions: pd.DataFrame, df: pd.DataFrame):
         group_questions_dict['-'.join(group_questions)] = melted_group_questions
 
     return group_questions_dict
+
+# Custom sort function
+def sort_key(item):
+    parts = item.split('_')
+
+    # Extract the prefix and number from the question code
+    prefix_match = re.match(r"([A-Za-z]+)(\d+)", parts[0])
+    if prefix_match:
+        prefix = prefix_match.group(1)
+        question_number = int(prefix_match.group(2))
+    else:
+        prefix = parts[0]
+        question_number = 0  # Default if no number is found
+
+    # Extract visit number if present
+    visit_number = int(parts[1][1:]) if len(parts) > 1 and 'V' in parts[1] else 0
+
+    return (prefix, visit_number, question_number)
+
+def reorder_columns(df: pd.DataFrame, db: pd.DataFrame) -> pd.DataFrame:
+
+    new_columns = df.loc[:, db.columns[-1]:].iloc[:, 1:].columns.to_list()
+    new_columns = sorted(new_columns, key=sort_key)
+
+    string_columns = df.select_dtypes(include=['object']).columns.sort_values().tolist()
+    string_columns = sorted(string_columns, key=sort_key)
+
+    numeric_columns = [column for column in new_columns if column not in string_columns]
+
+    df['ETIQUETAS'] = np.nan
+
+    df = df[db.columns.to_list() + numeric_columns + ['ETIQUETAS'] + string_columns]
+
+    return df
 
 def generate_open_ended_db(temp_file_name_xlsx: str, temp_file_name_sav: str):
     dfs = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
@@ -88,6 +123,13 @@ def generate_open_ended_db(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     transformed_df = answers.merge(answers_codes, left_index=True, right_index=True).reset_index()
 
-    final_df = db.merge(transformed_df, left_on='Response_ID', right_on='respondent_id').drop(columns='respondent_id')
+    final_df = db.merge(
+        transformed_df,
+        left_on='Response_ID',
+        right_on='respondent_id',
+        suffixes=['', 'OT']
+    ).drop(columns='respondent_id')
+
+    final_df = reorder_columns(final_df, db)
 
     return final_df, metadata

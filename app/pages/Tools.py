@@ -11,7 +11,7 @@ from app.modules.processor import processSav
 from app.modules.processor import getVarsSav
 from app.modules.processor import getCodeProcess
 from app.modules.processor import getCodePreProcess
-from app.modules.coder import transform_open_ended, generate_open_ended_db
+from app.modules.coder import transform_open_ended, generate_open_ended_db, reorder_columns
 from app.modules.utils import get_temp_file, write_multiple_df_bytes, write_temp_sav
 
 def main():
