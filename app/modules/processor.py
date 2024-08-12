@@ -28,7 +28,33 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     preprocesscode+=getPreProcessAbiertas(spss_file,xlsx_file)
     return preprocesscode
 
-def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
+def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,allsegmentcodes=False):
+    result=getProcessCode(spss_file,xlsx_file,checkinclude)
+    if allsegmentcodes:
+        result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
+                         +"nombrearchivo"+"'\n     OPERATION=CREATESHEET  SHEET='"+"nombrehoja"+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
+                         +"OUTPUT CLOSE NAME=*.\nEXECUTE.\n")
+        temp_file_name = get_temp_file(spss_file)
+        data, study_metadata = pyreadstat.read_sav(
+            temp_file_name,
+            apply_value_formats=False
+        )
+        file_xlsx = get_temp_file(xlsx_file)
+        varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
+        for var in varsList:
+            refdict=study_metadata.variable_value_labels[var]
+            for refindex in data[var].dropna().unique():
+                nombrearchivo="nombrearchivo"
+                nombrehoja="Hoja"
+                result+="DATASET ACTIVATE REF_"+refdict[refindex].replace(" ","_")+".\n"
+                condition=data[var]==refindex
+                result+=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
+                         +nombrearchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+refdict[refindex].replace(" ","_").replace("ñ","n")+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
+                         +"OUTPUT CLOSE NAME=*.\nEXECUTE.\n")
+    return result
+
+def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,condition=None):
 
     file_xlsx = get_temp_file(xlsx_file)
     varsList=pd.read_excel(file_xlsx,usecols="A,B,D,E",skiprows=3,names=["vars","varsTypes","Scales","descendOrder"]).dropna(subset=["vars"])
@@ -60,24 +86,28 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
                         varlabeloriginal=label
                 for tipo in str(varsList.iloc[i][3]).split():
                     if tipo=="T2B":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=1) (4=1) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
                         result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+" - "+tipo+"\".\nEXECUTE.\n"
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="MB":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
                         result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+" - "+tipo+"\"."
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="B2B":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=SYSMIS) (2=1) (1=1).\nEXECUTE.\n"
                         result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+" - "+tipo+"\"."
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="B3B":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=1) (1=1).\nEXECUTE.\n"
@@ -85,7 +115,7 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False):
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                 result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+"\"."
         elif varsList.iloc[i][1]=="A":
-            result+=getProcessAbiertas(spss_file,xlsx_file,checkinclude,varsList.iloc[i][0])
+            result+=getProcessAbiertas(spss_file,xlsx_file,checkinclude,varsList.iloc[i][0],condition=condition)
     return result
 
 
@@ -152,13 +182,19 @@ def getAbiertasPreCode(var,lcTable):
     abiertascode+=".\nEXECUTE.\n"
     return abiertascode
 
-def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,namevar=""):
+def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,namevar="",condition=None):
     result=""
     temp_file_name = get_temp_file(spss_file)
-    data, study_metadata = pyreadstat.read_sav(
+    data2, study_metadata = pyreadstat.read_sav(
         temp_file_name,
         apply_value_formats=False
     )
+
+    if condition is None:
+        data=data2
+    else:
+        data=data2[condition]
+
     file_xlsx = get_temp_file(xlsx_file)
     varsList=pd.read_excel(file_xlsx,usecols="A,C,D,E",skiprows=3,names=["vars","sheetNames","varanidada","typesegment"]).dropna(subset=["sheetNames"])
     colVarsList=pd.melt(pd.read_excel(file_xlsx,nrows=2),var_name="colVars",value_name="colVarsNames").drop(0)
@@ -229,6 +265,10 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
             listatotaluniq=list(set(listatotal))
             for net in listNetos:
                 if net[0]!="First" and net[0]!="End" and any(count[ele]>0 for ele in net[1]):
+                    result+="\nDELETE VARIABLES "
+                    for col in multis:
+                        result+="NETO_"+col+" "
+                    result+=".\nEXECUTE."
                     nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                     result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
                     for col in multis:
@@ -263,6 +303,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                 prefix=re.search("^[PFSV].*[1-90].*A",varAbierta).group()
                 for tipo in str(varsList.iloc[i][3]).split():
                     if tipo=="T2B":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=1) (4=1) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
@@ -281,6 +322,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                                 nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                                 result+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="MB":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
@@ -297,6 +339,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                                 nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                                 result+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="B2B":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=SYSMIS) (2=1) (1=1).\nEXECUTE.\n"
@@ -315,6 +358,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                                 nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                                 result+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                     elif tipo=="B3B":
+                        result+="\nDELETE VARIABLES "+varsList.iloc[i][2]+tipo+".\nEXECUTE."
                         result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="+varsList.iloc[i][2]+"\n/OPTIONS FIX=\""+tipo+"\" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE."
                         result+="\nVALUE LABELS "+varsList.iloc[i][2]+tipo+" 1 \""+tipo+"\"."
                         result+="\nRECODE "+varsList.iloc[i][2]+tipo+" (5=SYSMIS) (4=SYSMIS) (3=1) (2=1) (1=1).\nEXECUTE.\n"

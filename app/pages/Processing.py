@@ -6,7 +6,7 @@ from app.modules.processing import processing
 from app.modules.preprocessing import preprocessing
 from app.modules.processor import (
     getPreProcessCode,
-    getProcessCode,
+    getProcessCode2,
     getSegmentCode,
     getPenaltysCode,
     getCruces,
@@ -28,6 +28,7 @@ def main():
         uploaded_file_process_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processingSPSS_xlsx')
         uploaded_file_process_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
         checkinclude=st.checkbox("Include All")
+        checkprocess=st.checkbox("Process All")
         processButton = st.form_submit_button('Get code to process')
         if processButton and uploaded_file_process_xlsx and uploaded_file_process_sav:
             col1, col2   = st.columns(2)
@@ -45,7 +46,7 @@ def main():
             with col1:
                 col1.markdown("Code to gen Tables in SPSS:")
                 with col1.container(height=250):
-                    st.code(getProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude), line_numbers=True)
+                    st.code(getProcessCode2(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude,allsegmentcodes=checkprocess), line_numbers=True)
 
             with col2:
                 col2.markdown("Code to gen Penaltys Tables in SPSS:")
