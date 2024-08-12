@@ -3,7 +3,7 @@ import pandas as pd
 
 import streamlit as st
 
-from app.modules.charts_generator import generate_chart
+from app.modules.charts_generator import generate_chart, get_fonts
 
 def main():
     # -------------- SETTINGS --------------
@@ -31,9 +31,11 @@ def main():
 
         attributes_info = attributes_info.dropna(subset=['name', 'scenario', 'value', 'base'], how='all')
 
-        marker_color = st.color_picker('Marker color')
+        fonts = get_fonts()
 
-        font = 'Ubuntu'
+        font = st.selectbox('Font', options=fonts, index=fonts.index('Ubuntu'))
+
+        marker_color = st.color_picker('Marker color')
 
         if not attributes_info.empty:
             st.markdown('#### Result')

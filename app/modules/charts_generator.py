@@ -3,7 +3,11 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+import matplotlib.font_manager as fm
 
+
+def get_fonts():
+    return sorted(list(set([font.name for font in fm.fontManager.ttflist])))
 
 def generate_chart(attributes_info: pd.DataFrame, font: str, marker_color: str):
     scales_spacing = 2
