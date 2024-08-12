@@ -13,37 +13,40 @@ def main():
 
     with st.expander('Sensory benefits'):
 
-        st.markdown('#### Chart parameters')
+        with st.form('generate_sensory_chart'):
 
-        config = {
-            'name': st.column_config.TextColumn('Name', required=True, width='medium'),
-            'scenario': st.column_config.TextColumn('Scenario', required=True, width='large'),
-            'value': st.column_config.NumberColumn('Value', required=True),
-            'base': st.column_config.TextColumn('Base', required=True),
-            'percentage': st.column_config.NumberColumn('Percentage', min_value=0, max_value=100, format='%d%%'),
-        }
+            st.markdown('#### Chart parameters')
 
-        attributes_info = st.data_editor(
-            pd.DataFrame(columns=config.keys()),
-            num_rows="dynamic",
-            column_config=config
-        ).replace({None: np.nan})
+            config = {
+                'name': st.column_config.TextColumn('Name', required=True, width='medium'),
+                'scenario': st.column_config.TextColumn('Scenario', required=True, width='large'),
+                'value': st.column_config.NumberColumn('Value', required=True),
+                'base': st.column_config.TextColumn('Base', required=True),
+                'percentage': st.column_config.NumberColumn('Percentage', min_value=0, max_value=100, format='%d%%'),
+            }
 
-        attributes_info = attributes_info.dropna(subset=['name', 'scenario', 'value', 'base'], how='all')
+            attributes_info = st.data_editor(
+                pd.DataFrame(columns=config.keys()),
+                num_rows="dynamic",
+                column_config=config
+            ).replace({None: np.nan})
 
-        fonts = get_fonts()
+            attributes_info = attributes_info.dropna(subset=['name', 'scenario', 'value', 'base'], how='all')
 
-        try:
-            default_font_index = fonts.index('Ubuntu')
-        except:
-            default_font_index = 0
+            fonts = get_fonts()
 
+            try:
+                default_font_index = fonts.index('Ubuntu')
+            except:
+                default_font_index = 0
 
-        font = st.selectbox('Font', options=fonts, index=default_font_index)
+            font = st.selectbox('Font', options=fonts, index=default_font_index)
 
-        marker_color = st.color_picker('Marker color')
+            marker_color = st.color_picker('Marker color')
 
-        if not attributes_info.empty:
+            generate = st.form_submit_button('Generate chart', type='primary')
+
+        if not attributes_info.empty and generate:
             st.markdown('#### Result')
 
             fig = generate_chart(attributes_info, font, marker_color)
