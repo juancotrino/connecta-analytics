@@ -34,9 +34,12 @@ def main():
         fonts = get_fonts()
 
         try:
-            font = st.selectbox('Font', options=fonts, index=fonts.index('Ubuntu'))
+            default_font_index = fonts.index('Ubuntu')
         except:
-            font = 'Ubuntu'
+            default_font_index = 0
+
+
+        font = st.selectbox('Font', options=fonts, index=default_font_index)
 
         marker_color = st.color_picker('Marker color')
 
