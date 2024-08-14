@@ -2,7 +2,7 @@ import warnings
 from io import BytesIO
 import tempfile
 import string
-from itertools import pairwise
+from itertools import pairwise, product
 
 import numpy as np
 import pandas as pd
@@ -62,8 +62,6 @@ def calculate_differences(x1: int, x2: int, n1: int, n2: int, sigma: float = 0.0
         # Prueba z de dos proporciones
         _, p_value = proportions_ztest(counts, nobs)
 
-    # print(stat, p_value, x1, x2, n1, n2)
-
     return p_value < sigma
 
 def significant_differences(
@@ -120,10 +118,12 @@ def combine_values(num: int | float, string: str, decimals: int=2):
 
 # Función para combinar los dataframes
 def combine_dataframes(df1, df2, decimals=2):
-    combined_df = pd.DataFrame()
+    combined_data = {
+        col: [combine_values(num, string, decimals) for num, string in zip(df1[col], df2[col])]
+        for col in df1.columns
+    }
 
-    for col in df1.columns:
-        combined_df[col] = [combine_values(num, string, decimals) for num, string in zip(df1[col], df2[col])]
+    combined_df = pd.concat([pd.Series(values, name=col) for col, values in combined_data.items()], axis=1)
 
     return combined_df
 
@@ -193,9 +193,15 @@ def delete_col_with_merged_ranges(sheet, idx):
 def apply_red_color_to_letter(cell):
     value = cell.value
     if isinstance(value, str) and any(char.isalpha() for char in value):
-        # Separate number and letter
-        num = ''.join([char for char in value if char.isdigit()])
-        letter = ','.join([char for char in value if char.isalpha()])
+
+        # Find the first non-digit character
+        index = 0
+        while index < len(value) and value[index].isdigit():
+            index += 1
+
+        # Split the string based on the index
+        num = value[:index]
+        letter = value[index:].strip()  # Remove any leading/trailing spaces
 
         # Apply formatting
 
@@ -246,7 +252,8 @@ def write_statistical_siginificance_sheet(
     start_column = 1
     for r_idx, row in enumerate(dataframe_to_rows(combined_differences_df, index=False, header=True), start=start_row):
         for c_idx, value in enumerate(row, start=start_column):
-            new_cell = ws_new.cell(row=r_idx, column=c_idx, value=value)
+            if not (isinstance(value, str) and 'Unnamed' in value):
+                new_cell = ws_new.cell(row=r_idx, column=c_idx, value=value)
 
     # Copy merged cell ranges
     for merged_cell in ws_existing.merged_cells.ranges:
@@ -379,6 +386,12 @@ def transform_headers(data: pd.DataFrame):
     data.columns = new_columns
     data = data.drop(0).reset_index(drop=True)
     return data
+
+def composite_columns(n: int, start: str = "AA"):
+    letters = string.ascii_uppercase
+    start_index = letters.index(start[0]) * 26 + letters.index(start[1]) + 1
+    columns = [''.join(pair) for pair in product(letters, repeat=2)]
+    return columns[start_index-1:start_index-1 + n]
 
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
@@ -554,7 +567,7 @@ def processing(xlsx_file: BytesIO):
                 for category_group in category_indexes:
                     columns_category_groups = category_groups_columns.loc[category_group[0]:category_group[1]]['index'].to_list()
 
-                    inner_df = data.loc[question_group, columns_category_groups].map(extract_digits)
+                    inner_df = data.loc[question_group, columns_category_groups].map(extract_digits).replace({None: np.nan}).dropna(axis=1, how='all')
 
                     data_differences.update(inner_df)
 
@@ -562,7 +575,10 @@ def processing(xlsx_file: BytesIO):
 
                     data_differences.update(calculate_percentages(inner_df, data_differences, total_index))
 
-                    letters_inner_dict = {column: letter for column, letter in zip(inner_df.columns, letters_list[:len(inner_df.columns)])}
+                    if len(inner_df.columns) > len(letters_list):
+                        letters_inner_dict = {column: letter for column, letter in zip(inner_df.columns, composite_columns(len(inner_df.columns)))}
+                    else:
+                        letters_inner_dict = {column: letter for column, letter in zip(inner_df.columns, letters_list[:len(inner_df.columns)])}
 
                     inner_differences_df = significant_differences(inner_df, data_differences, total_index, letters_inner_dict)
 
