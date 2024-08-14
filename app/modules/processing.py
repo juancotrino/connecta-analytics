@@ -5,6 +5,7 @@ import string
 from itertools import pairwise, product
 
 import numpy as np
+import openpyxl
 import pandas as pd
 from statsmodels.stats.proportion import proportions_ztest
 
@@ -412,6 +413,10 @@ def processing(xlsx_file: BytesIO):
                         if valb==wstemp["B"+str(rowf)].value:
                             for i in range(2,maxcol+1):
                                 wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
+                            for merged_range in list(wstemp.merged_cells.ranges):
+                                if merged_range.min_row >=rowf-7 and merged_range.min_row <=rowf+4:
+                                    # Elimina el rango combinado de la fila específica
+                                    wstemp.merged_cells.ranges.remove(merged_range)
                             for j in range(11):
                                 delete_row_with_merged_ranges(wstemp,rowf-7)
                             break
