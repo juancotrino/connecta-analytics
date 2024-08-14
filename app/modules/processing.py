@@ -390,26 +390,22 @@ def processing(xlsx_file: BytesIO):
 
     for sheet in wb_existing:
         if not sheet.title.lower().startswith('penal'):
-            wstemp=wb_existing[sheet.title]
-            maxcol=wstemp.max_column
-            for rowi in range(1,wstemp.max_row+1):
-                valb=wstemp["B"+str(rowi)].value
-                if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
-                    for rowf in range(rowi+1,wstemp.max_row+1):
-                        if valb==wstemp["B"+str(rowf)].value:
-                            for i in range(2,maxcol+1):
-                                wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
+            wstemp = wb_existing[sheet.title]
+            maxcol = wstemp.max_column
+            for rowi in range(1, wstemp.max_row + 1):
+                valb = wstemp["B" + str(rowi)].value
+                if valb and valb.startswith('NETO') and valb != "NETO TOP TWO BOX" and valb != "NETO BOTTOM TWO BOX":
+                    for rowf in range(rowi + 1, wstemp.max_row + 1):
+                        if valb == wstemp["B" + str(rowf)].value:
+                            for i in range(2, maxcol+1):
+                                wstemp[get_column_letter(i) + str(rowi)] = wstemp[get_column_letter(i) + str(rowf)].value
                             for j in range(11):
-                                delete_row_with_merged_ranges(wstemp,rowf-7)
+                                delete_row_with_merged_ranges(wstemp, rowf - 7)
                             break
-    for sheet in wb_existing:
-        if not sheet.title.lower().startswith('penal'):
-            wstemp=wb_existing[sheet.title]
-            print(wstemp.max_row)
-            for rowi in range(wstemp.max_row+1,1,-1):
-                if not wstemp["D"+str(rowi)].value:
-                    delete_row_with_merged_ranges(wstemp,rowi)
 
+            for rowi in range(wstemp.max_row + 1, 1, -1):
+                if not wstemp["D" + str(rowi)].value:
+                    delete_row_with_merged_ranges(wstemp, rowi)
 
     wb_existing.save(temp_file_name_xlsx)
 
@@ -510,8 +506,8 @@ def processing(xlsx_file: BytesIO):
             ws_existing = wb_existing[sheet_name]
             if 'TOTAL' not in data.columns:
                 data = transform_headers(data)
-                delete_row_with_merged_ranges(ws_existing,0)
-            # data = pd.read_excel(temp_file_name_xlsx, sheet_name=sheet_name)
+                delete_row_with_merged_ranges(ws_existing, 0)
+
             data['Unnamed: 2'] = (
                 pd.to_numeric(data['Unnamed: 2'], errors='coerce')
                 .fillna(data['Unnamed: 2'])
