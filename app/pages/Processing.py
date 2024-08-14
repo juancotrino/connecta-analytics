@@ -6,10 +6,11 @@ from app.modules.processing import processing
 from app.modules.preprocessing import preprocessing
 from app.modules.processor import (
     getPreProcessCode,
+    getPreProcessCode2,
     getProcessCode2,
     getSegmentCode,
-    getPenaltysCode,
-    getCruces,
+    getPenaltysCode2,
+    getCruces2,
     getPreProcessAbiertas,
     getProcessAbiertas
 )
@@ -27,12 +28,13 @@ def main():
     with st.form('processingSPSS_form'):
         uploaded_file_process_xlsx = st.file_uploader("Upload Excel file", type=["xlsx"], key='processingSPSS_xlsx')
         uploaded_file_process_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessingSPSS_sav')
+        ruta=st.text_input("Output Pretabla File Path xlsx:")
         checkinclude=st.checkbox("Include All")
         checkprocess=st.checkbox("Process All")
         processButton = st.form_submit_button('Get code to process')
+
         if processButton and uploaded_file_process_xlsx and uploaded_file_process_sav:
             col1, col2   = st.columns(2)
-
             with col1:
                 col1.markdown("Preprocess code:")
                 with col1.container(height=250):
@@ -46,18 +48,22 @@ def main():
             with col1:
                 col1.markdown("Code to gen Tables in SPSS:")
                 with col1.container(height=250):
-                    st.code(getProcessCode2(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude,allsegmentcodes=checkprocess), line_numbers=True)
+                    st.code(getProcessCode2(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude,allsegmentcodes=checkprocess,rutaarchivo=ruta), line_numbers=True)
 
             with col2:
                 col2.markdown("Code to gen Penaltys Tables in SPSS:")
                 with col2.container(height=250):
-                    st.code(getPenaltysCode(uploaded_file_process_xlsx), line_numbers=True)
+                    st.code(getPenaltysCode2(uploaded_file_process_sav,uploaded_file_process_xlsx,allsegmentcodes=checkprocess,rutaarchivo=ruta), line_numbers=True)
 
             with col3:
                 col3.markdown("Code to gen Cruces Tables in SPSS:")
                 with col3.container(height=250):
-                    st.code(getCruces(uploaded_file_process_xlsx,checkinclude), line_numbers=True)
-
+                    st.code(getCruces2(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude,allsegmentcodes=checkprocess,rutaarchivo=ruta), line_numbers=True)
+        elif processButton and uploaded_file_process_sav:
+            col1, col2   = st.columns(2)
+            col1.markdown("Preprocess code:")
+            with col1.container(height=250):
+                st.code(getPreProcessCode2(uploaded_file_process_sav), line_numbers=True)
     st.markdown('### Transform Database')
 
     with st.form('preprocessing_form'):
