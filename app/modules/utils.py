@@ -127,3 +127,12 @@ def write_temp_sav(df: pd.DataFrame, metadata):
 
         with open(tmpfile.name, 'rb') as f:
             return BytesIO(f.read())
+
+def try_download(label: str, data: BytesIO, file_name: str, file_extension: str, type: str = 'primary'):
+    st.download_button(
+        label=label,
+        data=data.getvalue(),
+        file_name=f'{file_name}.{file_extension}',
+        mime=f'application/{file_extension}',
+        type=type
+    )
