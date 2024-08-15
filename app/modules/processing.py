@@ -2,10 +2,9 @@ import warnings
 from io import BytesIO
 import tempfile
 import string
-from itertools import pairwise, product
+from itertools import product
 
 import numpy as np
-import openpyxl
 import pandas as pd
 from statsmodels.stats.proportion import proportions_ztest
 
@@ -443,6 +442,13 @@ def processing(xlsx_file: BytesIO):
             continue
 
         if sheet_name.lower().startswith('penal'):
+
+            first_row_with_data = data[~data.iloc[:, 3].isna()].index[0]
+            data = data.iloc[first_row_with_data:]
+            data.columns = [f'Unnamed: {i}' if pd.isna(col) else col for i, col in enumerate(data.iloc[0])]
+            data = data[1:]
+            data = data.reset_index(drop=True)
+
             # Create a dataframe with the column names as the first row
             column_names_df = pd.DataFrame(
                 [[column if not column.startswith('Unnamed') else np.nan for column in data.columns]],
@@ -456,11 +462,17 @@ def processing(xlsx_file: BytesIO):
             # Rename the columns to integers
             data.columns = range(len(data.columns))
 
-            questions = data[0].dropna().unique().tolist()
+            questions = data[data[0].str.startswith('P', na=False)][0].dropna().unique().tolist()
+
+            question_idexes = np.array([data[data[0] == question].first_valid_index() for question in questions])
+
+            tables_first_indexes = (question_idexes - 2).tolist()
+            tables_last_indexes = [data.iloc[start_idx:][data[3].iloc[start_idx:].isna()].index[0] for start_idx in tables_first_indexes]
+
             samples = data.loc[1, 3:].values.tolist()
             data.columns = ['question', 'grouped_variable', 'answer_option'] + samples
-            tables_separation_indexes = sorted(list(set([0] + data.index[data.isna().all(axis=1)].values.tolist() + [len(data)])))
-            tables_range_indexes = list(pairwise(tables_separation_indexes))
+
+            tables_range_indexes = list(zip(tables_first_indexes, tables_last_indexes))
 
             results_dfs = []
 
