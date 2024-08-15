@@ -420,9 +420,7 @@ def processing(xlsx_file: BytesIO):
                             for j in range(11):
                                 delete_row_with_merged_ranges(wstemp,rowf-7)
                             break
-    for sheet in wb_existing:
-        if not sheet.title.lower().startswith('penal'):
-            wstemp=wb_existing[sheet.title]
+
             for rowi in range(wstemp.max_row+1,1,-1):
                 if not wstemp["D"+str(rowi)].value:
                     delete_row_with_merged_ranges(wstemp,rowi)
