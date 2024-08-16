@@ -205,6 +205,8 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
 
     if response.status_code == 200:
         print(f'Model response successfull for question: {question}')
+    elif response.status_code == 401:
+        raise PermissionError("Invalid credentials")
     else:
         print(f'Model response unsuccessfull for question: {question}')
 
@@ -293,6 +295,6 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
                 results[question] = result  # Store the result in the dictionary
                 print(f"Completed processing for question: {question}")
             except Exception as exc:
-                print(f"Question {question} generated an exception: {exc}")
+                raise ValueError(f"Question {question} generated an exception: {exc}")
 
     return results

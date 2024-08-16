@@ -42,16 +42,19 @@ def main():
                 with st.spinner('Preprocessing...'):
                     temp_file_name_xlsx = get_temp_file(uploaded_file_preprocess_xlsx, '.xlsx')
                     temp_file_name_sav = get_temp_file(uploaded_file_preprocess_sav)
+                    try:
+                        results = preprocessing(temp_file_name_xlsx, temp_file_name_sav)
 
-                    results = preprocessing(temp_file_name_xlsx, temp_file_name_sav)
+                        final_df, metadata = generate_open_ended_db(results, temp_file_name_sav)
 
-                    final_df, metadata = generate_open_ended_db(results, temp_file_name_sav)
+                        final_db = write_temp_sav(final_df, metadata)
+                        st.success('Database preprocessed successfully.')
 
-                    final_db = write_temp_sav(final_df, metadata)
-                    st.success('Database preprocessed successfully.')
+                        # TODO: Show some logs and information for every open-ended question coded with the model (Llama3.1)
+                        # st.write()
+                    except Exception as e:
+                        st.error(e)
 
-                    # TODO: Show some logs and information for every open-ended question coded with the model (Llama3.1)
-                    # st.write()
 
         try:
             try_download('Download processed db', final_db, 'db_preprocessed', 'sav')
