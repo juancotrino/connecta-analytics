@@ -203,12 +203,11 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
 
     formatted_time = format_time(elapsed_time)
 
+    if response.status_code != 200:
+        raise ValueError(f'Model response unsuccessfull for question: {question} with status code {response.status_code}')
+
     if response.status_code == 200:
         print(f'Model response successfull for question: {question}')
-    elif response.status_code == 401:
-        raise PermissionError("Invalid credentials")
-    else:
-        print(f'Model response unsuccessfull for question: {question}')
 
     response_info['elapsed_time'] = formatted_time
 
