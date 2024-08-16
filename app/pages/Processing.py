@@ -2,7 +2,7 @@ import pandas as pd
 
 import streamlit as st
 
-from app.modules.preprocessing import preprocessing
+from app.modules.preprocessing import preprocessing, generate_open_ended_db
 from app.modules.processing import processing
 from app.modules.database_transformation import transform_database
 from app.modules.processor import (
@@ -13,7 +13,7 @@ from app.modules.processor import (
     getPenaltysCode2,
     getCruces2,
 )
-from app.modules.utils import try_download
+from app.modules.utils import try_download, get_temp_file, write_temp_sav
 
 
 def main():
@@ -29,24 +29,32 @@ def main():
         st.markdown('### Preprocessing')
 
         with st.form('preprocessing_form'):
+
             st.markdown('#### Code Book')
-            uploaded_file_preprocess_xlsx = st.file_uploader("Upload `.xlsx` file", type=["xlsx"], key='preprocessing_xlsx')
+            uploaded_file_preprocess_xlsx = st.file_uploader("Upload `.xlsx` file", type=["xlsx", "xlsm"], key='preprocessing_xlsx')
 
             st.markdown('#### Database')
             uploaded_file_preprocess_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessing_sav')
 
             preprocess_button = st.form_submit_button('Preprocess database')
 
-            # TODO: Show some logs and information for every open-ended question coded with the model (Llama3.1)
-            # st.write()
-
             if uploaded_file_preprocess_xlsx and uploaded_file_preprocess_sav and preprocess_button:
                 with st.spinner('Preprocessing...'):
-                    results = processing(uploaded_file_xlsx)
+                    temp_file_name_xlsx = get_temp_file(uploaded_file_preprocess_xlsx, '.xlsx')
+                    temp_file_name_sav = get_temp_file(uploaded_file_preprocess_sav)
+
+                    results = preprocessing(temp_file_name_xlsx, temp_file_name_sav)
+
+                    final_df, metadata = generate_open_ended_db(results, temp_file_name_sav)
+
+                    final_db = write_temp_sav(final_df, metadata)
                     st.success('Database preprocessed successfully.')
 
+                    # TODO: Show some logs and information for every open-ended question coded with the model (Llama3.1)
+                    # st.write()
+
         try:
-            try_download('Download processed tables', results, 'processed_tables', 'xlsx')
+            try_download('Download processed db', final_db, 'db_preprocessed', 'sav')
         except:
             pass
 

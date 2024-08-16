@@ -18,6 +18,8 @@ from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Fo
 
 import streamlit as st
 
+from app.modules.utils import get_temp_file
+
 letters_list = list(string.ascii_uppercase)
 
 def extract_digits(cell):
@@ -211,14 +213,6 @@ def apply_red_color_to_letter(cell):
         rich_text_cell.append(TextBlock(red, letter))
         cell.value = rich_text_cell
 
-def get_temp_file(file: BytesIO):
-    # Save BytesIO object to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
-        tmp_file.write(file.getvalue())
-        temp_file_name = tmp_file.name
-
-    return temp_file_name
-
 def write_temp_excel(wb):
     with tempfile.NamedTemporaryFile() as tmpfile:
         # Write the DataFrame to the temporary SPSS file
@@ -396,7 +390,7 @@ def composite_columns(n: int, start: str = "AA"):
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
-    temp_file_name_xlsx = get_temp_file(xlsx_file)
+    temp_file_name_xlsx = get_temp_file(xlsx_file, 'xlsx')
 
     # Load the existing Excel file
     wb_existing = load_workbook(temp_file_name_xlsx)
