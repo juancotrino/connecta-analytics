@@ -72,8 +72,8 @@ def get_string_columns(db: pd.DataFrame):
     db_string_df = pd.concat([db[['Response_ID']], db_string_df], axis=1)
     return db_string_df
 
-def get_question_groups(db_string_df: pd.DataFrame):
-    question_prints = list(set([column.split('_')[0] if column.startswith('P') else column.split('A')[0] for column in db_string_df.columns if column.startswith(('P', 'F'))]))
+def get_question_groups(question_prints: list[str], db_string_df: pd.DataFrame):
+    # question_prints = list(set([column.split('_')[0] if column.startswith('P') else column.split('A')[0] for column in db_string_df.columns if column.startswith(('P', 'F'))]))
 
     question_groups = {}
     for question_print in question_prints:
@@ -97,8 +97,8 @@ def generate_open_ended_db(results: dict, temp_file_name_sav: str):
 
     db_string_df = get_string_columns(db)
 
-    question_groups = get_question_groups(db_string_df)
-
+    question_groups = get_question_groups(dfs.keys(), db_string_df)
+    # print(question_groups)
     answers_df = transform_open_ended(question_groups, db_string_df)
     total_answers = pd.concat([df for df in answers_df.values()])
 
@@ -168,6 +168,8 @@ def transform_open_ended(question_groups: dict[str, list[str]], df: pd.DataFrame
         var_name='question_id',
         value_name='answer'
     )
+
+    melted_df = melted_df[melted_df['answer'] != ''].reset_index(drop=True)
 
     melted_df[f'{melted_df.columns[1]}-{melted_df.columns[0]}'] = (
         melted_df[melted_df.columns[1]] + '-' + melted_df[melted_df.columns[0]]
@@ -244,6 +246,7 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
 def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     code_books = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
+    questions = code_books.keys()
 
     db: pd.DataFrame = pyreadstat.read_sav(
         temp_file_name_sav,
@@ -252,18 +255,20 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     db_string_df = get_string_columns(db)
 
-    question_groups = get_question_groups(db_string_df)
+    question_groups = get_question_groups(questions, db_string_df)
 
     answers = transform_open_ended(question_groups, db_string_df)
 
-    questions_intersection = list(set(code_books.keys()) & set([question.split('_')[0] for question in answers.keys()]))
-
-    code_books = {k: v.astype(str) for k, v in code_books.items() if k in questions_intersection}
-    answers = {k: v.astype(str) for k, v in answers.items() if k.split('_')[0] in questions_intersection}
+    # questions_intersection = list(set(code_books.keys()) & set([question.split('_')[0] for question in answers.keys()]))
+    # print(questions_intersection)
+    # code_books = {k: v.astype(str) for k, v in code_books.items() if k in questions_intersection}
+    # answers = {k: v.astype(str) for k, v in answers.items() if k.split('_')[0] in questions_intersection}
+    # print('///' * 50)
+    # print(answers)
 
     for question, code_book in code_books.items():
         code_book = code_book[code_book.columns[:2]]
-        code_book = code_book[code_book.iloc[:, 0].str.isdigit()].reset_index(drop=True)
+        code_book = code_book[code_book.iloc[:, 0].astype(str).str.isdigit()].reset_index(drop=True)
         code_book.columns = ['code_id', 'code_text']
         code_book['code_id'] = code_book['code_id'].astype(int)
 
@@ -285,7 +290,7 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     # Use ThreadPoolExecutor to parallelize API calls
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {question: executor.submit(process_question, question, prompt_template, answers, code_books) for question in questions_intersection}
+        futures = {question: executor.submit(process_question, question, prompt_template, answers, code_books) for question in questions}
 
         for question, future in futures.items():
             try:
