@@ -202,15 +202,15 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
 
     formatted_time = format_time(elapsed_time)
 
+    response_json = response.json()
+
     if response.status_code != 200:
-        raise ValueError(f'Model response unsuccessfull for question: {question} with status code {response.status_code}')
+        raise ValueError(f'Model response unsuccessfull with status code {response.status_code}. JSON response: {response_json}')
 
     if response.status_code == 200:
         print(f'Model response successfull for question: {question}')
 
     response_info['elapsed_time'] = formatted_time
-
-    response_json = response.json()
 
     response_info['usage'] = response_json['usage']
 
