@@ -399,17 +399,33 @@ def processing(xlsx_file: BytesIO):
         if not sheet.title.lower().startswith('penal'):
             wstemp=wb_existing[sheet.title]
             maxcol=wstemp.max_column
+            dictionary_netos={}
+            for rowi in range(1,wstemp.max_row+1):
+                valb=wstemp["B"+str(rowi)].value
+                if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
+                    if not valb in dictionary_netos or dictionary_netos[valb]==0:
+                        dictionary_netos[valb]=1
+                        for rowf in range(rowi+1,wstemp.max_row+1):
+                            if valb==wstemp["B"+str(rowf)].value:
+                                for i in range(2,maxcol+1):
+                                    wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
+                                for merged_range in list(wstemp.merged_cells.ranges):
+                                    if merged_range.min_row >=rowf-7 and merged_range.min_row <=rowf+4:
+                                        # Elimina el rango combinado de la fila específica
+                                        try:
+                                            wstemp.merged_cells.ranges.remove(merged_range)
+                                        except:
+                                            print(sheet.title+" "+str(merged_range))
+                                # for j in range(11):
+                                #     delete_row_with_merged_ranges(wstemp,rowf-7)
+                                break
+                    else:
+                        dictionary_netos[valb]=dictionary_netos[valb]-1
             for rowi in range(1,wstemp.max_row+1):
                 valb=wstemp["B"+str(rowi)].value
                 if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
                     for rowf in range(rowi+1,wstemp.max_row+1):
                         if valb==wstemp["B"+str(rowf)].value:
-                            for i in range(2,maxcol+1):
-                                wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
-                            for merged_range in list(wstemp.merged_cells.ranges):
-                                if merged_range.min_row >=rowf-7 and merged_range.min_row <=rowf+4:
-                                    # Elimina el rango combinado de la fila específica
-                                    wstemp.merged_cells.ranges.remove(merged_range)
                             for j in range(11):
                                 delete_row_with_merged_ranges(wstemp,rowf-7)
                             break
