@@ -89,6 +89,9 @@ def get_variable_value_labels_final(
 ):
     return {question_format_mapping[k].split('_')[0]: v for k, v in metadata.variable_value_labels.items() if k in questions}
 
+def get_item_by_partial_key(dictionary, partial_key):
+    return next((value for key, value in dictionary.items() if key.startswith(partial_key)), None)
+
 def get_temp_file(file: BytesIO):
     # Save BytesIO object to a temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
@@ -232,5 +235,8 @@ def transform_database(sav_file: BytesIO, visit_names: list[str]):
         final_db[samples_dictionary[sample]] = np.where(final_db['REF'] == sample, final_db['visit_sample'], np.nan)
         column_labels_final[samples_dictionary[sample]] = samples_dictionary[sample]
         variable_value_labels_final[samples_dictionary[sample]] = sample_visit_value_labels
+
+    column_labels_final['REF'] = 'Referencias'
+    variable_value_labels_final['REF'] = get_item_by_partial_key(metadata.variable_value_labels, 'REF')
 
     return write_temp_sav(final_db, column_labels_final, variable_value_labels_final)
