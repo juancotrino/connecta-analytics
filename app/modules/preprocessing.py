@@ -1,236 +1,299 @@
 from io import BytesIO
-import tempfile
-
 import re
-from itertools import product
-import warnings
+import ast
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
 import pyreadstat
 
-def read_sav_file(filename: str):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=FutureWarning)
+from app.modules.cloud import LLM
 
-        db: pd.DataFrame = pyreadstat.read_sav(
-            filename,
-            apply_value_formats=False
-        )[0]
+# Function to expand lists/tuples into columns
+def expand_lists(row, max_len):
+    if isinstance(row, (list, tuple)):
+        return pd.Series(row)
+    else:
+        return pd.Series([np.nan] * max_len)
 
-        metadata = pyreadstat.read_sav(
-            filename,
-            apply_value_formats=True
-        )[1]
+def format_time(seconds):
+    hours, rem = divmod(seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
 
-    return db, metadata
+def extract_json_string(content: str) -> str:
+    """Extract JSON-like string from the content."""
+    start = content.find('{')
+    end = content.rfind('}')
+    if start != -1 and end != -1 and start <= end:
+        return content[start:end + 1]
+    return ''
 
-def get_questions(metadata, question_type: str) -> list[str]:
-    # Regular expression pattern to match strings that start with 'P' followed by a digit
-    pattern = re.compile(rf'^{question_type}\d')
-    return [question for question in metadata.column_names if pattern.match(question)]
+# Custom sort function
+def sort_key(item):
+    parts = item.split('_')
 
-def get_column_labels(metadata, questions: list[str]) -> dict[str, str]:
-    return {k: v for k, v in metadata.__dict__['column_names_to_labels'].items() if k in questions}
+    # Extract the prefix and number from the question code
+    prefix_match = re.match(r"([A-Za-z]+)(\d+)", parts[0])
+    if prefix_match:
+        prefix = prefix_match.group(1)
+        question_number = int(prefix_match.group(2))
+    else:
+        prefix = parts[0]
+        question_number = 0  # Default if no number is found
 
-def get_variable_value_labels(metadata, questions: list[str]) -> dict[str, str]:
-    return {k: v for k, v in metadata.__dict__['variable_value_labels'].items() if k in questions}
+    # Extract visit number if present
+    visit_number = int(parts[1][1:]) if len(parts) > 1 and 'V' in parts[1] else 0
 
-def get_visits(questions: list[str]) -> list[str]:
-    return sorted(list(set([question.split('_')[1] for question in questions])))
+    return (prefix, visit_number, question_number)
 
-def get_samples(questions: list[str]) -> list[str]:
-    sample_position = list(set([question.split('_')[2] for question in questions]))
-    pattern = re.compile(r'R\d+')
-    return list(set([pattern.match(sample).group() for sample in sample_position]))
+def reorder_columns(df: pd.DataFrame, db: pd.DataFrame) -> pd.DataFrame:
 
-def get_plain_questions(formatted_questions: list[str]):
-    plain_questions = [question.split('_')[0] for question in formatted_questions]
-    seen = set()
-    return [item for item in plain_questions if not (item in seen or seen.add(item))]
+    new_columns = df.loc[:, db.columns[-1]:].iloc[:, 1:].columns.to_list()
+    new_columns = sorted(new_columns, key=sort_key)
 
-def get_visit_sample_combinations(visits: list[str], samples: list[str]):
-    return list(product(visits, samples))
+    string_columns = df.select_dtypes(include=['object']).columns.sort_values().tolist()
+    string_columns = sorted(string_columns, key=sort_key)
 
-def get_visits_dictionary(visits_names: list[str]) -> dict[str, str]:
-    return {k: visit_name for k, visit_name in zip(range(1, len(visits_names) + 1), visits_names)}
+    numeric_columns = [column for column in new_columns if column not in string_columns]
 
-def get_samples_dictionary(metadata) -> dict[str, str]:
-    return metadata.variable_value_labels['REF.1']
+    df['ETIQUETAS'] = np.nan
 
-def get_visits_samples_combinations_text(db: pd.DataFrame):
-    return list(product(db['REF'].unique().astype(int), db['visit'].unique()))
+    df = df[[column for column in db.columns.to_list() if column not in string_columns] + numeric_columns + ['ETIQUETAS'] + string_columns]
 
-def assign_sample_visit_code(row: pd.Series, visits_samples_combinations_text: list[tuple[int]]):
-    return visits_samples_combinations_text.index((row['REF'], row['visit'])) + 1
+    return df
 
-def get_sample_visit_value_labels(
-    visits_samples_combinations_text: list[tuple[int]],
-    samples_dictionary: dict[str, str],
-    visits_dictionary: dict[str, str]
-):
-    sample_visit_value_labels = {}
-    for i, (sample, visit) in enumerate(visits_samples_combinations_text):
-        sample_visit_value_labels[i + 1] = f'{samples_dictionary[sample]} {visits_dictionary[visit]}'
+def get_string_columns(db: pd.DataFrame):
+    db_string_df = db.select_dtypes(include=['object'])
+    db_string_df = db_string_df[db_string_df.columns[
+        (db_string_df.columns.str.startswith(('P', 'F'))) &
+        ~(db_string_df.columns.str.endswith('O'))
+        ]
+    ]
+    db_string_df = pd.concat([db[['Response_ID']], db_string_df], axis=1)
+    return db_string_df
 
-    return sample_visit_value_labels
+def get_question_groups(db_string_df: pd.DataFrame):
+    question_prints = list(set([column.split('_')[0] if column.startswith('P') else column.split('A')[0] for column in db_string_df.columns if column.startswith(('P', 'F'))]))
 
-def get_column_labels_final(
-    metadata,
-    questions: list[str],
-    question_format_mapping: dict[str, str]
-):
-    return {question_format_mapping[k].split('_')[0]: v for k, v in metadata.column_names_to_labels.items() if k in questions}
+    question_groups = {}
+    for question_print in question_prints:
+        question_groups[question_print] = [column for column in db_string_df.columns if column.startswith(question_print)]
 
-def get_variable_value_labels_final(
-    metadata,
-    questions: list[str],
-    question_format_mapping: dict[str, str]
-):
-    return {question_format_mapping[k].split('_')[0]: v for k, v in metadata.variable_value_labels.items() if k in questions}
+    return question_groups
 
-def get_temp_file(file: BytesIO):
-    # Save BytesIO object to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
-        tmp_file.write(file.getvalue())
-        temp_file_name = tmp_file.name
+def generate_open_ended_db(results: dict, temp_file_name_sav: str):
 
-    return temp_file_name
+    dfs = {question: result['coding_results'] for question, result in results.items()}
 
-def write_temp_sav(df: pd.DataFrame, column_labels: dict[str, str], variable_value_labels: dict[str, str]):
-    with tempfile.NamedTemporaryFile() as tmpfile:
-        # Write the DataFrame to the temporary SPSS file
-        pyreadstat.write_sav(
-            df,
-            tmpfile.name,
-            column_labels=column_labels,
-            variable_value_labels=variable_value_labels
-        )
+    db: pd.DataFrame = pyreadstat.read_sav(
+        temp_file_name_sav,
+        apply_value_formats=False
+    )[0]
 
-        with open(tmpfile.name, 'rb') as f:
-            return BytesIO(f.read())
+    metadata = pyreadstat.read_sav(
+        temp_file_name_sav,
+        apply_value_formats=False
+    )[1]
 
+    db_string_df = get_string_columns(db)
 
-def preprocessing(sav_file: BytesIO, visit_names: list[str]):
-    temp_file_name_sav = get_temp_file(sav_file)
-    db, metadata = read_sav_file(temp_file_name_sav)
+    question_groups = get_question_groups(db_string_df)
 
-    questions = get_questions(metadata, 'P')
-    filter_questions = get_questions(metadata, 'F')
-    column_labels = get_column_labels(metadata, questions)
-    variable_value_labels = get_variable_value_labels(metadata, questions)
+    answers_df = transform_open_ended(question_groups, db_string_df)
+    total_answers = pd.concat([df for df in answers_df.values()])
 
-    visits = get_visits(questions)
-    samples = get_samples(questions)
-
-    if len(visits) != len(visit_names):
-        raise AssertionError('Number of visits in database do not match number of visits listed above.')
-
-    # Regular expression to match letters followed by digits
-    pattern = r'[A-Za-z]\d*'
-
-    formatted_questions = []
-
-    transformed_column_labels = {}
-    transformed_variable_value_labels = {}
-
-    question_format_mapping = {}
-
-    for sample in samples:
-
-        for question in questions:
-            reference_field: str = question.split('_')[-1]
-            reference_field_list = re.findall(pattern, reference_field)
-
-            if len(reference_field_list) > 1:
-                transformed_question_list = question.split('_')[:-1] + reference_field_list
-                if len(transformed_question_list) > 3:
-                    transformed_question = f"{transformed_question_list[0]}{transformed_question_list[3]}_{transformed_question_list[1]}_{transformed_question_list[2]}"
-            else:
-                transformed_question = question
-
-            formatted_questions.append(transformed_question)
-            transformed_column_labels[transformed_question] = column_labels[question]
-            transformed_variable_value_labels[transformed_question] = variable_value_labels[question]
-
-            question_format_mapping[question] = transformed_question
-
-    db = db.rename(columns=question_format_mapping)
-
-    # plain_questions = get_plain_questions(formatted_questions)
-    visit_sample_combinations = get_visit_sample_combinations(visits, samples)
-
-    final_rows = []
-    for _, row in db.iterrows():
-        filter_questions_value = {}
-        filter_questions_value = {question: row[question] for question in filter_questions}
-
-        for visit, sample in visit_sample_combinations:
-            variable_value = {}
-            visit_sample_questions = [question for question in formatted_questions if question.split('_')[1] == visit and question.split('_')[2] == sample]
-
-            final_row = {
-                'Response_ID': row['Response_ID'],
-                'visit': int(visit[1:]),
-                'REF': row[f'REF.{sample[1:]}']
-            }
-
-            final_row.update(filter_questions_value)
-
-            for j in visit_sample_questions:
-                variable = j.split('_')[0]
-                variable_value[variable] = row[j]
-
-            final_row.update(variable_value)
-
-            final_rows.append(final_row)
-
-    visits_dictionary = get_visits_dictionary(visit_names)
-    samples_dictionary = get_samples_dictionary(metadata)
-
-    final_db = pd.DataFrame(final_rows)
-
-    visits_samples_combinations_text = get_visits_samples_combinations_text(final_db)
-
-    final_db['visit_sample'] = final_db.apply(
-        assign_sample_visit_code,
-        visits_samples_combinations_text=visits_samples_combinations_text,
-        axis=1
+    df = (
+        pd.concat([df for df in dfs.values()])
+        .dropna(how='all')
+        .reset_index(drop=True)
     )
 
-    sample_visit_value_labels = get_sample_visit_value_labels(
-        visits_samples_combinations_text,
-        samples_dictionary,
-        visits_dictionary
+    df = df.merge(total_answers[['question_id-Response_ID', 'answer']], on='question_id-Response_ID', how='left')
+
+    df['question_code'] = df['question_id-Response_ID'].apply(lambda x: x.split('-')[0])
+    df['Response_ID'] = df['question_id-Response_ID'].apply(lambda x: x.split('-')[1])
+    df['question_code_number'] = df['question_code'].apply(lambda x: int(x.split('_')[0][1:]) if '.' not in x.split('_')[0][1:] else float(x.split('_')[0][1:]))
+    df = df.sort_values(by='question_code_number').reset_index(drop=True)
+    df['Response_ID'] = df['Response_ID'].astype(float)
+    df = df.dropna(subset='answer').reset_index(drop=True)
+
+    ordered_questions = df['question_code'].unique().tolist()
+
+    df = df.dropna(subset='codes').reset_index(drop=True)
+
+    pivoted_df = df.pivot(
+        index='Response_ID',
+        columns='question_code',
+        values=['answer', 'codes']
     )
 
-    column_labels_final = get_column_labels_final(metadata, questions, question_format_mapping)
-    column_labels_final.update(
-        get_column_labels_final(
-            metadata,
-            filter_questions,
-            {k: k for k, _ in metadata.column_names_to_labels.items()}
-        )
+    answers: pd.DataFrame = pivoted_df['answer'][ordered_questions]
+    answers_codes: pd.DataFrame = pivoted_df['codes'][ordered_questions]
+
+    # Function to expand lists/tuples into columns
+    def expand_lists(row, max_len):
+        if isinstance(row, (list, tuple)):
+            return pd.Series(row)
+        else:
+            return pd.Series([np.nan] * max_len)
+
+    for column in answers_codes:
+        # Determine the maximum length of lists/tuples
+        max_len = answers_codes[column].dropna().apply(len).max()
+
+        # Apply the function and concatenate the results with the original dataframe
+        expanded_cols = answers_codes[column].apply(expand_lists, max_len=max_len)
+        expanded_cols.columns = [f'{column}A{i + 1}' for i in range(max_len)]
+        answers_codes = pd.concat([answers_codes.drop(columns=[column]), expanded_cols], axis=1)
+
+    transformed_df = answers.merge(answers_codes, left_index=True, right_index=True).reset_index()
+
+    final_df = db.merge(
+        transformed_df,
+        on='Response_ID',
+        suffixes=['', 'OT']
     )
-    column_labels_final['visit_sample'] = 'visit_sample'
 
-    variable_value_labels_final = get_variable_value_labels_final(metadata, questions, question_format_mapping)
-    variable_value_labels_final.update(
-        get_variable_value_labels_final(
-            metadata,
-            filter_questions,
-            {k: k for k, _ in metadata.column_names_to_labels.items()}
-        )
+    final_df = reorder_columns(final_df, db)
+    return final_df, metadata
+
+
+def transform_open_ended(question_groups: dict[str, list[str]], df: pd.DataFrame):
+
+    df = df.astype(str)
+
+    melted_df = df.melt(
+        id_vars=[df.columns[0]],
+        value_vars=df.columns[1:],
+        var_name='question_id',
+        value_name='answer'
     )
-    variable_value_labels_final['visit_sample'] = sample_visit_value_labels
 
-    # Iterate through the unique product references
-    unique_samples = final_db['REF'].unique().astype(int)
+    melted_df[f'{melted_df.columns[1]}-{melted_df.columns[0]}'] = (
+        melted_df[melted_df.columns[1]] + '-' + melted_df[melted_df.columns[0]]
+    )
 
-    for sample in unique_samples:
-        # Create a new column for each unique reference
-        final_db[samples_dictionary[sample]] = np.where(final_db['REF'] == sample, final_db['visit_sample'], np.nan)
-        column_labels_final[samples_dictionary[sample]] = samples_dictionary[sample]
-        variable_value_labels_final[samples_dictionary[sample]] = sample_visit_value_labels
+    question_groups_dict = {}
+    for _, question_group in question_groups.items():
+        melted_question_groups = melted_df[melted_df[melted_df.columns[1]].isin(question_group)]
+        melted_question_groups = melted_question_groups[[f'{melted_df.columns[1]}-{melted_df.columns[0]}', melted_df.columns[2]]]
+        question_groups_dict['-'.join(question_group)] = melted_question_groups
 
-    return write_temp_sav(final_db, column_labels_final, variable_value_labels_final)
+    return question_groups_dict
+
+def process_question(question: str, prompt_template: str, answers: dict, code_books: dict):
+    print(f'Execution started for question: {question}')
+
+    response_info = {}
+
+    question_answer = [question_answer for question_answer in answers.keys() if question_answer.startswith(question)][0]
+
+    user_prompt = prompt_template.format(
+        survey_data={row['question_id-Response_ID']: row['answer'] for _, row in answers[question_answer].iterrows()},
+        codebook={row['code_id']: row['code_text'] for _, row in code_books[question].iterrows()}
+    )
+
+    llama = LLM()
+
+    response, elapsed_time = llama.send(
+        system_prompt='You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.',
+        user_prompt=user_prompt
+    )
+
+    formatted_time = format_time(elapsed_time)
+
+    if response.status_code != 200:
+        raise ValueError(f'Model response unsuccessfull for question: {question} with status code {response.status_code}')
+
+    if response.status_code == 200:
+        print(f'Model response successfull for question: {question}')
+
+    response_info['elapsed_time'] = formatted_time
+
+    response_json = response.json()
+
+    response_info['usage'] = response_json['usage']
+
+    coding_dict = response_json['choices'][0]['message']['content'].replace('\\n', '').replace('`', '')
+
+    # Extract and validate the JSON string
+    coding_result = extract_json_string(coding_dict)
+    if not coding_result:
+        print(f"Failed to extract JSON for question {question}")
+        response_info['error'] = 'Failed to extract valid JSON'
+        response_info['coding_results_raw'] = coding_dict
+        return response_info
+
+    try:
+        coding_result = ast.literal_eval(coding_dict)
+    except:
+        response_info['coding_results_raw'] = coding_dict
+        return response_info
+
+    coding_df = pd.DataFrame(
+        {
+            'question_id-Response_ID': coding_result.keys(),
+            'codes': coding_result.values()
+        }
+    )
+
+    response_info['coding_results'] = coding_df
+
+    return response_info
+
+def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
+
+    code_books = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
+
+    db: pd.DataFrame = pyreadstat.read_sav(
+        temp_file_name_sav,
+        apply_value_formats=False
+    )[0]
+
+    db_string_df = get_string_columns(db)
+
+    question_groups = get_question_groups(db_string_df)
+
+    answers = transform_open_ended(question_groups, db_string_df)
+
+    questions_intersection = list(set(code_books.keys()) & set([question.split('_')[0] for question in answers.keys()]))
+
+    code_books = {k: v.astype(str) for k, v in code_books.items() if k in questions_intersection}
+    answers = {k: v.astype(str) for k, v in answers.items() if k.split('_')[0] in questions_intersection}
+
+    for question, code_book in code_books.items():
+        code_book = code_book[code_book.columns[:2]]
+        code_book = code_book[code_book.iloc[:, 0].str.isdigit()].reset_index(drop=True)
+        code_book.columns = ['code_id', 'code_text']
+        code_book['code_id'] = code_book['code_id'].astype(int)
+
+        code_books[question] = code_book
+
+    prompt_template = """
+        I want you to classify the following survey answers into one or more of the codebook categories.
+
+        Survey Data:
+        {survey_data}
+
+        Codebook:
+        {codebook}
+
+        Return the classification result as a JSON object where each survey answer is matched with the most appropriate code(s) from the codebook based on the content of the answer. Ensure that the output contains only the JSON result and no additional text.
+    """
+
+    results = {}
+
+    # Use ThreadPoolExecutor to parallelize API calls
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {question: executor.submit(process_question, question, prompt_template, answers, code_books) for question in questions_intersection}
+
+        for question, future in futures.items():
+            try:
+                result = future.result()
+                results[question] = result  # Store the result in the dictionary
+                print(f"Completed processing for question: {question}")
+            except Exception as exc:
+                raise ValueError(f"Question {question} generated an exception: {exc}")
+
+    return results

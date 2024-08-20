@@ -125,6 +125,8 @@ jobs:
             CLIENT_ID=${{ secrets.CLIENT_ID }}
             CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}
             BIGQUERY_SCHEMA_ID=${{ secrets.BIGQUERY_SCHEMA_ID }}
+            GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+            GCP_REGION=${{ secrets.GCP_REGION }}
           # env_vars: |
           # #   NODE_ENV=production
           # #   TOKEN_EXPIRE=6400
