@@ -44,19 +44,20 @@ def generate_chart(attributes_info: pd.DataFrame, font: str, marker_color: str):
             ax.text(5.5 + x_offset, y_pos, '5', ha='center', va='center', fontsize=18, fontweight='bold', fontname=font)
 
             # Place additional text aligned to the top-left of each bar and above each '5'
-            ax.text(0.5 + x_offset, y_pos - 0.25, f"Nada {attribute['name']}", ha='center', va='top', fontsize=6, fontweight='bold', fontname=font, color='gray')
-            ax.text(5.5 + x_offset, y_pos - 0.25, f"Muy {attribute['name']}", ha='center', va='top', fontsize=6, fontweight='bold', fontname=font, color='gray')
+            ax.text(0.5 + x_offset, y_pos - 0.25, f"Nada {attribute['name']}", ha='center', va='top', fontsize=5, fontweight='bold', fontname=font, color='gray')
+            ax.text(5.5 + x_offset, y_pos - 0.25, f"Muy {attribute['name']}", ha='center', va='top', fontsize=5, fontweight='bold', fontname=font, color='gray')
 
             # Place additional text aligned to the top-left of each bar and above each '5'
-            ax.text(1 + x_offset, y_pos + 0.3, f"Prom {attribute['value']}", ha='left', va='bottom', fontsize=8, fontweight='bold', fontname=font)
-            ax.text(5.5 + x_offset, y_pos + 0.5, f"Base: {attribute['base']}", ha='center', va='bottom', fontsize=6, fontweight='bold', fontname=font, color='gray')
+            ax.text(1 + x_offset, y_pos + 0.3, f"Prom {attribute['value']}", ha='left', va='bottom', fontsize=7, fontweight='bold', fontname=font)
+            ax.text(5.5 + x_offset, y_pos + 0.5, f"Base: {attribute['base']}", ha='center', va='bottom', fontsize=5, fontweight='bold', fontname=font, color='gray')
 
             if not np.isnan(attribute['percentage']):
                 color = '#92d050' if attribute['scenario'] == 'Atributos sensoriales en agrado' else '#e43a39'
-                circle = Circle((x_offset - 0.6, y_pos), radius=0.5, color=color)
+                circle = Circle((x_offset - 0.7, y_pos), radius=0.5, color=color)
                 ax.add_patch(circle)
                 ax.set_aspect("equal")
-                plt.text(x_offset - 0.6, y_pos, f"{int(attribute['percentage'])}%", ha='center', va='center', color='white')
+                plt.text(x_offset - 0.7, y_pos + 0.2, 'Si' if attribute['scenario'] == 'Atributos sensoriales en agrado' else 'No', ha='center', va='center', color='white')
+                plt.text(x_offset - 0.7, y_pos - 0.2, f"{int(attribute['percentage'])}%", ha='center', va='center', color='white')
 
         y_positions = [(i + 1) * scales_spacing for i in sub_attributes_info.index]
 
