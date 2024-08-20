@@ -36,20 +36,20 @@ def generate_chart(attributes_info: pd.DataFrame, font: str, marker_color: str):
             y_pos = (i + 1) * scales_spacing
             x_offset = j * scenario_spacing  # Horizontal offset for each scenario
 
-            ax.plot([1 + x_offset, 5 + x_offset], [y_pos, y_pos], color='gray', lw=6, solid_capstyle='round')  # Horizontal line
-            ax.plot(attribute['value'] + x_offset, y_pos, 'o', color=marker_color, markersize=20)  # Marker
+            ax.plot([1 + x_offset, 5 + x_offset], [y_pos, y_pos], color='gray', lw=4, solid_capstyle='round')  # Horizontal line
+            ax.plot(attribute['value'] + x_offset, y_pos, 'o', color=marker_color, markersize=10)  # Marker
 
             # Place '1' and '5' at the ends of each scale bar
             ax.text(0.5 + x_offset, y_pos, '1', ha='center', va='center', fontsize=18, fontweight='bold', fontname=font)
             ax.text(5.5 + x_offset, y_pos, '5', ha='center', va='center', fontsize=18, fontweight='bold', fontname=font)
 
             # Place additional text aligned to the top-left of each bar and above each '5'
-            ax.text(0.5 + x_offset, y_pos - 0.25, f"Nada {attribute['name']}", ha='center', va='top', fontsize=8, fontweight='bold', fontname=font, color='gray')
-            ax.text(5.5 + x_offset, y_pos - 0.25, f"Muy {attribute['name']}", ha='center', va='top', fontsize=8, fontweight='bold', fontname=font, color='gray')
+            ax.text(0.5 + x_offset, y_pos - 0.25, f"Nada {attribute['name']}", ha='center', va='top', fontsize=6, fontweight='bold', fontname=font, color='gray')
+            ax.text(5.5 + x_offset, y_pos - 0.25, f"Muy {attribute['name']}", ha='center', va='top', fontsize=6, fontweight='bold', fontname=font, color='gray')
 
             # Place additional text aligned to the top-left of each bar and above each '5'
-            ax.text(1 + x_offset, y_pos + 0.3, f"Prom {attribute['value']}", ha='left', va='bottom', fontsize=10, fontweight='bold', fontname=font)
-            ax.text(5.5 + x_offset, y_pos + 0.5, f"Base: {attribute['base']}", ha='center', va='bottom', fontsize=8, fontweight='bold', fontname=font, color='gray')
+            ax.text(1 + x_offset, y_pos + 0.3, f"Prom {attribute['value']}", ha='left', va='bottom', fontsize=8, fontweight='bold', fontname=font)
+            ax.text(5.5 + x_offset, y_pos + 0.5, f"Base: {attribute['base']}", ha='center', va='bottom', fontsize=6, fontweight='bold', fontname=font, color='gray')
 
             if not np.isnan(attribute['percentage']):
                 color = '#92d050' if attribute['scenario'] == 'Atributos sensoriales en agrado' else '#e43a39'
