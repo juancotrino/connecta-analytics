@@ -57,7 +57,7 @@ def main():
 
 
         try:
-            try_download('Download processed db', final_db, 'db_preprocessed', 'sav')
+            try_download('Download processed database', final_db, 'db_preprocessed', 'sav')
         except:
             pass
 
