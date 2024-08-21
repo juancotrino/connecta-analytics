@@ -390,7 +390,7 @@ def composite_columns(n: int, start: str = "AA"):
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
-    temp_file_name_xlsx = get_temp_file(xlsx_file, 'xlsx')
+    temp_file_name_xlsx = get_temp_file(xlsx_file, '.xlsx')
 
     # Load the existing Excel file
     wb_existing = load_workbook(temp_file_name_xlsx)
