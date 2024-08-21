@@ -1,10 +1,15 @@
 import re
 import ast
 from concurrent.futures import ThreadPoolExecutor
+from threading import current_thread, Thread
 
 import numpy as np
 import pandas as pd
 import pyreadstat
+
+import streamlit as st
+from streamlit.runtime.scriptrunner import add_script_run_ctx
+from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 from app.modules.cloud import LLM
 
@@ -98,7 +103,7 @@ def generate_open_ended_db(results: dict, temp_file_name_sav: str):
     db_string_df = get_string_columns(db)
 
     question_groups = get_question_groups(dfs.keys(), db_string_df)
-    # print(question_groups)
+
     answers_df = transform_open_ended(question_groups, db_string_df)
     total_answers = pd.concat([df for df in answers_df.values()])
 
@@ -137,6 +142,8 @@ def generate_open_ended_db(results: dict, temp_file_name_sav: str):
         else:
             return pd.Series([np.nan] * max_len)
 
+    expanded_answers_codes_list = []
+
     for column in answers_codes:
         # Determine the maximum length of lists/tuples
         max_len = answers_codes[column].dropna().apply(len).max()
@@ -144,15 +151,19 @@ def generate_open_ended_db(results: dict, temp_file_name_sav: str):
         # Apply the function and concatenate the results with the original dataframe
         expanded_cols = answers_codes[column].apply(expand_lists, max_len=max_len)
         expanded_cols.columns = [f'{column}A{i + 1}' for i in range(max_len)]
-        answers_codes = pd.concat([answers_codes.drop(columns=[column]), expanded_cols], axis=1)
+        expanded_answers_codes_list.append(expanded_cols)
 
-    transformed_df = answers.merge(answers_codes, left_index=True, right_index=True).reset_index()
+    expanded_answers_codes = pd.concat(expanded_answers_codes_list, axis=1)
+
+    transformed_df = answers.merge(expanded_answers_codes, left_index=True, right_index=True).reset_index()
 
     final_df = db.merge(
         transformed_df,
         on='Response_ID',
-        suffixes=['', 'OT']
+        suffixes=['', '_right'],
+        how='left'
     )
+    final_df = final_df.drop(columns=[col for col in final_df.columns if col.endswith('_right')])
 
     final_df = reorder_columns(final_df, db)
     return final_df, metadata
@@ -183,7 +194,7 @@ def transform_open_ended(question_groups: dict[str, list[str]], df: pd.DataFrame
 
     return question_groups_dict
 
-def process_question(question: str, prompt_template: str, answers: dict, code_books: dict):
+def process_question(question: str, prompt_template: str, answers: dict, code_books: dict, model: LLM):
     print(f'Execution started for question: {question}')
 
     response_info = {}
@@ -195,9 +206,9 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
         codebook={row['code_id']: row['code_text'] for _, row in code_books[question].iterrows()}
     )
 
-    llama = LLM()
+    st.info(f'Coding question `{question}`')
 
-    response, elapsed_time = llama.send(
+    response, elapsed_time = model.send(
         system_prompt='You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.',
         user_prompt=user_prompt
     )
@@ -211,6 +222,7 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
 
     if response.status_code == 200:
         print(f'Model response successfull for question: {question}')
+        st.success(f'Model response successfull for question `{question}`')
 
     response_info['elapsed_time'] = formatted_time
 
@@ -243,6 +255,50 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
 
     return response_info
 
+# from typing import Any, TypeVar, cast
+
+# from streamlit.errors import NoSessionContext
+# from streamlit.runtime.scriptrunner.script_run_context import (
+#     SCRIPT_RUN_CONTEXT_ATTR_NAME,
+#     get_script_run_ctx,
+# )
+
+# T = TypeVar("T")
+
+
+# def with_streamlit_context(fn: T) -> T:
+#     """Fix bug in streamlit which raises streamlit.errors.NoSessionContext."""
+#     ctx = get_script_run_ctx()
+
+#     if ctx is None:
+#         raise NoSessionContext(
+#             "with_streamlit_context must be called inside a context; "
+#             "construct your function on the fly, not earlier."
+#         )
+
+#     def _cb(*args: Any, **kwargs: Any) -> Any:
+#         """Do it."""
+
+#         thread = current_thread()
+#         do_nothing = hasattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME) and (
+#             getattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME) == ctx
+#         )
+
+#         if not do_nothing:
+#             setattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME, ctx)
+
+#         # Call the callback.
+#         ret = fn(*args, **kwargs)
+
+#         if not do_nothing:
+#             # Why delattr? Because tasks for different users may be done by
+#             # the same thread at different times. Danger danger.
+#             delattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME)
+#         return ret
+
+#     return cast(T, _cb)
+
+# @with_streamlit_context
 def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     code_books = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
@@ -258,13 +314,6 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
     question_groups = get_question_groups(questions, db_string_df)
 
     answers = transform_open_ended(question_groups, db_string_df)
-
-    # questions_intersection = list(set(code_books.keys()) & set([question.split('_')[0] for question in answers.keys()]))
-    # print(questions_intersection)
-    # code_books = {k: v.astype(str) for k, v in code_books.items() if k in questions_intersection}
-    # answers = {k: v.astype(str) for k, v in answers.items() if k.split('_')[0] in questions_intersection}
-    # print('///' * 50)
-    # print(answers)
 
     for question, code_book in code_books.items():
         code_book = code_book[code_book.columns[:2]]
@@ -286,11 +335,49 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
         Return the classification result as a JSON object where each survey answer is matched with the most appropriate code(s) from the codebook based on the content of the answer. Ensure that the output contains only the JSON result and no additional text.
     """
 
+    model = LLM()
+
     results = {}
+
+    threads = []
+    containers = []
+    for i in range(4):
+        ui_container = st.empty()  # Create an empty placeholder for each thread
+        containers.append(ui_container)
+        t = Thread(
+            target=process_question,
+            args=(
+                question,
+                prompt_template,
+                answers,
+                code_books,
+                model
+            )
+        )
+        add_script_run_ctx(t)  # Necessary for Streamlit to track the thread context
+        threads.append(t)
+        try:
+            t.start()
+            print(f"Completed processing for question: {question}")
+        except Exception as e:
+            raise ValueError(f"Question {question} generated an exception: {exc}")
+
+    for t in threads:
+        t.join()  # Wait for all threads to finish before continuing
 
     # Use ThreadPoolExecutor to parallelize API calls
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {question: executor.submit(process_question, question, prompt_template, answers, code_books) for question in questions}
+        # ctx = get_script_run_ctx()
+        futures = {
+            question: executor.submit(
+                process_question,
+                question,
+                prompt_template,
+                answers,
+                code_books,
+                model
+            ) for question in questions
+        }
 
         for question, future in futures.items():
             try:
@@ -299,5 +386,21 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
                 print(f"Completed processing for question: {question}")
             except Exception as exc:
                 raise ValueError(f"Question {question} generated an exception: {exc}")
+
+    # futures = {}
+    # for question in questions:
+    #     wt = Thread(
+    #         target=process_question,
+    #         args=(
+    #             question,
+    #             prompt_template,
+    #             answers,
+    #             code_books,
+    #             model
+    #         )
+    #     )
+    #     add_script_run_ctx(wt)
+    #     # future = executor.submit(wt.run)
+    #     futures[question] = future
 
     return results
