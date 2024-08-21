@@ -1,6 +1,9 @@
+from threading import Thread
+
 import pandas as pd
 
 import streamlit as st
+from streamlit.runtime.scriptrunner.script_run_context import add_script_run_ctx
 
 from app.modules.preprocessing import preprocessing, generate_open_ended_db
 from app.modules.processing import processing
@@ -14,7 +17,26 @@ from app.modules.processor import (
     getCruces2,
 )
 from app.modules.utils import try_download, get_temp_file, write_temp_sav
-
+import time
+def target(number: int, ui_container):
+    print(number)
+    ui_container.info(f"starts for thread {number}")
+    match number:
+        case 0:
+            print(f"thread {number}")
+            ui_container.info(f"thread {number}")
+        case 1:
+            time.sleep(1)
+            print(f"thread {number}")
+            ui_container.info(f"thread {number}")
+        case 2:
+            time.sleep(2)
+            print(f"thread {number}")
+            ui_container.info(f"thread {number}")
+        case 3:
+            time.sleep(3)
+            print(f"thread {number}")
+            ui_container.info(f"thread {number}")
 
 def main():
     # -------------- SETTINGS --------------
@@ -27,7 +49,25 @@ def main():
     with st.container(border=True):
 
         st.markdown('### Preprocessing')
+        # if st.button('Test'):
+            # threads = []
+            # containers = []
+            # for i in range(4):
+            #     ui_container = st.empty()  # Create an empty placeholder for each thread
+            #     containers.append(ui_container)
+            #     t = Thread(target=target, args=(i, ui_container))
+            #     add_script_run_ctx(t)  # Necessary for Streamlit to track the thread context
+            #     threads.append(t)
+            #     t.start()
 
+            # for t in threads:
+            #     t.join()  # Wait for all threads to finish before continuing
+            #################################################
+            # for i in range(4):
+            #     t = Thread(target=target, args=(i,))
+            #     add_script_run_ctx(t)
+            #     t.run()
+            ################################################3
         with st.form('preprocessing_form'):
 
             st.markdown('#### Code Book')
@@ -40,6 +80,7 @@ def main():
 
             if uploaded_file_preprocess_xlsx and uploaded_file_preprocess_sav and preprocess_button:
                 with st.spinner('Preprocessing...'):
+                # with st.status("Preprocessing...", expanded=True) as status:
                     temp_file_name_xlsx = get_temp_file(uploaded_file_preprocess_xlsx, '.xlsx')
                     temp_file_name_sav = get_temp_file(uploaded_file_preprocess_sav)
                     try:
@@ -55,6 +96,9 @@ def main():
                     except Exception as e:
                         st.error(e)
 
+                    # status.update(
+                    #     label="Preprocessing complete", state="complete", expanded=False
+                    # )
 
         try:
             try_download('Download processed database', final_db, 'db_preprocessed', 'sav')
