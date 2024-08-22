@@ -445,7 +445,7 @@ def processing(xlsx_file: BytesIO):
     wb_new.remove(default_sheet)
 
     sheets_dfs = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
-
+    print('//' * 100)
     # Iterate over all sheets
     for sheet_name, data in sheets_dfs.items():
         if data.empty:
@@ -477,7 +477,14 @@ def processing(xlsx_file: BytesIO):
             question_idexes = np.array([data[data[0] == question].first_valid_index() for question in questions])
 
             tables_first_indexes = (question_idexes - 2).tolist()
-            tables_last_indexes = [data.iloc[start_idx:][data[3].iloc[start_idx:].isna()].index[0] for start_idx in tables_first_indexes]
+
+            tables_last_indexes = [
+                data.iloc[start_idx + 2:][
+                    (data[1].iloc[start_idx + 2:].isna()) &
+                    (data[2].iloc[start_idx + 2:].isna())
+                ].index[0]
+                for start_idx in tables_first_indexes
+            ]
 
             samples = data.loc[1, 3:].values.tolist()
             data.columns = ['question', 'grouped_variable', 'answer_option'] + samples
@@ -503,10 +510,15 @@ def processing(xlsx_file: BytesIO):
 
                 base_inner_df = pd.DataFrame(index=results_calculations)
 
+                sub_df = question_df.loc[first_occurrence_index:]
+
                 for sample in samples:
+                    total = np.nan
                     for grouped_variable in grouped_variables:
-                        sub_df = question_df.loc[first_occurrence_index:]
-                        grouped_variable_index = sub_df[sub_df['grouped_variable'] == grouped_variable].index[0]
+                        grouped_variable_index_df = sub_df[sub_df['grouped_variable'] == grouped_variable]
+                        if grouped_variable_index_df.empty:
+                            continue
+                        grouped_variable_index = grouped_variable_index_df.index[0]
                         grouped_variable_df = sub_df.loc[grouped_variable_index:grouped_variable_index + 4]
 
                         if grouped_variable_df[sample].sum() == 0:
@@ -522,8 +534,6 @@ def processing(xlsx_file: BytesIO):
                             (grouped_variable_df[sample] * np.array(list(range(0, 101, 25)))).sum() / grouped_variable_df[sample].sum()
                         ) # Mean
 
-                    for grouped_variable in grouped_variables:
-
                         if 'just' not in grouped_variable.lower():
                             percentage = base_inner_df.loc[grouped_variable, sample]
                             mean = base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample]
@@ -535,6 +545,7 @@ def processing(xlsx_file: BytesIO):
 
                 base_inner_df = base_inner_df.reset_index(names='grouped_variable')
                 base_inner_df.insert(0, 'question', question)
+                print('base_inner_df', base_inner_df)
 
                 results_dfs.append(base_inner_df)
 
