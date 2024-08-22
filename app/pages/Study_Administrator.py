@@ -163,6 +163,7 @@ def main():
                         'currency': [currency] * len(combinations),
                         'supervisor': [supervisor] * len(combinations),
                         'status': ['Propuesta'] * len(combinations),
+                        'source': ['app'] * len(combinations)
                     }
                     create_study_df(study_data)
                 st.success('Study created successfully')
@@ -260,6 +261,7 @@ def main():
                             'creation_date': [creation_date] * len(combinations),
                             'supervisor': [supervisor] * len(combinations),
                             'status': [status] * len(combinations),
+                            'source': ['app'] * len(combinations)
                         }
                         update_study_data(updated_study_data)
                     st.success('Study updated successfully')
