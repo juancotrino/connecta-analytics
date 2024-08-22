@@ -194,8 +194,18 @@ def transform_open_ended(question_groups: dict[str, list[str]], df: pd.DataFrame
 
     return question_groups_dict
 
-def process_question(question: str, prompt_template: str, answers: dict, code_books: dict, model: LLM):
-    print(f'Execution started for question: {question}')
+def process_question(
+    question: str,
+    prompt_template: str,
+    answers: dict,
+    code_books: dict,
+    model: LLM,
+    ui_container,
+    results: dict,
+):
+
+    # print(f'Execution started for question: {question}')
+    ui_container.info(f'Execution started for question: `{question}`')
 
     response_info = {}
 
@@ -221,8 +231,8 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
         raise ValueError(f'Model response unsuccessfull with status code {response.status_code}. JSON response: {response_json}')
 
     if response.status_code == 200:
-        print(f'Model response successfull for question: {question}')
-        st.success(f'Model response successfull for question `{question}`')
+        # print(f'Model response successfull for question: {question}')
+        ui_container.success(f'Model response successfull for question: `{question}`')
 
     response_info['elapsed_time'] = formatted_time
 
@@ -253,7 +263,9 @@ def process_question(question: str, prompt_template: str, answers: dict, code_bo
 
     response_info['coding_results'] = coding_df
 
-    return response_info
+    results[question] = response_info
+
+    # return response_info
 
 # from typing import Any, TypeVar, cast
 
@@ -341,7 +353,7 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     threads = []
     containers = []
-    for i in range(4):
+    for question in questions:
         ui_container = st.empty()  # Create an empty placeholder for each thread
         containers.append(ui_container)
         t = Thread(
@@ -351,41 +363,42 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
                 prompt_template,
                 answers,
                 code_books,
-                model
+                model,
+                ui_container,
+                results
             )
         )
         add_script_run_ctx(t)  # Necessary for Streamlit to track the thread context
         threads.append(t)
         try:
             t.start()
-            print(f"Completed processing for question: {question}")
+            # print(f"Completed processing for question: {question}")
         except Exception as e:
-            raise ValueError(f"Question {question} generated an exception: {exc}")
-
+            raise ValueError(f"Question {question} generated an exception: {e}")
     for t in threads:
         t.join()  # Wait for all threads to finish before continuing
 
-    # Use ThreadPoolExecutor to parallelize API calls
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        # ctx = get_script_run_ctx()
-        futures = {
-            question: executor.submit(
-                process_question,
-                question,
-                prompt_template,
-                answers,
-                code_books,
-                model
-            ) for question in questions
-        }
+    # # Use ThreadPoolExecutor to parallelize API calls
+    # with ThreadPoolExecutor(max_workers=5) as executor:
+    #     # ctx = get_script_run_ctx()
+    #     futures = {
+    #         question: executor.submit(
+    #             process_question,
+    #             question,
+    #             prompt_template,
+    #             answers,
+    #             code_books,
+    #             model
+    #         ) for question in questions
+    #     }
 
-        for question, future in futures.items():
-            try:
-                result = future.result()
-                results[question] = result  # Store the result in the dictionary
-                print(f"Completed processing for question: {question}")
-            except Exception as exc:
-                raise ValueError(f"Question {question} generated an exception: {exc}")
+    #     for question, future in futures.items():
+    #         try:
+    #             result = future.result()
+    #             results[question] = result  # Store the result in the dictionary
+    #             print(f"Completed processing for question: {question}")
+    #         except Exception as exc:
+    #             raise ValueError(f"Question {question} generated an exception: {exc}")
 
     # futures = {}
     # for question in questions:
