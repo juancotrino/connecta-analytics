@@ -59,11 +59,18 @@ def reorder_columns(df: pd.DataFrame, db: pd.DataFrame) -> pd.DataFrame:
     string_columns = df.select_dtypes(include=['object']).columns.sort_values().tolist()
     string_columns = sorted(string_columns, key=sort_key)
 
-    numeric_columns = [column for column in new_columns if column not in string_columns]
+    open_ended_code_columns = [column for column in new_columns if column not in string_columns]
 
     df['ETIQUETAS'] = np.nan
+    df['ABIERTAS'] = np.nan
 
-    df = df[[column for column in db.columns.to_list() if column not in string_columns] + numeric_columns + ['ETIQUETAS'] + string_columns]
+    df = df[
+        [column for column in db.columns.to_list() if column not in string_columns] +
+        ['ABIERTAS'] +
+        open_ended_code_columns +
+        ['ETIQUETAS'] +
+        string_columns
+    ]
 
     return df
 
@@ -204,8 +211,7 @@ def process_question(
     results: dict,
 ):
 
-    # print(f'Execution started for question: {question}')
-    ui_container.info(f'Execution started for question: `{question}`')
+    ui_container.info(f'Coding question: `{question}`')
 
     response_info = {}
 
@@ -267,50 +273,6 @@ def process_question(
 
     # return response_info
 
-# from typing import Any, TypeVar, cast
-
-# from streamlit.errors import NoSessionContext
-# from streamlit.runtime.scriptrunner.script_run_context import (
-#     SCRIPT_RUN_CONTEXT_ATTR_NAME,
-#     get_script_run_ctx,
-# )
-
-# T = TypeVar("T")
-
-
-# def with_streamlit_context(fn: T) -> T:
-#     """Fix bug in streamlit which raises streamlit.errors.NoSessionContext."""
-#     ctx = get_script_run_ctx()
-
-#     if ctx is None:
-#         raise NoSessionContext(
-#             "with_streamlit_context must be called inside a context; "
-#             "construct your function on the fly, not earlier."
-#         )
-
-#     def _cb(*args: Any, **kwargs: Any) -> Any:
-#         """Do it."""
-
-#         thread = current_thread()
-#         do_nothing = hasattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME) and (
-#             getattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME) == ctx
-#         )
-
-#         if not do_nothing:
-#             setattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME, ctx)
-
-#         # Call the callback.
-#         ret = fn(*args, **kwargs)
-
-#         if not do_nothing:
-#             # Why delattr? Because tasks for different users may be done by
-#             # the same thread at different times. Danger danger.
-#             delattr(thread, SCRIPT_RUN_CONTEXT_ATTR_NAME)
-#         return ret
-
-#     return cast(T, _cb)
-
-# @with_streamlit_context
 def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     code_books = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
@@ -372,48 +334,9 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
         threads.append(t)
         try:
             t.start()
-            # print(f"Completed processing for question: {question}")
         except Exception as e:
             raise ValueError(f"Question {question} generated an exception: {e}")
     for t in threads:
         t.join()  # Wait for all threads to finish before continuing
-
-    # # Use ThreadPoolExecutor to parallelize API calls
-    # with ThreadPoolExecutor(max_workers=5) as executor:
-    #     # ctx = get_script_run_ctx()
-    #     futures = {
-    #         question: executor.submit(
-    #             process_question,
-    #             question,
-    #             prompt_template,
-    #             answers,
-    #             code_books,
-    #             model
-    #         ) for question in questions
-    #     }
-
-    #     for question, future in futures.items():
-    #         try:
-    #             result = future.result()
-    #             results[question] = result  # Store the result in the dictionary
-    #             print(f"Completed processing for question: {question}")
-    #         except Exception as exc:
-    #             raise ValueError(f"Question {question} generated an exception: {exc}")
-
-    # futures = {}
-    # for question in questions:
-    #     wt = Thread(
-    #         target=process_question,
-    #         args=(
-    #             question,
-    #             prompt_template,
-    #             answers,
-    #             code_books,
-    #             model
-    #         )
-    #     )
-    #     add_script_run_ctx(wt)
-    #     # future = executor.submit(wt.run)
-    #     futures[question] = future
 
     return results
