@@ -335,6 +335,7 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
         try:
             t.start()
         except Exception as e:
+            st.error(f"Question {question} generated an exception: {e}")
             raise ValueError(f"Question {question} generated an exception: {e}")
     for t in threads:
         t.join()  # Wait for all threads to finish before continuing
