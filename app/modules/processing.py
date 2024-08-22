@@ -445,7 +445,7 @@ def processing(xlsx_file: BytesIO):
     wb_new.remove(default_sheet)
 
     sheets_dfs = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
-    print('//' * 100)
+
     # Iterate over all sheets
     for sheet_name, data in sheets_dfs.items():
         if data.empty:
@@ -545,7 +545,6 @@ def processing(xlsx_file: BytesIO):
 
                 base_inner_df = base_inner_df.reset_index(names='grouped_variable')
                 base_inner_df.insert(0, 'question', question)
-                print('base_inner_df', base_inner_df)
 
                 results_dfs.append(base_inner_df)
 
