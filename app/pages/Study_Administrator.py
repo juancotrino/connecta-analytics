@@ -210,8 +210,7 @@ def main():
                 currency = st.selectbox(
                     'Currency',
                     options=currencies,
-                    index=currencies.index(study_data['currency'].values[0]),
-                    disabled=True
+                    index=currencies.index(study_data['currency'].values[0])
                 )
 
                 clients = business_data['clients']
