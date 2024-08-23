@@ -45,24 +45,6 @@ def main():
     except Exception as e:
         st.error(e)
 
-    # reversed_countries_codes = {value: key for key, value in countries_codes.items()}
-
-    # studies = get_sharepoint_studies('estudios')
-
-    # filtered_studies = list(
-    #     set(
-    #         [
-    #             study
-    #             for study in studies
-    #             if (
-    #                 study.split('_')[0].isdigit() and
-    #                 len(study.split('_')[1]) == 2 and
-    #                 study.split('_')[1].upper() in countries_codes.values()
-    #             )
-    #         ]
-    #     )
-    # )
-
     last_id_number = get_last_id_number()
 
     sudies_ids_country = get_sudies_ids_country()
@@ -97,6 +79,7 @@ def main():
 
         paginated_data = get_studies(batch_size, batch_size * (current_page - 1))
         paginated_data = paginated_data.drop(columns='source')
+        paginated_data = paginated_data.rename(columns={'supervisor': 'consultant'})
 
         # If last cached study is not the last one in BQ, clear studies cache and rerun
         if current_page == 1 and paginated_data.index.values[0] != last_id_number:
@@ -158,10 +141,10 @@ def main():
 
             supervisors = business_data['supervisors']
             supervisor = st.selectbox(
-                'Supervisor',
+                'Consultant',
                 options=supervisors,
                 index=None,
-                placeholder="Select supervisor..."
+                placeholder="Select consultant..."
             )
 
             create_button = st.form_submit_button('Create study', type='primary')
@@ -180,6 +163,7 @@ def main():
                         'currency': [currency] * len(combinations),
                         'supervisor': [supervisor] * len(combinations),
                         'status': ['Propuesta'] * len(combinations),
+                        'source': ['app'] * len(combinations)
                     }
                     create_study_df(study_data)
                 st.success('Study created successfully')
@@ -252,10 +236,10 @@ def main():
 
                 supervisors: list = business_data['supervisors']
                 supervisor = st.selectbox(
-                    'Supervisor',
+                    'Consultant',
                     options=supervisors,
                     index=supervisors.index(study_data['supervisor'].values[0]),
-                    placeholder="Select supervisor..."
+                    placeholder="Select consultant..."
                 )
 
                 creation_date = study_data['creation_date'].values[0]
@@ -277,6 +261,7 @@ def main():
                             'creation_date': [creation_date] * len(combinations),
                             'supervisor': [supervisor] * len(combinations),
                             'status': [status] * len(combinations),
+                            'source': ['app'] * len(combinations)
                         }
                         update_study_data(updated_study_data)
                     st.success('Study updated successfully')

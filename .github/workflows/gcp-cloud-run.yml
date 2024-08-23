@@ -116,7 +116,7 @@ jobs:
             --cpu=1
             --concurrency=5
             --timeout=3600
-            --max-instances=2
+            --max-instances=10
             --service-account=${{ secrets.GCR_SERVICE_ACCOUNT }}
           env_vars: |
             COOKIE_KEY=${{ secrets.COOKIE_KEY }}
