@@ -322,22 +322,34 @@ def main():
                 #     st.subheader(title.replace('_', ' ').capitalize())
 
                 with st.form(f'upload_{title}_form'):
-                    uploaded_file = st.file_uploader(
-                        f"Upload `.{file_info['file_type']}` {title.replace('_', ' ')} file",
-                        type=[file_info['file_type']],
-                        key=f"{title.replace('_', ' ')}_{file_info['file_type']}"
-                    )
-                    upload_file = st.form_submit_button(f"Upload {title.replace('_', ' ')}")
+
+                    if file_info['acronym'] and file_info['file_type']:
+                        uploaded_file = st.file_uploader(
+                            f"Upload `.{'` or `.'.join(file_info['file_type'].split(','))}` {title.replace('_', ' ')} file",
+                            type=file_info['file_type'].split(','),
+                            key=f"{title.replace('_', ' ')}_{file_info['file_type']}"
+                        )
+                        upload_file = st.form_submit_button(f"Upload {title.replace('_', ' ')}")
+                    else:
+                        uploaded_file = st.file_uploader(
+                            f"Upload {title.replace('_', ' ')} file",
+                            type=None,
+                            key=f"{title.replace('_', ' ')}"
+                        )
+                        upload_file = st.form_submit_button(f"Upload {title.replace('_', ' ')}")
 
                 if uploaded_file and upload_file:
                     file_path = file_info['path']
-                    files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', file_path)
-                    files = [file for file in files if file_info['acronym'] in file]
-                    if not files:
-                        file_name = f"{id_study_name}_{file_info['acronym']}_V1.{file_info['file_type']}"
+                    if file_info['acronym'] and file_info['file_type']:
+                        files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', file_path)
+                        files = [file for file in files if file_info['acronym'] in file]
+                        if not files:
+                            file_name = f"{id_study_name}_{file_info['acronym']}_V1.{file_info['file_type']}"
+                        else:
+                            last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
+                            file_name = f"{id_study_name}_{file_info['acronym']}_V{last_version_number + 1}.{file_info['file_type']}"
                     else:
-                        last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                        file_name = f"{id_study_name}_{file_info['acronym']}_V{last_version_number + 1}.{file_info['file_type']}"
+                        file_name = uploaded_file.name
 
                     with st.spinner(f"Uploading {title.replace('_', ' ')} to Sharepoint..."):
                         upload_file_to_sharepoint(f'{base_path}/{file_path}', uploaded_file, file_name)

@@ -41,24 +41,27 @@ def read_sav_metadata(file_name: str) -> pd.DataFrame:
 def create_folder_structure(base_path: str):
 
     # Define the directory structure
-    dirs = [
-        "codificacion/input",
-        "codificacion/parcial",
-        "generales/input",
-        "generales/output/analisis",
-        "generales/output/norma",
-        "generales/output/tablas",
-        "procesamiento/genera_axis",
-        "procesamiento/includes",
-        "procesamiento/quantum_files",
-        "script/conceptos",
-        "script/cuestionarios",
-        "script/entrega_campo",
-        "consultoria/propuestas",
-        "consultoria/informes",
-        "consultoria/guias",
-        "consultoria/otros",
-    ]
+    # dirs = [
+    #     "codificacion/input",
+    #     "codificacion/parcial",
+    #     "generales/input",
+    #     "generales/output/analisis",
+    #     "generales/output/norma",
+    #     "generales/output/tablas",
+    #     "procesamiento/genera_axis",
+    #     "procesamiento/includes",
+    #     "procesamiento/quantum_files",
+    #     "script/conceptos",
+    #     "script/cuestionarios",
+    #     "script/entrega_campo",
+    #     "consultoria/propuestas",
+    #     "consultoria/informes",
+    #     "consultoria/guias",
+    #     "consultoria/otros",
+    # ]
+
+    business_data = get_business_data()
+    dirs = business_data['sharepoint_folder_structure']
 
     sharepoint = SharePoint()
 
