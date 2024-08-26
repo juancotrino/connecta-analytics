@@ -534,6 +534,7 @@ def processing(xlsx_file: BytesIO):
                             (grouped_variable_df[sample] * np.array(list(range(0, 101, 25)))).sum() / grouped_variable_df[sample].sum()
                         ) # Mean
 
+                    for grouped_variable in grouped_variables:
                         if 'just' not in grouped_variable.lower():
                             percentage = base_inner_df.loc[grouped_variable, sample]
                             mean = base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample]
