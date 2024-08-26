@@ -113,7 +113,12 @@ def main():
                 placeholder="Select study type..."
             )
 
-            value = st.number_input('Study value/price', value=None)
+            value = st.number_input(
+                'Study value/price',
+                value=None,
+                # format="",
+                step=1
+            )
 
             currencies = business_data['currencies']
             currency = st.selectbox(
