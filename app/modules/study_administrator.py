@@ -183,7 +183,7 @@ def get_sharepoint_studies(source: str):
     sharepoint = SharePoint()
     return sharepoint.list_folders(f'Documentos compartidos/{source}')
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=60)
 def get_upload_files_info():
     db = firestore.client()
     document = db.collection("settings").document('upload_files').get()
