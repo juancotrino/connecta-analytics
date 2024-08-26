@@ -52,18 +52,20 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,all
             temp_file_name,
             apply_value_formats=False
         )
-        result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ____________________________________________________________________________________.\n"
+        result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\n"
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
                 condition=data[var]==refindex
                 result+=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
-                result+="\n*____________________________________________________________________________________\n ______"+var+"______________________________________________________________________________\n ____________________________________________________________________________________.\nEXECUTE.\n"
+                result+="\n*____________________________________________________________________________________\n ______"+var+"______________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
                     ⠀⠙⣿⡄⠈⠑⢄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠔⠊⠉⣿⡿⠁⠀⠀⠀
@@ -454,17 +456,19 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,allsegmentcodes=False
             temp_file_name,
             apply_value_formats=False
         )
-        result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ____________________________________________________________________________________.\n"
+        result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\n"
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
                 result+=getPenaltysCode(xlsx_file)
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
-            result+="\n*____"+var+"________________________________________________________________________________\n ____________________________________________________________________________________\n ____________________________________________________________________________________.\nEXECUTE.\n"
+            result+="\n*____"+var+"________________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
                     ⠀⠙⣿⡄⠈⠑⢄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠔⠊⠉⣿⡿⠁⠀⠀⠀
@@ -527,7 +531,7 @@ def getPenaltysCode(xlsx_file: BytesIO):
                     +"\n  /CRITERIA CILEVEL=95.")
         return penaltyCode
     except:
-        return "No Penaltys to calculated"
+        return ""
 
 def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,allsegmentcodes=False,rutaarchivo=""):
     result=getCruces(spss_file,xlsx_file,checkinclude)
@@ -547,18 +551,20 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,allsegme
             temp_file_name,
             apply_value_formats=False
         )
-        result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ____________________________________________________________________________________.\n"
+        result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\n"
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
                 condition=data[var]==refindex
                 result+=getCruces(spss_file,xlsx_file,checkinclude,condition=condition)
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
-            result+="\n*______"+var+"______________________________________________________________________________\n ____________________________________________________________________________________\n ____________________________________________________________________________________.\nEXECUTE.\n"
+            result+="\n*______"+var+"______________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
                     ⠀⠙⣿⡄⠈⠑⢄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠔⠊⠉⣿⡿⠁⠀⠀⠀
@@ -584,116 +590,116 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,allsegme
     return result
 
 def getCruces(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,condition=None):
-    # try:
-    file_xlsx = get_temp_file(xlsx_file)
-    varsList=pd.read_excel(file_xlsx,usecols="G,H,I,J",skiprows=3,names=["vars","varsTypes","crossVars","sheetname"]).dropna(subset=["vars"])
-    crosscode=""
-    for i in range(len(varsList)):
-        for crossvar in varsList.iloc[i][2].split():
-            if re.search("^[PFSV].*[1-90].*A",crossvar):
-                crossvar="$"+re.search(".*A",crossvar).group()[:-1]
-            if varsList.iloc[i][1]!="A":
-                crosscode+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],[crossvar],includeall=checkinclude)
-            else:
-                lcTable=pd.read_excel(file_xlsx,sheet_name=varsList.iloc[i][3],usecols="A,B",skiprows=1,names=["vars","sheetNames"]).dropna()
-                temp_file_name = get_temp_file(spss_file)
-                data2, study_metadata = pyreadstat.read_sav(
-                    temp_file_name,
-                    apply_value_formats=False
-                )
-                colvars=[crossvar]
-                if condition is None:
-                    data=data2
+    try:
+        file_xlsx = get_temp_file(xlsx_file)
+        varsList=pd.read_excel(file_xlsx,usecols="G,H,I,J",skiprows=3,names=["vars","varsTypes","crossVars","sheetname"]).dropna(subset=["vars"])
+        crosscode=""
+        for i in range(len(varsList)):
+            for crossvar in varsList.iloc[i][2].split():
+                if re.search("^[PFSV].*[1-90].*A",crossvar):
+                    crossvar="$"+re.search(".*A",crossvar).group()[:-1]
+                if varsList.iloc[i][1]!="A":
+                    crosscode+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],[crossvar],includeall=checkinclude)
                 else:
-                    data=data2[condition]
-                varAbierta=varsList.iloc[i][0]
-                prefix=re.search("^[PFSV].*[1-90].*A",varAbierta).group()
-                multis=[]
-                for var, label in study_metadata.column_names_to_labels.items():
-                    if re.search("^[PFSV].*[1-90].*A",var):
-                        if re.search(".*A",var).group()==prefix:
-                            multis.append(var)
-                listNetos=[]
-                parNeto=[]
-                if lcTable.iloc[0][0]!="NETO":
-                    parNeto=["First",[]]
-                for j in range(len(lcTable)):
-                    if lcTable.iloc[j][0]=="NETO":
-                        if parNeto!=[]:
-                            listNetos.append(parNeto)
-                        parNeto=[lcTable.iloc[j][1],[]]
-                    elif lcTable.iloc[j][0]==95:
-                        if parNeto!=[]:
-                            listNetos.append(parNeto)
-                        parNeto=["End",[95]]
+                    lcTable=pd.read_excel(file_xlsx,sheet_name=varsList.iloc[i][3],usecols="A,B",skiprows=1,names=["vars","sheetNames"]).dropna()
+                    temp_file_name = get_temp_file(spss_file)
+                    data2, study_metadata = pyreadstat.read_sav(
+                        temp_file_name,
+                        apply_value_formats=False
+                    )
+                    colvars=[crossvar]
+                    if condition is None:
+                        data=data2
                     else:
-                        parNeto[1].append(lcTable.iloc[j][0])
-                if parNeto!=[]:
-                    listNetos.append(parNeto)
-                listatotal=[]
+                        data=data2[condition]
+                    varAbierta=varsList.iloc[i][0]
+                    prefix=re.search("^[PFSV].*[1-90].*A",varAbierta).group()
+                    multis=[]
+                    for var, label in study_metadata.column_names_to_labels.items():
+                        if re.search("^[PFSV].*[1-90].*A",var):
+                            if re.search(".*A",var).group()==prefix:
+                                multis.append(var)
+                    listNetos=[]
+                    parNeto=[]
+                    if lcTable.iloc[0][0]!="NETO":
+                        parNeto=["First",[]]
+                    for j in range(len(lcTable)):
+                        if lcTable.iloc[j][0]=="NETO":
+                            if parNeto!=[]:
+                                listNetos.append(parNeto)
+                            parNeto=[lcTable.iloc[j][1],[]]
+                        elif lcTable.iloc[j][0]==95:
+                            if parNeto!=[]:
+                                listNetos.append(parNeto)
+                            parNeto=["End",[95]]
+                        else:
+                            parNeto[1].append(lcTable.iloc[j][0])
+                    if parNeto!=[]:
+                        listNetos.append(parNeto)
+                    listatotal=[]
 
-                for var in multis:
-                    listatotal+=data[var].dropna().tolist()
-                count=Counter(listatotal)
-                listafinalorde=[]
-                num=1
-                for net in listNetos:
-                    if net[0]!="First" and net[0]!="End":
-                        if any(count[ele]>0 for ele in net[1]):
-                            listafinalorde.append(990+num)
-                            crosscode+="\nADD VALUE LABEL "
-                            for multivar in multis:
-                                crosscode+=multivar+" "
-                            crosscode+=str(990+num) + " \"NETO "+net[0]+"\".\nEXECUTE.\n"
-                            num+=1
-                    if net[0]!="End":
-                        for in1 in count.most_common():
-                            if in1[0] in net[1]:
-                                listafinalorde.append(int(in1[0]))
-                    else:
-                        for end in net[1]:
-                            if count[end]>0:
-                                listafinalorde.append(end)
-                crosscode+=writeAbiertasQuestion(varAbierta,colvars,listafinalorde,includeall=checkinclude)
+                    for var in multis:
+                        listatotal+=data[var].dropna().tolist()
+                    count=Counter(listatotal)
+                    listafinalorde=[]
+                    num=1
+                    for net in listNetos:
+                        if net[0]!="First" and net[0]!="End":
+                            if any(count[ele]>0 for ele in net[1]):
+                                listafinalorde.append(990+num)
+                                crosscode+="\nADD VALUE LABEL "
+                                for multivar in multis:
+                                    crosscode+=multivar+" "
+                                crosscode+=str(990+num) + " \"NETO "+net[0]+"\".\nEXECUTE.\n"
+                                num+=1
+                        if net[0]!="End":
+                            for in1 in count.most_common():
+                                if in1[0] in net[1]:
+                                    listafinalorde.append(int(in1[0]))
+                        else:
+                            for end in net[1]:
+                                if count[end]>0:
+                                    listafinalorde.append(end)
+                    crosscode+=writeAbiertasQuestion(varAbierta,colvars,listafinalorde,includeall=checkinclude)
 
-                listatotaluniq=list(set(listatotal))
-                for net in listNetos:
-                    if net[0]!="First" and net[0]!="End" and any(count[ele]>0 for ele in net[1]):
-                        crosscode+="\nDELETE VARIABLES "
-                        for col in multis:
-                            crosscode+="NETO_"+col+" "
-                        crosscode+=".\nEXECUTE."
-                        nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
-                        crosscode+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
-                        for col in multis:
-                            crosscode+=col+" "
-                        crosscode+="\n/OPTIONS FIX=\"NETO_\" FIXTYPE=PREFIX ACTION=RUN.\n"
-                        newmultis=("NETO_"+variablee for variablee in multis)
-                        crosscode+="RECODE "
-                        for newvar in newmultis:
-                            crosscode+=newvar+" "
-                        crosscode+="\n(SYSMIS=0)"
-                        for num in listatotaluniq:
-                            if num in net[1]:
-                                crosscode+=" ("+str(int(num))+"=1)"
-                            else:
-                                crosscode+=" ("+str(int(num))+"=0)"
-                        crosscode+=".\nEXECUTE.\n\nCOMPUTE NETO_"+nombreneto+"="
-                        newmultis=("NETO_"+variablee for variablee in multis)
-                        for col in newmultis:
-                            crosscode+=col+"+"
-                        crosscode=crosscode[:-1]+".\nRECODE NETO_"+nombreneto
-                        for inde in range(len(multis)):
-                            crosscode+=" ("+str(inde+1)+"=1)"
-                        crosscode+=".\nEXECUTE.\nDELETE VARIABLES"
-                        newmultis=("NETO_"+variablee for variablee in multis)
-                        for newvar in newmultis:
-                            crosscode+=" "+newvar
-                        crosscode+=".\nEXECUTE.\n\nformats NETO_"+nombreneto+"(f8.0).\nVALUE LABELS NETO_"+nombreneto+" 1 \"NETO "+net[0].strip()+"\".\nEXECUTE.\n"
-                        crosscode+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude)
-    return crosscode
-    # except:
-    #     return "No cruces"
+                    listatotaluniq=list(set(listatotal))
+                    for net in listNetos:
+                        if net[0]!="First" and net[0]!="End" and any(count[ele]>0 for ele in net[1]):
+                            crosscode+="\nDELETE VARIABLES "
+                            for col in multis:
+                                crosscode+="NETO_"+col+" "
+                            crosscode+=".\nEXECUTE."
+                            nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
+                            crosscode+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+                            for col in multis:
+                                crosscode+=col+" "
+                            crosscode+="\n/OPTIONS FIX=\"NETO_\" FIXTYPE=PREFIX ACTION=RUN.\n"
+                            newmultis=("NETO_"+variablee for variablee in multis)
+                            crosscode+="RECODE "
+                            for newvar in newmultis:
+                                crosscode+=newvar+" "
+                            crosscode+="\n(SYSMIS=0)"
+                            for num in listatotaluniq:
+                                if num in net[1]:
+                                    crosscode+=" ("+str(int(num))+"=1)"
+                                else:
+                                    crosscode+=" ("+str(int(num))+"=0)"
+                            crosscode+=".\nEXECUTE.\n\nCOMPUTE NETO_"+nombreneto+"="
+                            newmultis=("NETO_"+variablee for variablee in multis)
+                            for col in newmultis:
+                                crosscode+=col+"+"
+                            crosscode=crosscode[:-1]+".\nRECODE NETO_"+nombreneto
+                            for inde in range(len(multis)):
+                                crosscode+=" ("+str(inde+1)+"=1)"
+                            crosscode+=".\nEXECUTE.\nDELETE VARIABLES"
+                            newmultis=("NETO_"+variablee for variablee in multis)
+                            for newvar in newmultis:
+                                crosscode+=" "+newvar
+                            crosscode+=".\nEXECUTE.\n\nformats NETO_"+nombreneto+"(f8.0).\nVALUE LABELS NETO_"+nombreneto+" 1 \"NETO "+net[0].strip()+"\".\nEXECUTE.\n"
+                            crosscode+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude)
+        return crosscode
+    except:
+        return ""
 
 def getVarsSav(spss_file: BytesIO):
     temp_file_name = get_temp_file(spss_file)
@@ -938,7 +944,9 @@ def getSegmentCode(spss_file: BytesIO,xlsx_file: BytesIO):
         namedatasetspss="ConjuntoDatos1"
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 filterdatabase+="DATASET ACTIVATE "+ namedatasetspss+".\n"
                 filterdatabase+="DATASET COPY REF_"+re.sub("[()\-+]","",refdict[refindex].replace(" ","_"))+".\nDATASET ACTIVATE REF_"+re.sub("[()\-+]","",refdict[refindex].replace(" ","_"))+".\nFILTER OFF.\nUSE ALL.\n"
                 filterdatabase+="SELECT IF ("+var+" = "+str(int(refindex))+").\nEXECUTE.\n\n"

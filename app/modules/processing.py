@@ -411,13 +411,7 @@ def processing(xlsx_file: BytesIO):
                                     wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
                                 for merged_range in list(wstemp.merged_cells.ranges):
                                     if merged_range.min_row >=rowf-7 and merged_range.min_row <=rowf+4:
-                                        # Elimina el rango combinado de la fila específica
-                                        try:
-                                            wstemp.merged_cells.ranges.remove(merged_range)
-                                        except:
-                                            print(sheet.title+" "+str(merged_range))
-                                # for j in range(11):
-                                #     delete_row_with_merged_ranges(wstemp,rowf-7)
+                                        wstemp.merged_cells.ranges.remove(merged_range)
                                 break
                     else:
                         dictionary_netos[valb]=dictionary_netos[valb]-1
