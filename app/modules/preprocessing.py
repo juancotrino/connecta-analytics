@@ -234,7 +234,8 @@ def process_question(
     response_json = response.json()
 
     if response.status_code != 200:
-        raise ValueError(f'Model response unsuccessfull with status code {response.status_code}. JSON response: {response_json}')
+        ui_container.error(f'Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}')
+        raise ValueError(f'Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}')
 
     if response.status_code == 200:
         # print(f'Model response successfull for question: {question}')

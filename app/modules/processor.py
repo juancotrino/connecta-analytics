@@ -56,13 +56,16 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,all
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
                 condition=data[var]==refindex
                 result+=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
+                result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
                 result+="\n*____________________________________________________________________________________\n ______"+var+"______________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
@@ -458,12 +461,15 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,allsegmentcodes=False
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
                 result+=getPenaltysCode(xlsx_file)
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
+                result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
             result+="\n*____"+var+"________________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
@@ -551,13 +557,16 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,allsegme
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
                 condition=data[var]==refindex
                 result+=getCruces(spss_file,xlsx_file,checkinclude,condition=condition)
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
+                result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
             result+="\n*______"+var+"______________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
@@ -938,7 +947,9 @@ def getSegmentCode(spss_file: BytesIO,xlsx_file: BytesIO):
         namedatasetspss="ConjuntoDatos1"
         for var in varsList:
             refdict=study_metadata.variable_value_labels[var]
-            for refindex in data[var].dropna().unique():
+            ref_index=data[var].dropna().unique()
+            ref_index.sort()
+            for refindex in ref_index:
                 filterdatabase+="DATASET ACTIVATE "+ namedatasetspss+".\n"
                 filterdatabase+="DATASET COPY REF_"+re.sub("[()\-+]","",refdict[refindex].replace(" ","_"))+".\nDATASET ACTIVATE REF_"+re.sub("[()\-+]","",refdict[refindex].replace(" ","_"))+".\nFILTER OFF.\nUSE ALL.\n"
                 filterdatabase+="SELECT IF ("+var+" = "+str(int(refindex))+").\nEXECUTE.\n\n"

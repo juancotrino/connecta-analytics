@@ -57,6 +57,7 @@ def create_folder_structure(base_path: str):
         "consultoria/propuestas",
         "consultoria/informes",
         "consultoria/guias",
+        "consultoria/otros",
     ]
 
     sharepoint = SharePoint()
