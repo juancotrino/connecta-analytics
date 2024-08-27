@@ -57,32 +57,32 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs(['Studies viewer', 'Create study', 'Edit study', 'File uploader'])
 
     with tab1:
-
-        status = st.multiselect(
+        col1, col2, col3, col4, col5 = st.columns(5)
+        status = col1.multiselect(
             'Filter by status',
             options=sorted(business_data['statuses']),
             placeholder='Select a status...'
         )
 
-        methodology = st.multiselect(
+        methodology = col2.multiselect(
             'Filter by methodology',
             options=sorted(business_data['methodologies']),
             placeholder='Select a methodology...'
         )
 
-        study_type = st.multiselect(
+        study_type = col3.multiselect(
             'Filter by study type',
             options=sorted(business_data['study_types']),
             placeholder='Select a study type...'
         )
 
-        country = st.multiselect(
+        country = col4.multiselect(
             'Filter by country',
             options=sorted(countries_codes.keys()),
             placeholder='Select a country...'
         )
 
-        client = st.multiselect(
+        client = col5.multiselect(
             'Filter by client',
             options=sorted(business_data['clients']),
             placeholder='Select a cient...'
