@@ -65,6 +65,7 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,all
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
+                result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
             result+="\n*____________________________________________________________________________________\n ______"+var+"______________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
@@ -468,6 +469,7 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,allsegmentcodes=False
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
+                result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
             result+="\n*____"+var+"________________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
@@ -564,6 +566,7 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,allsegme
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\n")
+                result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
             result+="\n*______"+var+"______________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         result+="""*
                     ⠸⣷⣦⠤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣠⣤⠀⠀⠀
