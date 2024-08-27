@@ -114,9 +114,9 @@ jobs:
             --allow-unauthenticated
             --memory=1024Mi
             --cpu=1
-            --concurrency=5
+            --concurrency=50
             --timeout=3600
-            --max-instances=10
+            --max-instances=1
             --service-account=${{ secrets.GCR_SERVICE_ACCOUNT }}
           env_vars: |
             COOKIE_KEY=${{ secrets.COOKIE_KEY }}
