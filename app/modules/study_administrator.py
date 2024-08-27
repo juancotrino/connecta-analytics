@@ -74,7 +74,7 @@ def create_folder_structure(base_path: str):
     sharepoint.create_folder_structure(base_path, dirs)
 
 @st.cache_data(show_spinner=False)
-def get_studies(limit: int = 50, offset: int = 0):
+def get_studies(limit: int = 50, offset: int = 0, **kwargs):
     bq = BigQueryClient('business_data')
 
     # Dictionary mapping statuses to emojis
@@ -85,13 +85,26 @@ def get_studies(limit: int = 50, offset: int = 0):
         'No aprobado': '🚫 No aprobado',
         'Finalizado': '✅ Finalizado'
     }
-    studies_data = bq.fetch_data(
-        f"""
+
+    filters = ['status', 'country', 'client', 'methodology', 'study_type']
+    kwargs_statements = []
+    for _filter in filters:
+        if kwargs.get(_filter):
+            filter_list = "', '".join(kwargs.get(_filter))
+            kwargs_statements.append(f"{_filter} IN ('{filter_list}')")
+
+    kwargs_query = ' AND '.join(kwargs_statements)
+    if kwargs_statements:
+        kwargs_query = f'WHERE {kwargs_query}'
+
+    query = f"""
         SELECT * FROM `{bq.schema_id}.{bq.data_set}.study`
+        {kwargs_query}
         ORDER BY study_id DESC
         LIMIT {limit} OFFSET {offset}
-        """
-    )
+    """
+
+    studies_data = bq.fetch_data(query)
 
     studies_data['status'] = studies_data['status'].apply(lambda x: status_emojis.get(x, x))
     studies_data = studies_data.rename(columns={'study_id': 'Study ID'}).set_index('Study ID').sort_index(ascending=False)
@@ -153,11 +166,26 @@ def get_study_data(study_id: int, country: str | None = None):
     return bq.fetch_data(query)
 
 @st.cache_data(show_spinner=False)
-def get_number_of_studies() -> int:
+def get_number_of_studies(**kwargs) -> int:
     bq = BigQueryClient('business_data')
+
+    filters = ['status', 'country', 'client', 'methodology', 'study_type']
+    kwargs_statements = []
+    for _filter in filters:
+        if kwargs.get(_filter):
+            filter_list = "', '".join(kwargs.get(_filter))
+            kwargs_statements.append(f"{_filter} IN ('{filter_list}')")
+
+    kwargs_query = ' AND '.join(kwargs_statements)
+
+    if kwargs_statements:
+        kwargs_query = f'WHERE {kwargs_query}'
+
     return bq.fetch_data(
         f"""
-        SELECT COUNT(*) AS number_of_studies FROM `{bq.schema_id}.{bq.data_set}.study`
+        SELECT COUNT(*) AS number_of_studies
+        FROM `{bq.schema_id}.{bq.data_set}.study`
+        {kwargs_query}
         """
     )['number_of_studies'].values[0]
 

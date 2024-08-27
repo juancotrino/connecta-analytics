@@ -57,10 +57,44 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs(['Studies viewer', 'Create study', 'Edit study', 'File uploader'])
 
     with tab1:
+        col1, col2, col3, col4, col5 = st.columns(5)
+        status = col1.multiselect(
+            'Filter by status',
+            options=sorted(business_data['statuses']),
+            placeholder='Select a status...'
+        )
 
-        status = st.container()
+        methodology = col2.multiselect(
+            'Filter by methodology',
+            options=sorted(business_data['methodologies']),
+            placeholder='Select a methodology...'
+        )
 
-        number_of_studies = get_number_of_studies()
+        study_type = col3.multiselect(
+            'Filter by study type',
+            options=sorted(business_data['study_types']),
+            placeholder='Select a study type...'
+        )
+
+        country = col4.multiselect(
+            'Filter by country',
+            options=sorted(countries_codes.keys()),
+            placeholder='Select a country...'
+        )
+
+        client = col5.multiselect(
+            'Filter by client',
+            options=sorted(business_data['clients']),
+            placeholder='Select a cient...'
+        )
+
+        number_of_studies = get_number_of_studies(
+            status=status,
+            methodology=methodology,
+            study_type=study_type,
+            country=country,
+            client=client
+        )
 
         pagination = st.container()
 
@@ -77,24 +111,19 @@ def main():
         with bottom_menu[0]:
             st.markdown(f"Page **{current_page}** of **{total_pages}** ")
 
-        paginated_data = get_studies(batch_size, batch_size * (current_page - 1))
+        paginated_data = get_studies(
+            batch_size, batch_size * (current_page - 1),
+            status=status,
+            methodology=methodology,
+            study_type=study_type,
+            country=country,
+            client=client
+        )
         paginated_data = paginated_data.drop(columns='source')
         paginated_data = paginated_data.rename(columns={'supervisor': 'consultant'})
 
-        # If last cached study is not the last one in BQ, clear studies cache and rerun
-        if current_page == 1 and paginated_data.index.values[0] != last_id_number:
-            get_studies.clear()
-            st.rerun()
-
-        selected_status = status.selectbox(
-            'Filter by status',
-            options=paginated_data['status'].unique().tolist(),
-            index=None,
-            placeholder='Select a status...'
-        )
-
         pagination.dataframe(
-            data=paginated_data[paginated_data['status'] == selected_status] if selected_status else paginated_data,
+            data=paginated_data,
             column_config={column: column.replace('_', ' ').capitalize() for column in paginated_data.columns},
             use_container_width=True
         )
@@ -105,6 +134,13 @@ def main():
         with st.form('create_study'):
 
             study_name = st.text_input('Study name').strip()
+
+            methodologies = business_data['methodologies']
+            methodologies = st.multiselect(
+                'Methodology',
+                options=methodologies,
+                placeholder="Select methodology..."
+            )
 
             study_types = business_data['study_types']
             study_types = st.multiselect(
@@ -156,13 +192,14 @@ def main():
 
             if create_button:
                 with st.spinner('Creating study...'):
-                    combinations = list(itertools.product(study_types, countries))
+                    combinations = list(itertools.product(methodologies, study_types, countries))
                     study_data = {
                         'study_id': [last_id_number + 1] * len(combinations),
                         'study_name': [study_name] * len(combinations),
-                        'study_type': [combination[0] for combination in combinations],
+                        'methodology': [combination[0] for combination in combinations],
+                        'study_type': [combination[1] for combination in combinations],
                         'description': [description] * len(combinations),
-                        'country': [combination[1] for combination in combinations],
+                        'country': [combination[2] for combination in combinations],
                         'client': [client] * len(combinations),
                         'value': [value] * len(combinations),
                         'currency': [currency] * len(combinations),
@@ -196,6 +233,14 @@ def main():
                     options=statuses,
                     index=statuses.index(study_data['status'].values[0]),
                     placeholder="Select status..."
+                )
+
+                methodologies = business_data['methodologies']
+                methodologies = st.multiselect(
+                    'Methodology',
+                    options=methodologies,
+                    default=study_data['methodology'].unique(),
+                    placeholder="Select methodology..."
                 )
 
                 study_types: list = business_data['study_types']
@@ -252,13 +297,14 @@ def main():
 
                 if edit_study:
                     with st.spinner('Updating study...'):
-                        combinations = list(itertools.product(study_types_selected, countries))
+                        combinations = list(itertools.product(methodologies, study_types_selected, countries))
                         updated_study_data = {
                             'study_id': [study_id] * len(combinations),
                             'study_name': [study_name] * len(combinations),
-                            'study_type': [combination[0] for combination in combinations],
+                            'methodology': [combination[0] for combination in combinations],
+                            'study_type': [combination[1] for combination in combinations],
                             'description': [description] * len(combinations),
-                            'country': [combination[1] for combination in combinations],
+                            'country': [combination[2] for combination in combinations],
                             'client': [client] * len(combinations),
                             'value': [value] * len(combinations),
                             'currency': [currency] * len(combinations),
