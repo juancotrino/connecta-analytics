@@ -1,3 +1,4 @@
+import os
 from io import BytesIO
 import tempfile
 from datetime import datetime, UTC
@@ -7,6 +8,8 @@ import pandas as pd
 import pyreadstat
 
 from firebase_admin import firestore
+
+from msteamsapi import TeamsWebhook, AdaptiveCard, Container, FactSet, ContainerStyle, TextWeight, TextSize
 
 import streamlit as st
 
@@ -39,27 +42,6 @@ def read_sav_metadata(file_name: str) -> pd.DataFrame:
     return variable_info
 
 def create_folder_structure(base_path: str):
-
-    # Define the directory structure
-    # dirs = [
-    #     "codificacion/input",
-    #     "codificacion/parcial",
-    #     "generales/input",
-    #     "generales/output/analisis",
-    #     "generales/output/norma",
-    #     "generales/output/tablas",
-    #     "procesamiento/genera_axis",
-    #     "procesamiento/includes",
-    #     "procesamiento/quantum_files",
-    #     "script/conceptos",
-    #     "script/cuestionarios",
-    #     "script/entrega_campo",
-    #     "consultoria/propuestas",
-    #     "consultoria/informes",
-    #     "consultoria/guias",
-    #     "consultoria/otros",
-    # ]
-
     business_data = get_business_data()
     dirs = business_data['sharepoint_folder_structure']
 
@@ -240,3 +222,38 @@ def check_sharepoint_folder_existance(id_study_name: str, source: str):
 def split_frame(input_df, rows):
     df = [input_df.loc[i : i + rows - 1, :] for i in range(0, len(input_df), rows)]
     return df
+
+def create_msteams_card(study_info: dict[str, str]):
+
+    webhook = TeamsWebhook(os.getenv('MS_TEAMS_WEBHOOK_URL'))
+
+    card = AdaptiveCard(title='**STUDY STARTED EXECUTION**', title_style=ContainerStyle.DEFAULT)
+
+    container = Container(style=ContainerStyle.DEFAULT)
+
+    container.add_text_block(
+        "Study **8893 Glossy**  changed its status to ``En ejecución`` with these specifications:",
+        size=TextSize.DEFAULT,
+        weight=TextWeight.DEFAULT,
+        color="default"
+    )
+
+    factset = FactSet()
+    for k, v in study_info.items():
+        factset.add_facts((f"**{k.replace('_', ' ').capitalize()}**:", v))
+
+    container.add_fact_set(factset)
+
+    container.add_text_block(
+        "Check its files [here](https://www.google.com)",
+        size=TextSize.DEFAULT,
+        weight=TextWeight.DEFAULT,
+        color="default"
+    )
+
+    card.add_container(container)
+
+    card.add_url_button('Study folder', study_info['study_folder'])
+
+    webhook.add_cards(card)
+    webhook.send()

@@ -15,7 +15,8 @@ from app.modules.study_administrator import (
     get_last_file_version_in_sharepoint,
     get_upload_files_info,
     get_last_id_number,
-    get_number_of_studies
+    get_number_of_studies,
+    create_msteams_card
 )
 from app.modules.utils import get_countries
 
@@ -253,7 +254,7 @@ def main():
 
                 value = st.number_input(
                     'Study value/price',
-                    value=study_data['value'].values[0],
+                    value=int(study_data['value'].values[0]),
                     step=1
                 )
 
@@ -317,7 +318,7 @@ def main():
                         update_study_data(updated_study_data)
                     st.success('Study updated successfully')
 
-                    if status == 'En ejecución':
+                    if status == 'En ejecución' and 'En ejecución' not in statuses:
                         for country in countries:
                             country_code = countries_iso_2_code[country].lower()
                             id_study_name = f"{study_id}_{country_code}_{study_name.replace(' ', '_').lower()}"
@@ -329,6 +330,20 @@ def main():
                                     st.success(
                                         f'Study root folder created successfully for country `{country}`. Visit the new folder [here]({folder_url}).'
                                     )
+                                create_msteams_card(
+                                    {
+                                        'study_id': study_id,
+                                        'study_name': study_name,
+                                        'methodology': ', '.join(list(set([combination[0] for combination in combinations]))),
+                                        'study_type': ', '.join(list(set([combination[1] for combination in combinations]))),
+                                        'description': description,
+                                        'country': ', '.join(list(set([combination[2] for combination in combinations]))),
+                                        'client': client,
+                                        'value': f'{value} {currency}',
+                                        'consultant': supervisor,
+                                        'study_folder': folder_url
+                                    }
+                                )
                             except Exception as e:
                                 st.error(e)
 
