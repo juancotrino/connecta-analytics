@@ -879,7 +879,8 @@ def getScaleCodeVars(spss_file: BytesIO,scaleVars):
     scalerecodes=""
     try:
         for i in range(len(scaleVars)):
-
+            for num in range(len(scaleVars.iloc[i][1].split())):
+                float(scaleVars.iloc[i][1].split()[num])
             scalerecodes+="\nRECODE "+scaleVars.iloc[i][0]
             for num in range(len(scaleVars.iloc[i][1].split())):
                 scalerecodes+=" ("+str(num+1)+"="+scaleVars.iloc[i][1].split()[num]+")"
