@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from app.modules.cloud import SharePoint
+from app.cloud import SharePoint
 from firebase_admin import firestore
 
 import streamlit as st

@@ -9,11 +9,11 @@ import pyreadstat
 
 from firebase_admin import firestore
 
-from msteamsapi import TeamsWebhook, AdaptiveCard, Container, FactSet, ContainerStyle, TextWeight, TextSize
+from app.cloud.teams import TeamsWebhook, AdaptiveCard, Container, FactSet, ContainerStyle, TextWeight, TextSize
 
 import streamlit as st
 
-from app.modules.cloud import SharePoint, BigQueryClient
+from app.cloud import SharePoint, BigQueryClient
 
 time_zone = timezone('America/Bogota')
 

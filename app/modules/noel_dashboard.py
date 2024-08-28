@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from app.modules.cloud import SharePoint, BigQueryClient
+from app.cloud import SharePoint, BigQueryClient
 
 @st.cache_data(show_spinner=False)
 def get_data_unique():

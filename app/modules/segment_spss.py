@@ -28,7 +28,7 @@ from scipy.stats import chi2_contingency, pearsonr
 # import matplotlib.pyplot as plt
 # import seaborn as sns
 
-from app.modules.cloud import CloudStorageClient
+from app.cloud import CloudStorageClient
 from app.modules.authenticator import get_inverted_scales_keywords
 from app.modules.utils import get_temp_file
 

@@ -8,7 +8,7 @@ from firebase_admin import firestore
 
 import streamlit as st
 
-from app.modules.cloud import SharePoint, BigQueryClient
+from app.cloud import SharePoint, BigQueryClient
 from app.modules.utils import write_bytes
 
 

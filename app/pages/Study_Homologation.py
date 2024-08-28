@@ -18,7 +18,7 @@ from app.modules.study_homologation import (
 )
 from app.modules.utils import get_countries, write_bytes, get_temp_file, read_sav_metadata
 
-from app.modules.cloud import SharePoint, BigQueryClient
+from app.cloud import SharePoint, BigQueryClient
 
 def main():
     # -------------- SETTINGS --------------
