@@ -246,7 +246,7 @@ def main():
                 study_types: list = business_data['study_types']
                 study_types_selected = st.multiselect(
                     'Study type',
-                    options=study_types,
+                    options=study_types + [None],
                     default=study_data['study_type'].unique(),
                     placeholder="Select study type..."
                 )
