@@ -5,7 +5,6 @@ google-cloud-bigquery==3.25.0
 google-cloud-bigquery-storage==2.25.0
 htbuilder==0.6.2
 matplotlib==3.8.3
-msteamsapi==0.9.3
 numpy==1.26.4
 Office365-REST-Python-Client==2.5.10
 openpyxl==3.1.3
