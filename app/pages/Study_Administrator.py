@@ -253,7 +253,8 @@ def main():
 
                 value = st.number_input(
                     'Study value/price',
-                    value=study_data['value'].values[0]
+                    value=study_data['value'].values[0],
+                    step=1
                 )
 
                 currencies = business_data['currencies']
