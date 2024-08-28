@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from msteamsapi.enums import ContainerStyle, TextSize, TextWeight
+from .enums import ContainerStyle, TextSize, TextWeight
 
 
 class Container(object):  # https://adaptivecards.io/explorer

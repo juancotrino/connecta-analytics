@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 
-from msteamsapi.container import Container
-from msteamsapi.enums import (ContainerStyle, TextSize, BackgroundVerticalAlignment,
-                              BackgroundHorizontalAlignment, BackgroundFillMode)
+from .container import Container
+from .enums import ContainerStyle, TextSize
 
 
 class AdaptiveCard(object):
