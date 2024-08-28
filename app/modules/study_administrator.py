@@ -227,12 +227,12 @@ def create_msteams_card(study_info: dict[str, str]):
 
     webhook = TeamsWebhook(os.getenv('MS_TEAMS_WEBHOOK_URL'))
 
-    card = AdaptiveCard(title='**STUDY STARTED EXECUTION**', title_style=ContainerStyle.DEFAULT)
+    card = AdaptiveCard(title='**STUDY STATUS UPDATE**', title_style=ContainerStyle.DEFAULT)
 
     container = Container(style=ContainerStyle.DEFAULT)
 
     container.add_text_block(
-        "Study **8893 Glossy**  changed its status to ``En ejecución`` with these specifications:",
+        f"Study **{study_info['study_id']} {study_info['study_name']}**  changed its status to **{study_info['status']}** with these specifications:",
         size=TextSize.DEFAULT,
         weight=TextWeight.DEFAULT,
         color="default"
@@ -240,20 +240,15 @@ def create_msteams_card(study_info: dict[str, str]):
 
     factset = FactSet()
     for k, v in study_info.items():
-        factset.add_facts((f"**{k.replace('_', ' ').capitalize()}**:", v))
+        if k not in ('study_folder', 'status'):
+            factset.add_facts((f"**{k.replace('_', ' ').capitalize()}**:", v))
 
     container.add_fact_set(factset)
 
-    container.add_text_block(
-        "Check its files [here](https://www.google.com)",
-        size=TextSize.DEFAULT,
-        weight=TextWeight.DEFAULT,
-        color="default"
-    )
-
     card.add_container(container)
 
-    card.add_url_button('Study folder', study_info['study_folder'])
+    for country, study_folder in study_info['study_folder'].items():
+        card.add_url_button(f'{country} study folder', study_folder)
 
     webhook.add_cards(card)
     webhook.send()

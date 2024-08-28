@@ -127,6 +127,7 @@ jobs:
             BIGQUERY_SCHEMA_ID=${{ secrets.BIGQUERY_SCHEMA_ID }}
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_REGION=${{ secrets.GCP_REGION }}
+            MS_TEAMS_WEBHOOK_URL=${{ secrets.MS_TEAMS_WEBHOOK_URL }}
           # env_vars: |
           # #   NODE_ENV=production
           # #   TOKEN_EXPIRE=6400

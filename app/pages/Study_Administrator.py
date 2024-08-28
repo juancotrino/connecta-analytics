@@ -318,7 +318,8 @@ def main():
                         update_study_data(updated_study_data)
                     st.success('Study updated successfully')
 
-                    if status == 'En ejecución' and 'En ejecución' not in statuses:
+                    if status == 'En ejecución' and study_data['status'].values[0] != 'En ejecución':
+                        countries_folders = {}
                         for country in countries:
                             country_code = countries_iso_2_code[country].lower()
                             id_study_name = f"{study_id}_{country_code}_{study_name.replace(' ', '_').lower()}"
@@ -327,25 +328,31 @@ def main():
                                 with st.spinner('Creating folder in SharePoint...'):
                                     create_folder_structure(base_path)
                                     folder_url = f'https://connectasas.sharepoint.com/sites/connecta-ciencia_de_datos/Documentos%20compartidos/estudios/{id_study_name}'
+                                    countries_folders[country] = folder_url
                                     st.success(
                                         f'Study root folder created successfully for country `{country}`. Visit the new folder [here]({folder_url}).'
                                     )
-                                create_msteams_card(
-                                    {
-                                        'study_id': study_id,
-                                        'study_name': study_name,
-                                        'methodology': ', '.join(list(set([combination[0] for combination in combinations]))),
-                                        'study_type': ', '.join(list(set([combination[1] for combination in combinations]))),
-                                        'description': description,
-                                        'country': ', '.join(list(set([combination[2] for combination in combinations]))),
-                                        'client': client,
-                                        'value': f'{value} {currency}',
-                                        'consultant': supervisor,
-                                        'study_folder': folder_url
-                                    }
-                                )
                             except Exception as e:
                                 st.error(e)
+
+                        try:
+                            create_msteams_card(
+                                {
+                                    'study_id': study_id,
+                                    'study_name': study_name,
+                                    'methodology': ', '.join(list(set([combination[0] for combination in combinations]))),
+                                    'study_type': ', '.join(list(set([combination[1] for combination in combinations]))),
+                                    'description': description,
+                                    'country': ', '.join(list(set([combination[2] for combination in combinations]))),
+                                    'client': client,
+                                    'value': f'{"{:,}".format(value).replace(",",".")} {currency}',
+                                    'consultant': supervisor,
+                                    'status': status,
+                                    'study_folder': countries_folders
+                                }
+                            )
+                        except Exception as e:
+                            st.error(e)
 
     with tab4:
 
