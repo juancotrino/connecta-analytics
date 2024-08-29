@@ -414,19 +414,23 @@ def main():
 
                 if uploaded_file and upload_file:
                     file_path = file_info['path']
+                    file_type = uploaded_file.name.split('.')[-1]
                     if file_info['acronym'] and file_info['file_type']:
                         files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', file_path)
                         files = [file for file in files if file_info['acronym'] in file]
                         if not files:
-                            file_name = f"{id_study_name}_{file_info['acronym']}_V1.{file_info['file_type']}"
+                            file_name = f"{id_study_name}_{file_info['acronym']}_V1.{file_type}"
                         else:
                             last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                            file_name = f"{id_study_name}_{file_info['acronym']}_V{last_version_number + 1}.{file_info['file_type']}"
+                            file_name = f"{id_study_name}_{file_info['acronym']}_V{last_version_number + 1}.{file_type}"
                     else:
                         file_name = uploaded_file.name
 
                     with st.spinner(f"Uploading {title.replace('_', ' ')} to Sharepoint..."):
-                        upload_file_to_sharepoint(f'{base_path}/{file_path}', uploaded_file, file_name)
-                        st.success(
-                            f"{title.replace('_', ' ').capitalize()} uploaded successfully into [study's folder]({folder_url}/{file_path})."
-                        )
+                        try:
+                            upload_file_to_sharepoint(f'{base_path}/{file_path}', uploaded_file, file_name)
+                            st.success(
+                                f"{title.replace('_', ' ').capitalize()} uploaded successfully into [study's folder]({folder_url}/{file_path})."
+                            )
+                        except Exception as e:
+                            st.error('There is no folder for this study in SharePoint.')
