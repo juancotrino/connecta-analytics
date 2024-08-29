@@ -248,7 +248,7 @@ def create_msteams_card(study_info: dict[str, str]):
     card.add_container(container)
 
     for country, study_folder in study_info['study_folder'].items():
-        card.add_url_button(f'{country} study folder', study_folder)
+        card.add_url_button(f'{country} study proposal folder', f'{study_folder}/consultoria/propuesta')
 
     webhook.add_cards(card)
     webhook.send()
