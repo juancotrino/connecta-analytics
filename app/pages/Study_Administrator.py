@@ -252,7 +252,7 @@ def main():
 
                     value = st.number_input(
                         'Study value/price',
-                        value=int(study_data['value'].values[0]),
+                        value=int(study_data['value'].values[0]) if study_data['value'].values[0] else None,
                         step=1
                     )
 
