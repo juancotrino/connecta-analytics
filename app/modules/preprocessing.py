@@ -1,3 +1,4 @@
+import time
 import re
 import ast
 # from concurrent.futures import ThreadPoolExecutor
@@ -84,13 +85,13 @@ def get_question_groups(question_prints: list[str], db_string_df: pd.DataFrame):
 
     question_groups = {}
     for question_print in question_prints:
-        question_groups[question_print] = [column for column in db_string_df.columns if column.startswith(question_print)]
+        question_groups[question_print] = [column for column in db_string_df.columns if column.split('_')[0] == question_print]
 
     return question_groups
 
 def generate_open_ended_db(results: dict, temp_file_name_sav: str):
 
-    dfs = {question: result['coding_results'] for question, result in results.items()}
+    dfs = {question: result['coding_results'] for question, result in results.items() if not result['coding_results'].empty}
 
     db: pd.DataFrame = pyreadstat.read_sav(
         temp_file_name_sav,
@@ -126,7 +127,7 @@ def generate_open_ended_db(results: dict, temp_file_name_sav: str):
 
     ordered_questions = df['question_code'].unique().tolist()
 
-    df = df.dropna(subset='codes').reset_index(drop=True)
+    df = df.dropna(subset='codes').drop_duplicates(subset=['question_code', 'Response_ID']).reset_index(drop=True)
 
     pivoted_df = df.pivot(
         index='Response_ID',
@@ -196,6 +197,17 @@ def transform_open_ended(question_groups: dict[str, list[str]], df: pd.DataFrame
 
     return question_groups_dict
 
+def calculate_timeout(num_answers, base_time=10, rate=2.25):
+    """
+    Calculate timeout based on the number of answers.
+
+    :param num_answers: Number of answers to be processed.
+    :param base_time: Base time in seconds (overhead), default is 10 seconds.
+    :param rate: Time per answer in seconds, default is 2.25 seconds/answer.
+    :return: Calculated timeout in seconds.
+    """
+    return base_time + (num_answers * rate)
+
 def process_question(
     question: str,
     prompt_template: str,
@@ -210,18 +222,29 @@ def process_question(
 
     response_info = {}
 
-    question_answer = [question_answer for question_answer in answers.keys() if question_answer.startswith(question)][0]
+    question_answer = [question_answer for question_answer in answers.keys() if question_answer.split('_')[0] == question][0]
+    if answers[question_answer].empty:
+        ui_container.warning(f'No answers to code for question: `{question}`')
+        return {
+            'coding_results': pd.DataFrame(),
+            'status_code': None,
+            'elapsed_time': None,
+            'usage': None,
+            'retries': None
+        }
 
     user_prompt = prompt_template.format(
         survey_data={row['question_id-Response_ID']: row['answer'] for _, row in answers[question_answer].iterrows()},
         codebook={row['code_id']: row['code_text'] for _, row in code_books[question].iterrows()}
     )
+    timeout = calculate_timeout(len(answers[question_answer]))
 
     st.info(f'Coding question `{question}`')
 
-    response, elapsed_time = model.send(
+    response, elapsed_time, retries = model.send(
         system_prompt='You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.',
-        user_prompt=user_prompt
+        user_prompt=user_prompt,
+        timeout=timeout
     )
 
     formatted_time = format_time(elapsed_time)
@@ -229,6 +252,7 @@ def process_question(
     response_json = response.json()
 
     response_info['status_code'] = response.status_code
+    response_info['retries'] = retries
 
     if response.status_code != 200:
         ui_container.error(f'Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}')
@@ -337,6 +361,7 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
         threads.append(t)
         try:
             t.start()
+            # time.sleep(0.5)
         except Exception as e:
             st.error(f"Question {question} generated an exception: {e}")
             raise ValueError(f"Question {question} generated an exception: {e}")

@@ -35,9 +35,12 @@ class LLM:
         self,
         system_prompt: str,
         user_prompt: str,
+        timeout: int | float,
         temperature: float = 0.1,
         top_k: int = 10,
-        top_p: float = 0.9
+        top_p: float = 0.9,
+        max_retries: int = 5,
+        backoff_factor: int = 2,
     ):
 
         data = {
@@ -61,10 +64,34 @@ class LLM:
             ]
         }
 
-        # Send the POST request
-        start_time = time.time()
-        response = requests.post(self.url, headers=self.__headers, json=data)
-        end_time = time.time()  # End the timer
-        elapsed_time = end_time - start_time  # Calculate the elapsed time
+        retries = 0
+        backoff = 1  # Initial backoff time in seconds
 
-        return response, elapsed_time
+        while retries < max_retries:
+            try:
+                start_time = time.time()
+                response = requests.post(self.url, headers=self.__headers, json=data, timeout=timeout)
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+
+                # If the request is successful, return the response
+                if response.status_code == 200:
+                    return response, elapsed_time, retries
+                elif response.status_code == 503:
+                    retries += 1
+                    time.sleep(backoff)
+                    backoff *= backoff_factor
+                else:
+                    # Handle other status codes if needed
+                    response.raise_for_status()
+
+            except requests.RequestException as e:
+                retries += 1
+                if retries >= max_retries:
+                    # If max retries reached, raise the exception
+                    raise e
+                time.sleep(backoff)
+                backoff *= backoff_factor
+
+        # If all retries fail, raise an exception or handle it accordingly
+        raise requests.RequestException(f"Failed to get a valid response after {max_retries} retries due to service unavailability.")

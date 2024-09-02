@@ -48,14 +48,17 @@ def main():
                     temp_file_name_xlsx = get_temp_file(uploaded_file_preprocess_xlsx, '.xlsx')
                     temp_file_name_sav = get_temp_file(uploaded_file_preprocess_sav)
                     try:
+                        # if 'results' not in st.session_state:
                         results = preprocessing(temp_file_name_xlsx, temp_file_name_sav)
+                        #     st.session_state['results'] = results
+                        # results = st.session_state['results']
 
                         final_df, metadata = generate_open_ended_db(results, temp_file_name_sav)
 
                         final_db = write_temp_sav(final_df, metadata)
                         st.success('Database preprocessed successfully.')
 
-                        logs_df = pd.DataFrame.from_dict(results, orient='index', columns=['status_code', 'elapsed_time', 'usage'])
+                        logs_df = pd.DataFrame.from_dict(results, orient='index', columns=['status_code', 'elapsed_time', 'usage', 'retries'])
 
                         st.dataframe(logs_df)
 
