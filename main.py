@@ -65,10 +65,15 @@ def home():
     if st.session_state.get('roles'):
         if 'connecta-admin' in st.session_state['roles']:
             with st.expander("Administrator options"):
-                try:
-                    _ = authenticator.register_user_form
-                except Exception as e:
-                    st.error(e)
+                tab1, tab2 = st.tabs(['New User', 'Cache'])
+                with tab1:
+                    try:
+                        _ = authenticator.register_user_form
+                    except Exception as e:
+                        st.error(e)
+                with tab2:
+                    if st.button('Clear cache', type='primary'):
+                        st.cache_data.clear()
 
     if pages_names:
         st.sidebar.markdown("# Available components")
