@@ -55,8 +55,10 @@ def main():
                         final_db = write_temp_sav(final_df, metadata)
                         st.success('Database preprocessed successfully.')
 
-                        # TODO: Show some logs and information for every open-ended question coded with the model (Llama3.1)
-                        # st.write()
+                        logs_df = pd.DataFrame.from_dict(results, orient='index', columns=['status_code', 'elapsed_time', 'usage'])
+
+                        st.dataframe(logs_df)
+
                     except Exception as e:
                         st.error(e)
 

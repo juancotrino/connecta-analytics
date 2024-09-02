@@ -76,16 +76,11 @@ def reorder_columns(df: pd.DataFrame, db: pd.DataFrame) -> pd.DataFrame:
 
 def get_string_columns(db: pd.DataFrame):
     db_string_df = db.select_dtypes(include=['object'])
-    db_string_df = db_string_df[db_string_df.columns[
-        (db_string_df.columns.str.startswith(('P', 'F'))) &
-        ~(db_string_df.columns.str.endswith('O'))
-        ]
-    ]
+    db_string_df = db_string_df[db_string_df.columns[db_string_df.columns.str.startswith(('P', 'F'))]]
     db_string_df = pd.concat([db[['Response_ID']], db_string_df], axis=1)
     return db_string_df
 
 def get_question_groups(question_prints: list[str], db_string_df: pd.DataFrame):
-    # question_prints = list(set([column.split('_')[0] if column.startswith('P') else column.split('A')[0] for column in db_string_df.columns if column.startswith(('P', 'F'))]))
 
     question_groups = {}
     for question_print in question_prints:
@@ -233,6 +228,8 @@ def process_question(
 
     response_json = response.json()
 
+    response_info['status_code'] = response.status_code
+
     if response.status_code != 200:
         ui_container.error(f'Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}')
         raise ValueError(f'Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}')
@@ -267,6 +264,11 @@ def process_question(
             'codes': coding_result.values()
         }
     )
+
+    # Check if the column 'A' is of type int
+    if pd.api.types.is_integer_dtype(coding_df['codes']):
+        # Replace each integer in the column with a list containing that integer
+        coding_df['codes'] = coding_df['codes'].apply(lambda x: [x])
 
     response_info['coding_results'] = coding_df
 
@@ -307,7 +309,7 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
         Codebook:
         {codebook}
 
-        Return the classification result as a JSON object where each survey answer is matched with the most appropriate code(s) from the codebook based on the content of the answer. Ensure that the output contains only the JSON result and no additional text.
+        Return the classification result as a JSON object where each survey answer is matched with the most appropriate code(s) in a list from the codebook based on the content of the answer. Ensure that the output contains only the JSON result and no additional text.
     """
 
     model = LLM()
