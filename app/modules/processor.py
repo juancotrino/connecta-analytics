@@ -952,7 +952,7 @@ def getSegmentCode(spss_file: BytesIO,xlsx_file: BytesIO):
             refs_unique.sort()
             for refindex in refs_unique:
                 filterdatabase+="DATASET ACTIVATE "+ namedatasetspss+".\n"
-                filterdatabase+="DATASET COPY REF_"+re.sub("[()\-+]","",refdict[refindex].replace(" ","_"))+".\nDATASET ACTIVATE REF_"+re.sub("[()\-+]","",refdict[refindex].replace(" ","_"))+".\nFILTER OFF.\nUSE ALL.\n"
+                filterdatabase+="DATASET COPY REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\nDATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\nFILTER OFF.\nUSE ALL.\n"
                 filterdatabase+="SELECT IF ("+var+" = "+str(int(refindex))+").\nEXECUTE.\n\n"
         return filterdatabase
     except:
