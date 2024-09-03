@@ -390,7 +390,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
 
     jobs_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
     jobs.to_excel(jobs_temp_file.name, index=False)
-    files['scenarios.xlsx'] = jobs_temp_file.name
+    files[f"scenarios_{spss_file.name.split('.')[0]}.xlsx"] = jobs_temp_file.name
 
     if jobs['cross_variable'].any():
 
