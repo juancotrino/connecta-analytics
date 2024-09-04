@@ -287,7 +287,7 @@ def main():
                     supervisor = st.selectbox(
                         'Consultant',
                         options=supervisors,
-                        index=supervisors.index(study_data['supervisor'].values[0]),
+                        index=supervisors.index(study_data['supervisor'].values[0]) if study_data['supervisor'].values[0] in supervisors else 0,
                         placeholder="Select consultant..."
                     )
 
