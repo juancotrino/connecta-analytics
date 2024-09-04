@@ -353,9 +353,10 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
 
     for question, code_book in code_books.items():
         code_book = code_book[code_book.columns[:2]]
-        code_book = code_book[code_book.iloc[:, 0].astype(str).str.isdigit()].reset_index(drop=True)
+        code_book = code_book[code_book.iloc[:, 0].astype(str).str.strip().str.isdigit()].reset_index(drop=True)
         code_book.columns = ['code_id', 'code_text']
         code_book['code_id'] = code_book['code_id'].astype(int)
+        code_book['code_text'] = code_book['code_text'].str.strip()
 
         code_books[question] = code_book
 
