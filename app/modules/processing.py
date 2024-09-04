@@ -410,7 +410,7 @@ def processing(xlsx_file: BytesIO):
                                 for i in range(2,maxcol+1):
                                     wstemp[get_column_letter(i)+str(rowi)]=wstemp[get_column_letter(i)+str(rowf)].value
                                 for merged_range in list(wstemp.merged_cells.ranges):
-                                    if merged_range.min_row >=rowf-7 and merged_range.min_row <=rowf+4:
+                                    if merged_range.min_row >=rowf-7 and merged_range.min_row <=rowf+5:
                                         wstemp.merged_cells.ranges.remove(merged_range)
                                 break
                     else:
@@ -420,7 +420,7 @@ def processing(xlsx_file: BytesIO):
                 if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
                     for rowf in range(rowi+1,wstemp.max_row+1):
                         if valb==wstemp["B"+str(rowf)].value:
-                            for j in range(11):
+                            for j in range(12):
                                 delete_row_with_merged_ranges(wstemp,rowf-7)
                             break
 

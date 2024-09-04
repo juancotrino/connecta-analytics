@@ -30,7 +30,6 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
 
 def getPreProcessCode2(spss_file: BytesIO):
     preprocesscode=processSavMulti(spss_file)[1]+processSavMulti(spss_file)[0]
-    preprocesscode+=getGroupCreateMultisCode(spss_file)
     return preprocesscode
 
 
@@ -43,6 +42,7 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
         sufijo=" "+str(sufijo)
     except:
         sufijo=""
+    result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
     result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                         +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                         +"OUTPUT CLOSE NAME=*.\nEXECUTE.\n")
@@ -69,6 +69,7 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
                 result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                 condition=data[var]==refindex
                 result+=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                             +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                             +"OUTPUT CLOSE NAME=*.\n")
@@ -96,6 +97,7 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
                             condition2=data[var_segment]==refindex_segment
                             condition=condition1&condition2
                             result+=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                            result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                             result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                         +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                                         +"OUTPUT CLOSE NAME=*.\n")
@@ -525,6 +527,7 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,rutaarchivo=""):
                         name_sheet=nombrehoja+" "+refdict[refindex].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+sufijo
                     result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                     result+=penaltys_code
+                    result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                     result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                 +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                                 +"OUTPUT CLOSE NAME=*.\n")
@@ -549,6 +552,7 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,rutaarchivo=""):
                                     name_sheet=nombrehoja+" "+refdict[refindex].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+" "+refdict_segment[refindex_segment].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+sufijo
                                 result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                                 result+=penaltys_code
+                                result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                             +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                                             +"OUTPUT CLOSE NAME=*.\n")
@@ -673,6 +677,7 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rutaarch
                     result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                     condition=data[var]==refindex
                     result+=getCruces(spss_file,xlsx_file,checkinclude,condition=condition)
+                    result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                     result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                 +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                                 +"OUTPUT CLOSE NAME=*.\n")
@@ -700,6 +705,7 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rutaarch
                                 condition2=data[var_segment]==refindex_segment
                                 condition=condition1&condition2
                                 result+=getCruces(spss_file,xlsx_file,checkinclude,condition=condition)
+                                result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                             +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                                             +"OUTPUT CLOSE NAME=*.\n")
