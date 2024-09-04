@@ -1,4 +1,4 @@
-import time
+from json import JSONDecoder
 import re
 import ast
 # from concurrent.futures import ThreadPoolExecutor
@@ -26,13 +26,34 @@ def format_time(seconds):
     minutes, seconds = divmod(rem, 60)
     return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
 
-def extract_json_string(content: str) -> str:
-    """Extract JSON-like string from the content."""
-    start = content.find('{')
-    end = content.rfind('}')
-    if start != -1 and end != -1 and start <= end:
-        return content[start:end + 1]
-    return ''
+# def extract_json_string(content: str) -> str:
+#     """Extract JSON-like string from the content."""
+#     start = content.find('{')
+#     end = content.rfind('}')
+#     if start != -1 and end != -1 and start <= end:
+#         return content[start:end + 1]
+#     return ''
+
+def extract_json_string(text, decoder=JSONDecoder()):
+    """Find JSON objects in text, and return a list of decoded JSON data
+
+    Does not attempt to look for JSON arrays, text, or other JSON types outside
+    of a parent JSON object.
+
+    """
+    pos = 0
+    results = []
+    while True:
+        match = text.find('{', pos)
+        if match == -1:
+            break
+        try:
+            result, index = decoder.raw_decode(text[match:])
+            results.append(result)
+            pos = match + index
+        except ValueError:
+            pos = match + 1
+    return results
 
 # Custom sort function
 def sort_key(item):
@@ -221,8 +242,11 @@ def process_question(
     ui_container.info(f'Coding question: `{question}`')
 
     response_info = {}
+    try:
+        question_answer = [question_answer for question_answer in answers.keys() if question_answer.split('_')[0] == question][0]
+    except Exception as e:
+        ui_container.error(f'Error in format question `{question}`: {e}')
 
-    question_answer = [question_answer for question_answer in answers.keys() if question_answer.split('_')[0] == question][0]
     if answers[question_answer].empty:
         ui_container.warning(f'No answers to code for question: `{question}`')
         return {
@@ -240,12 +264,14 @@ def process_question(
     timeout = calculate_timeout(len(answers[question_answer]))
 
     st.info(f'Coding question `{question}`')
-
-    response, elapsed_time, retries = model.send(
-        system_prompt='You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.',
-        user_prompt=user_prompt,
-        timeout=timeout
-    )
+    try:
+        response, elapsed_time, retries = model.send(
+            system_prompt='You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.',
+            user_prompt=user_prompt,
+            timeout=timeout
+        )
+    except Exception as e:
+        ui_container.error(f'Error in request for question `{question}`: {e}')
 
     formatted_time = format_time(elapsed_time)
 
@@ -258,28 +284,35 @@ def process_question(
         ui_container.error(f'Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}')
         raise ValueError(f'Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}')
 
-    if response.status_code == 200:
-        # print(f'Model response successfull for question: {question}')
-        ui_container.success(f'Model response successfull for question: `{question}`')
-
     response_info['elapsed_time'] = formatted_time
 
     response_info['usage'] = response_json['usage']
 
-    coding_dict = response_json['choices'][0]['message']['content'].replace('\\n', '').replace('`', '')
-
-    # Extract and validate the JSON string
-    coding_result = extract_json_string(coding_dict)
-    if not coding_result:
-        print(f"Failed to extract JSON for question {question}")
-        response_info['error'] = 'Failed to extract valid JSON'
-        response_info['coding_results_raw'] = coding_dict
-        return response_info
+    coding_dict = (
+        response_json['choices'][0]['message']['content']
+        .replace('json', '')
+        .replace('\\n', '')
+        .replace('`', '')
+        .replace("'", '"')
+    )
 
     try:
-        coding_result = ast.literal_eval(coding_dict)
-    except:
+        # Extract and validate the JSON string
+        coding_result = extract_json_string(coding_dict)[0]
+
+        if not coding_result:
+            print(f"Failed to extract JSON for question {question}")
+            response_info['error'] = 'Failed to extract valid JSON'
+            response_info['coding_results_raw'] = coding_dict
+            # ui_container.write(response_info['coding_results_raw'])
+            return response_info
+
+    except Exception as e:
         response_info['coding_results_raw'] = coding_dict
+        # with open(f"coding_dict_raw_{question}.txt", "w") as file:
+        #     file.write(coding_dict)
+        ui_container.error(f'Error parsing Llama response to JSON for question `{question}`: {e}')
+        ui_container.write(coding_dict)
         return response_info
 
     coding_df = pd.DataFrame(
@@ -297,6 +330,8 @@ def process_question(
     response_info['coding_results'] = coding_df
 
     results[question] = response_info
+
+    ui_container.success(f'Model response successfull for question: `{question}`')
 
     # return response_info
 
@@ -333,7 +368,7 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
         Codebook:
         {codebook}
 
-        Return the classification result as a JSON object where each survey answer is matched with the most appropriate code(s) in a list from the codebook based on the content of the answer. Ensure that the output contains only the JSON result and no additional text.
+        Return the classification result as a JSON object where each survey answer is matched with the most appropriate code(s) in a list from the codebook based on the content of the answer. Ensure that the output contains only the JSON result and no additional text or characters outside the JSONs curly braces.
     """
 
     model = LLM()
