@@ -576,9 +576,15 @@ def processing(xlsx_file: BytesIO):
             )
 
             category_indexes = (
-                [(initial_category_indexes[i][0], initial_category_indexes[i + 1][0] - 1) for i in range(len(initial_category_indexes) - 1)] +
+                [(initial_category_indexes[i][-1], initial_category_indexes[i + 1][0] - 1) for i in range(len(initial_category_indexes) - 1)] +
                 [(initial_category_indexes[-1][0], len(category_groups_columns) - 1)]
             )
+            for cat in initial_category_indexes:
+                if len(cat)>1:
+                    for cat1 in cat:
+                        if cat1!=cat[-1]:
+                            category_indexes+=[(cat1,cat1)]
+
             total_differeces_df = pd.DataFrame(index=range(len(data_differences)), columns=data_differences.columns)
 
             for question_group in question_groups:
@@ -595,6 +601,7 @@ def processing(xlsx_file: BytesIO):
                 )
 
                 for category_group in category_indexes:
+
                     columns_category_groups = category_groups_columns.loc[category_group[0]:category_group[1]]['index'].to_list()
 
                     inner_df = data.loc[question_group, columns_category_groups].map(extract_digits).replace({None: np.nan}).dropna(axis=1, how='all')
