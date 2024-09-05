@@ -223,16 +223,16 @@ def split_frame(input_df, rows):
     df = [input_df.loc[i : i + rows - 1, :] for i in range(0, len(input_df), rows)]
     return df
 
-def create_msteams_card(study_info: dict[str, str]):
+def msteams_card_study_status_update(study_info: dict[str, str]):
 
-    webhook = TeamsWebhook(os.getenv('MS_TEAMS_WEBHOOK_URL'))
+    webhook = TeamsWebhook(os.getenv('MS_TEAMS_WEBHOOK_STUDY_STATUS_UPDATE'))
 
     card = AdaptiveCard(title='**STUDY STATUS UPDATE**', title_style=ContainerStyle.DEFAULT)
 
     container = Container(style=ContainerStyle.DEFAULT)
 
     container.add_text_block(
-        f"Study **{study_info['study_id']} {study_info['study_name']}**  changed its status to **{study_info['status']}** with these specifications:",
+        f"Study **{study_info['study_id']} {study_info['study_name']}** changed its status to **{study_info['status']}** with these specifications:",
         size=TextSize.DEFAULT,
         weight=TextWeight.DEFAULT,
         color="default"
@@ -249,6 +249,35 @@ def create_msteams_card(study_info: dict[str, str]):
 
     for country, study_folder in study_info['study_folder'].items():
         card.add_url_button(f'{country} study proposal folder', f'{study_folder}/consultoria/propuestas')
+
+    webhook.add_cards(card)
+    webhook.send()
+
+def msteams_card_file_update(file_name:str, study_info: dict[str, str]):
+
+    webhook = TeamsWebhook(os.getenv(f'MS_TEAMS_WEBHOOK_{file_name.upper()}_UPDATE'))
+
+    card = AdaptiveCard(title=f"**{file_name.replace('_', ' ').upper()} UPDATE**", title_style=ContainerStyle.DEFAULT)
+
+    container = Container(style=ContainerStyle.DEFAULT)
+
+    container.add_text_block(
+        f"Study **{study_info['study_id']} {study_info['study_name']}** has a new **{file_name.replace('_', ' ').title()}** file version:",
+        size=TextSize.DEFAULT,
+        weight=TextWeight.DEFAULT,
+        color="default"
+    )
+
+    factset = FactSet()
+    for k, v in study_info.items():
+        if k not in ('file_folder'):
+            factset.add_facts((f"**{k.replace('_', ' ').capitalize()}**:", v))
+
+    container.add_fact_set(factset)
+
+    card.add_container(container)
+
+    card.add_url_button(f"{file_name.replace('_', ' ').title()} folder", study_info['file_folder'])
 
     webhook.add_cards(card)
     webhook.send()

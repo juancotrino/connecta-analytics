@@ -15,7 +15,8 @@ from app.modules.study_administrator import (
     get_upload_files_info,
     get_last_id_number,
     get_number_of_studies,
-    create_msteams_card
+    msteams_card_study_status_update,
+    msteams_card_file_update
 )
 from app.modules.utils import get_countries
 
@@ -334,7 +335,7 @@ def main():
                                     st.error(e)
 
                             try:
-                                create_msteams_card(
+                                msteams_card_study_status_update(
                                     {
                                         'study_id': study_id,
                                         'study_name': study_name,
@@ -434,3 +435,18 @@ def main():
                             )
                         except Exception as e:
                             st.error('There is no folder for this study in SharePoint.')
+
+                    ms_teams_file_name = title.replace(' ', '_').lower()
+                    ms_teams_study_info = {
+                        'study_id': study_id,
+                        'study_name': specific_study,
+                        'country': country,
+                        'file_name': file_name,
+                        'author': st.session_state['name'],
+                        'file_folder': f'{folder_url}/{file_path}'
+                    }
+
+                    try:
+                        msteams_card_file_update(ms_teams_file_name, ms_teams_study_info)
+                    except Exception as e:
+                        st.error('There is no folder for this study in SharePoint.')

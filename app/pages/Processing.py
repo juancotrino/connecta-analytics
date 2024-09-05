@@ -1,10 +1,6 @@
-from threading import Thread
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 import pandas as pd
 
 import streamlit as st
-from streamlit.runtime.scriptrunner.script_run_context import add_script_run_ctx
 
 from app.modules.preprocessing import preprocessing, generate_open_ended_db
 from app.modules.processing import processing
@@ -35,12 +31,14 @@ def main():
         st.markdown('### Preprocessing')
 
         with st.form('preprocessing_form'):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown('#### Code Book')
+                uploaded_file_preprocess_xlsx = st.file_uploader("Upload `.xlsx` file", type=["xlsx", "xlsm"], key='preprocessing_xlsx')
 
-            st.markdown('#### Code Book')
-            uploaded_file_preprocess_xlsx = st.file_uploader("Upload `.xlsx` file", type=["xlsx", "xlsm"], key='preprocessing_xlsx')
-
-            st.markdown('#### Database')
-            uploaded_file_preprocess_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessing_sav')
+            with col2:
+                st.markdown('#### Database')
+                uploaded_file_preprocess_sav = st.file_uploader("Upload `.sav` file", type=["sav"], key='preprocessing_sav')
 
             preprocess_button = st.form_submit_button('Preprocess database')
 
