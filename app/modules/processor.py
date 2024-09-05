@@ -220,13 +220,12 @@ def getPreProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
                     multis.append(var)
                     if labelvar=="":
                         labelvar=label
-                    if var== varAbierta:
-                        after=True
-                    if after:
-                        count+=1
-        if multis[0]!=varAbierta:
-            for i in range(count):
-                del multis[-(count+1)]
+        delmultis=[]
+        for multi in multis:
+            if study_metadata.column_names_to_labels[multi].startswith("otro"):
+                delmultis.append(multi)
+        for multi2 in delmultis:
+            multis.remove(multi2)
         for i in range(len(multis)):
             variab+=multis[i]+" "
         result+= getAbiertasPreCode(variab,lcTable)
@@ -499,18 +498,6 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,rutaarchivo=""):
         )
         result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\n"
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
-        # for var in varsList:
-        #     refdict=study_metadata.variable_value_labels[var]
-        #     refs_unique=data[var].dropna().unique()
-        #     refs_unique.sort()
-        #     for refindex in refs_unique:
-        #         result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
-        #         result+=getPenaltysCode(xlsx_file)
-        #         result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
-        #                     +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
-        #                     +"OUTPUT CLOSE NAME=*.\n")
-        #         result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
-        #     result+="\n*____"+var+"________________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         varsList_segment=pd.read_excel(file_xlsx,usecols="N",skiprows=3,names=["vars_Segment"]).dropna()["vars_Segment"].tolist()
 
         penaltys_code=getPenaltysCode(xlsx_file)
@@ -527,7 +514,6 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,rutaarchivo=""):
                         name_sheet=nombrehoja+" "+refdict[refindex].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+sufijo
                     result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                     result+=penaltys_code
-                    result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                     result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                 +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                                 +"OUTPUT CLOSE NAME=*.\n")
@@ -552,7 +538,6 @@ def getPenaltysCode2(spss_file: BytesIO,xlsx_file: BytesIO,rutaarchivo=""):
                                     name_sheet=nombrehoja+" "+refdict[refindex].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+" "+refdict_segment[refindex_segment].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+sufijo
                                 result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                                 result+=penaltys_code
-                                result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                             +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                                             +"OUTPUT CLOSE NAME=*.\n")
@@ -648,19 +633,6 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rutaarch
         )
         result+="\n*___TOTAL____________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\n"
         varsList=pd.read_excel(file_xlsx,usecols="M",skiprows=3,names=["varsSegment"]).dropna()["varsSegment"].tolist()
-        # for var in varsList:
-        #     refdict=study_metadata.variable_value_labels[var]
-        #     refs_unique=data[var].dropna().unique()
-        #     refs_unique.sort()
-        #     for refindex in refs_unique:
-        #         result+="DATASET ACTIVATE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
-        #         condition=data[var]==refindex
-        #         result+=getCruces(spss_file,xlsx_file,checkinclude,condition=condition)
-        #         result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
-        #                  +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+" "+refdict[refindex].replace("ñ","n")+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
-        #                  +"OUTPUT CLOSE NAME=*.\n")
-        #         result+="DATASET CLOSE REF_"+re.sub("[()\-+áéíóú]","",refdict[refindex].replace(" ","_"))+".\n"
-        #     result+="\n*______"+var+"______________________________________________________________________________\n ____________________________________________________________________________________\n ______"+nombrehoja+sufijo+"______________________________________________________________________________.\nEXECUTE.\n"
         varsList_segment=pd.read_excel(file_xlsx,usecols="N",skiprows=3,names=["vars_Segment"]).dropna()["vars_Segment"].tolist()
 
         if not varsList_segment:
