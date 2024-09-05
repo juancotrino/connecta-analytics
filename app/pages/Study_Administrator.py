@@ -420,10 +420,10 @@ def main():
                         files = get_last_file_version_in_sharepoint(id_study_name, 'estudios', file_path)
                         files = [file for file in files if file_info['acronym'] in file]
                         if not files:
-                            file_name = f"{id_study_name}_{file_info['acronym']}_V1.{file_type}"
+                            file_name = f"{id_study_name}_{file_info['acronym']}_VF1.{file_type}"
                         else:
-                            last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('V', '')) for file in files)
-                            file_name = f"{id_study_name}_{file_info['acronym']}_V{last_version_number + 1}.{file_type}"
+                            last_version_number = max(int(file.split('_')[-1].split('.')[0].replace('VF', '')) for file in files)
+                            file_name = f"{id_study_name}_{file_info['acronym']}_VF{last_version_number + 1}.{file_type}"
                     else:
                         file_name = uploaded_file.name
 
