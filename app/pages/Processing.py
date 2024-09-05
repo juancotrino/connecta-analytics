@@ -1,10 +1,6 @@
-from threading import Thread
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 import pandas as pd
 
 import streamlit as st
-from streamlit.runtime.scriptrunner.script_run_context import add_script_run_ctx
 
 from app.modules.preprocessing import preprocessing, generate_open_ended_db
 from app.modules.processing import processing
