@@ -257,12 +257,12 @@ def msteams_card_file_update(file_name:str, study_info: dict[str, str]):
 
     webhook = TeamsWebhook(os.getenv(f'MS_TEAMS_WEBHOOK_{file_name.upper()}_UPDATE'))
 
-    card = AdaptiveCard(title=f'**{file_name.replace("_", " ").upper()} UPDATE**', title_style=ContainerStyle.DEFAULT)
+    card = AdaptiveCard(title=f"**{file_name.replace('_', ' ').upper()} UPDATE**", title_style=ContainerStyle.DEFAULT)
 
     container = Container(style=ContainerStyle.DEFAULT)
 
     container.add_text_block(
-        f"Study **{study_info['study_id']} {study_info['study_name']}** has a new **{file_name.replace("_", " ").title()}** file version:",
+        f"Study **{study_info['study_id']} {study_info['study_name']}** has a new **{file_name.replace('_', ' ').title()}** file version:",
         size=TextSize.DEFAULT,
         weight=TextWeight.DEFAULT,
         color="default"
@@ -277,7 +277,7 @@ def msteams_card_file_update(file_name:str, study_info: dict[str, str]):
 
     card.add_container(container)
 
-    card.add_url_button(f'{file_name.replace("_", " ").title()} folder', study_info['file_folder'])
+    card.add_url_button(f"{file_name.replace('_', ' ').title()} folder", study_info['file_folder'])
 
     webhook.add_cards(card)
     webhook.send()
