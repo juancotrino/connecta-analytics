@@ -15,7 +15,8 @@ from app.modules.study_administrator import (
     get_upload_files_info,
     get_last_id_number,
     get_number_of_studies,
-    create_msteams_card
+    msteams_card_study_status_update,
+    msteams_card_field_delivery_update
 )
 from app.modules.utils import get_countries
 
@@ -334,7 +335,7 @@ def main():
                                     st.error(e)
 
                             try:
-                                create_msteams_card(
+                                msteams_card_study_status_update(
                                     {
                                         'study_id': study_id,
                                         'study_name': study_name,
@@ -431,6 +432,21 @@ def main():
                             upload_file_to_sharepoint(f'{base_path}/{file_path}', uploaded_file, file_name)
                             st.success(
                                 f"{title.replace('_', ' ').capitalize()} uploaded successfully into [study's folder]({folder_url}/{file_path})."
+                            )
+                        except Exception as e:
+                            st.error('There is no folder for this study in SharePoint.')
+
+                    if title.replace(' ', '_').lower() == 'field_delivery':
+                        try:
+                            msteams_card_field_delivery_update(
+                                {
+                                    'study_id': study_id,
+                                    'study_name': specific_study,
+                                    'country': country,
+                                    'file_name': file_name,
+                                    'author': st.session_state['name'],
+                                    'file_folder': f'{folder_url}/{file_path}'
+                                }
                             )
                         except Exception as e:
                             st.error('There is no folder for this study in SharePoint.')
