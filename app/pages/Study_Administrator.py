@@ -20,6 +20,15 @@ from app.modules.study_administrator import (
 )
 from app.modules.utils import get_countries
 
+def filter_files_by_roles(files_info: dict, user_roles: list) -> dict[str, str | list[str]]:
+    # Filter files based on if any of the user roles is authorized for the file
+    filtered_files = {
+        file_name: details
+        for file_name, details in files_info.items()
+        if any(role in details['authorized_roles'] for role in user_roles)
+    }
+    return filtered_files
+
 def main():
     # -------------- SETTINGS --------------
 
@@ -359,7 +368,6 @@ def main():
         if study_id:
             study_data = get_study_data(study_id)
             studies_countries = study_data[study_data['study_id'] == study_id]['country'].sort_values().unique()
-            # studies_countries = sudies_ids_country[sudies_ids_country['study_id'] == study_id]['country'].sort_values().unique()
 
             if len(studies_countries) > 1:
                 country = st.selectbox('Country', options=studies_countries, index=None, placeholder='Select study country', key='country_file_uploader')
@@ -388,13 +396,10 @@ def main():
                 st.info(f'Upload to `{specific_study}` study for country: {country}')
 
                 files_info = get_upload_files_info()
-                if 'connecta-field' in st.session_state['roles']:
-                    files_info = {k: v for k, v in files_info.items() if k == 'questionnaire'}
+                accessible_files = filter_files_by_roles(files_info, st.session_state['roles'])
 
-                title = st.selectbox('File to upload', options=sorted([file.replace('_', ' ').capitalize() for file in files_info.keys()]))
-                file_info = files_info[title.replace(' ', '_').lower()]
-                # for title, file_info in files_info.items():
-                #     st.subheader(title.replace('_', ' ').capitalize())
+                title = st.selectbox('File to upload', options=sorted([file.replace('_', ' ').capitalize() for file in accessible_files.keys()]))
+                file_info = accessible_files[title.replace(' ', '_').lower()]
 
                 with st.form(f'upload_{title}_form'):
 
