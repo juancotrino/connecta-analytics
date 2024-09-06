@@ -207,6 +207,9 @@ def main():
                 temp_split_file = get_temp_file(split_file)
                 chunks, meta = split_sav_file_to_chunks(temp_split_file, number_of_records)
                 zip_buffer = create_zip_with_chunks(chunks, meta, original_file_name)
+            else:
+                st.error('Upload all required files.')
+
         try:
             try_download('Download splitted database', zip_buffer, 'db_splitted', 'zip')
         except:
@@ -222,10 +225,12 @@ def main():
 
             join_databases = st.form_submit_button('Join databases')
 
-            if join_files and join_databases:
+            if original_db and join_files and join_databases:
                 temp_original_db_file = get_temp_file(original_db)
                 temp_join_files = [get_temp_file(join_file) for join_file in join_files]
                 joined_database = join_sav(temp_original_db_file, temp_join_files)
+            else:
+                st.error('Upload all required files.')
 
         try:
             try_download('Download joined database', joined_database, 'db_joined', 'sav')
