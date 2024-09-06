@@ -1,5 +1,6 @@
 import os
 from io import BytesIO
+import zipfile
 import tempfile
 import requests
 
@@ -7,6 +8,8 @@ import pandas as pd
 import pyreadstat
 
 import streamlit as st
+
+from app.modules.preprocessing import reorder_columns, sort_key
 
 @st.cache_data(show_spinner=False)
 def get_countries() -> dict[str, str]:
@@ -136,3 +139,61 @@ def try_download(label: str, data: BytesIO, file_name: str, file_extension: str,
         mime=f'application/{file_extension}',
         type=type
     )
+
+def split_sav_file_to_chunks(file_name: str, max_records: int = 500):
+    # Read the .sav file
+    df, meta = pyreadstat.read_sav(file_name)
+
+    # Calculate number of chunks
+    num_chunks = (len(df) + max_records - 1) // max_records
+    chunks = []
+
+    # Split dataframe into chunks
+    for i in range(num_chunks):
+        start_idx = i * max_records
+        end_idx = min((i + 1) * max_records, len(df))
+
+        chunk = df.iloc[start_idx:end_idx]
+        chunks.append(chunk)
+
+    return chunks, meta
+
+def create_zip_with_chunks(chunks: list[pd.DataFrame], meta, prefix: str):
+    # Create a BytesIO stream for zip file
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for i, chunk in enumerate(chunks):
+            # Write each chunk to a temporary BytesIO buffer
+            chunk_buffer = write_temp_sav(chunk, meta)
+            chunk_buffer.seek(0)
+
+            # Add chunk to zip file
+            zip_file.writestr(f"{prefix}_chunk_{i + 1}.sav", chunk_buffer.read())
+
+    zip_buffer.seek(0)
+    return zip_buffer
+
+def join_sav(original_db_path: str, files_path: list[str]):
+
+    original_db, original_meta = pyreadstat.read_sav(
+        original_db_path,
+        apply_value_formats=False
+    )
+
+    dfs = [
+        pyreadstat.read_sav(
+            file_path,
+            apply_value_formats=False
+        )[0]
+        for file_path in files_path
+    ]
+
+    total_df = pd.concat(dfs).reset_index(drop=True)
+    total_df = total_df.drop(columns=['ABIERTAS', 'ETIQUETAS'])
+
+    final_df = reorder_columns(total_df, original_db)
+    variable_format = {column: 'F20.0' for column in final_df.columns}
+    variable_format.update({column: '' for column in final_df.select_dtypes(include=['object']).columns})
+
+    return write_temp_sav(final_df, original_meta)

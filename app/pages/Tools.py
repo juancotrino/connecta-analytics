@@ -1,18 +1,24 @@
 import streamlit as st
 import pandas as pd
 
-from app.modules.text_function import categoryFinder, questionFinder
-from app.modules.text_function import genRecodes
+from app.modules.text_function import questionFinder
 from app.modules.text_function import genLabels
 from app.modules.text_function import genIncludesList
 from app.modules.text_function import processSavMulti
 from app.modules.text_function import getAbiertasCode
-from app.modules.processor import processSav
 from app.modules.processor import getVarsSav
 from app.modules.processor import getCodeProcess
 from app.modules.processor import getCodePreProcess
-from app.modules.coder import transform_open_ended, generate_open_ended_db, reorder_columns
-from app.modules.utils import get_temp_file, write_multiple_df_bytes, write_temp_sav
+from app.modules.coder import transform_open_ended, generate_open_ended_db
+from app.modules.utils import (
+    get_temp_file,
+    write_multiple_df_bytes,
+    write_temp_sav,
+    split_sav_file_to_chunks,
+    create_zip_with_chunks,
+    try_download,
+    join_sav
+)
 
 def main():
     # -------------- SETTINGS --------------
@@ -185,5 +191,43 @@ def main():
                 mime='application/sav',
                 type='primary'
             )
+        except:
+            pass
+
+    with st.expander("SPSS split and join"):
+        st.markdown('### Split')
+        with st.form('split_spss_form'):
+            split_file = st.file_uploader("Upload `.sav` file", type=["sav"], key="split_file_sav")
+            number_of_records = st.number_input('Number of records per chunk', step=1, min_value=100)
+
+            split_database = st.form_submit_button('Split database')
+
+            if split_file and number_of_records and split_database:
+                original_file_name = split_file.name.split('.')[0]
+                temp_split_file = get_temp_file(split_file)
+                chunks, meta = split_sav_file_to_chunks(temp_split_file, number_of_records)
+                zip_buffer = create_zip_with_chunks(chunks, meta, original_file_name)
+        try:
+            try_download('Download splitted database', zip_buffer, 'db_splitted', 'zip')
+        except:
+            pass
+
+        st.markdown('### Join')
+        with st.form('join_spss_form'):
+            st.markdown('#### Original database')
+            original_db = st.file_uploader("Upload `.sav` file", type=["sav"], key="join_original_db_sav")
+
+            st.markdown('#### Chunked databases')
+            join_files = st.file_uploader("Upload `.sav` file", type=["sav"], key="join_files_sav", accept_multiple_files=True)
+
+            join_databases = st.form_submit_button('Join databases')
+
+            if join_files and join_databases:
+                temp_original_db_file = get_temp_file(original_db)
+                temp_join_files = [get_temp_file(join_file) for join_file in join_files]
+                joined_database = join_sav(temp_original_db_file, temp_join_files)
+
+        try:
+            try_download('Download joined database', joined_database, 'db_joined', 'sav')
         except:
             pass
