@@ -207,7 +207,7 @@ def main():
                 temp_split_file = get_temp_file(split_file)
                 chunks, meta = split_sav_file_to_chunks(temp_split_file, number_of_records)
                 zip_buffer = create_zip_with_chunks(chunks, meta, original_file_name)
-            else:
+            elif not split_file and split_database:
                 st.error('Upload all required files.')
 
         try:
@@ -229,7 +229,7 @@ def main():
                 temp_original_db_file = get_temp_file(original_db)
                 temp_join_files = [get_temp_file(join_file) for join_file in join_files]
                 joined_database = join_sav(temp_original_db_file, temp_join_files)
-            else:
+            elif not (original_db and join_files) and join_databases:
                 st.error('Upload all required files.')
 
         try:
