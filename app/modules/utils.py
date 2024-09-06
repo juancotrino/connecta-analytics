@@ -189,7 +189,7 @@ def join_sav(original_db_path: str, files_path: list[str]):
         for file_path in files_path
     ]
 
-    total_df = pd.concat(dfs).reset_index(drop=True)
+    total_df = pd.concat(dfs).sort_values(by='Response_ID').reset_index(drop=True)
     total_df = total_df.drop(columns=['ABIERTAS', 'ETIQUETAS'])
 
     final_df = reorder_columns(total_df, original_db)
