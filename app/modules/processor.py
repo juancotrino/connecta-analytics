@@ -327,7 +327,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                         for multivar in multis:
                             result+=multivar+" "
                         result+=str(990+num) + " \"NETO "+net[0]+"\".\nEXECUTE.\n"
-                        num+=1
+                    num+=1
                 if net[0]!="End":
                     for in1 in count.most_common():
                         if in1[0] in net[1]:
@@ -623,6 +623,7 @@ def getCruces2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rutaarch
             sufijo=" "+str(sufijo)
         except:
             sufijo=""
+        result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
         result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                          +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
                          +"OUTPUT CLOSE NAME=*.\nEXECUTE.\n")
