@@ -387,6 +387,10 @@ def main():
                     (sudies_ids_country['country'] == country)
                 ]['study_name'].sort_values().reset_index(drop=True)
 
+                if specific_studies.empty:
+                    get_sudies_ids_country.clear()
+                    st.rerun()
+
                 if study_id and country:
                     if len(list(set(specific_studies))) > 1:
                         specific_study = st.radio('Select study:', options=specific_studies, index=None)
