@@ -169,7 +169,7 @@ def create_zip_with_chunks(chunks: list[pd.DataFrame], meta, prefix: str):
             chunk_buffer.seek(0)
 
             # Add chunk to zip file
-            zip_file.writestr(f"{prefix}_chunk_{i + 1}.sav", chunk_buffer.read())
+            zip_file.writestr(f"chunk_{i + 1}_{prefix}.sav", chunk_buffer.read())
 
     zip_buffer.seek(0)
     return zip_buffer
