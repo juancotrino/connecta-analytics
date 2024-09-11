@@ -266,11 +266,11 @@ def main():
                         step=1
                     )
 
-                    currencies = business_data['currencies']
+                    currencies: list = business_data['currencies']
                     currency = st.selectbox(
                         'Currency',
                         options=currencies,
-                        index=currencies.index(study_data['currency'].values[0])
+                        index=currencies.index(study_data['currency'].values[0]) if study_data['currency'].values[0] in currencies else 0
                     )
 
                     clients = business_data['clients']
