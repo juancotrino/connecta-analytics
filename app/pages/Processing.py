@@ -82,7 +82,8 @@ def main():
 
             ruta = st.text_input("Output Pretabla File Path xlsx:")
 
-            checkinclude = st.checkbox("Include All")
+            # checkinclude = st.checkbox("Include All")
+            checkinclude=False
 
             process_button = st.form_submit_button('Get code to process')
 
