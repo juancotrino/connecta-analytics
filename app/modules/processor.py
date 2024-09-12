@@ -20,7 +20,7 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     preprocesscode+=processSavMulti(spss_file)[1]+processSavMulti(spss_file)[0]
     preprocesscode+=getGroupCreateMultisCode(spss_file)
     if not inverseVarsList.empty:
-        preprocesscode+=getInverseCodeVars(inverseVarsList)
+        preprocesscode+=getInverseCodeVars(spss_file,inverseVarsList)
     if not scaleVarsList.empty:
         preprocesscode+=getScaleCodeVars(spss_file,scaleVarsList)
     preprocesscode+="\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nVALUE LABELS TOTAL 1 \"TOTAL\".\nEXECUTE.\n"
@@ -989,10 +989,21 @@ def getCloneCodeVars(spss_file: BytesIO,xlsx_file: BytesIO):
             columnsclone+="\nVARIABLE LABELS COL_"+colVars.iloc[row][0]+" '"+colVars.iloc[row][1]+"'."
     return columnsclone
 
-def getInverseCodeVars(inverseVars):
+def getInverseCodeVars(spss_file: BytesIO,inverseVars):
+    temp_file_name = get_temp_file(spss_file)
+    data, study_metadata = pyreadstat.read_sav(
+        temp_file_name,
+        apply_value_formats=False
+    )
+    dictValues=study_metadata.variable_value_labels
     inverserecodes=""
     for var in inverseVars:
-        inverserecodes+="\nRECODE "+var+" (5=1) (4=2) (2=4) (1=5)."
+        if not re.search("^\([0-9]\).*",dictValues[var][1]):
+            inverserecodes+="\nRECODE "+var+" (5=1) (4=2) (2=4) (1=5)."
+            inverserecodes+="\nVALUE LABELS "+var
+            for i in range(1,6):
+                inverserecodes+="\n"+str(i)+" \"("+str(i)+") "+dictValues[var][6-i]+"\""
+            inverserecodes+="."
     inverserecodes+="\nEXECUTE."
     return inverserecodes
 
