@@ -114,7 +114,7 @@ jobs:
             --allow-unauthenticated
             --memory=1024Mi
             --cpu=1
-            --concurrency=50
+            --concurrency=70
             --timeout=3600
             --max-instances=1
             --service-account=${{ secrets.GCR_SERVICE_ACCOUNT }}
