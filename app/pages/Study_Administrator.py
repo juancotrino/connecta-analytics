@@ -260,9 +260,14 @@ def main():
                         placeholder="Select study type..."
                     )
 
+                    try:
+                        value1=int(study_data['value'].values[0])
+                    except:
+                        value1=0
+
                     value = st.number_input(
                         'Study value/price',
-                        value=int(study_data['value'].values[0]),
+                        value=value1,
                         step=1
                     )
 
