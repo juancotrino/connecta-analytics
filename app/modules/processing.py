@@ -401,7 +401,7 @@ def processing(xlsx_file: BytesIO):
             maxcol=wstemp.max_column
             dictionary_netos={}
             for rowi in range(1,wstemp.max_row+1):
-                valb=wstemp["B"+str(rowi)].value
+                valb=str(wstemp["B"+str(rowi)].value)
                 if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
                     if not valb in dictionary_netos or dictionary_netos[valb]==0:
                         dictionary_netos[valb]=1
@@ -416,7 +416,7 @@ def processing(xlsx_file: BytesIO):
                     else:
                         dictionary_netos[valb]=dictionary_netos[valb]-1
             for rowi in range(1,wstemp.max_row+1):
-                valb=wstemp["B"+str(rowi)].value
+                valb=str(wstemp["B"+str(rowi)].value)
                 if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
                     for rowf in range(rowi+1,wstemp.max_row+1):
                         if valb==wstemp["B"+str(rowf)].value:
