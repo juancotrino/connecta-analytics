@@ -401,7 +401,7 @@ def processing(xlsx_file: BytesIO):
             maxcol=wstemp.max_column
             dictionary_netos={}
             for rowi in range(1,wstemp.max_row+1):
-                valb=str(wstemp["B"+str(rowi)].value)
+                valb=wstemp["B"+str(rowi)].value
                 if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
                     if not valb in dictionary_netos or dictionary_netos[valb]==0:
                         dictionary_netos[valb]=1
@@ -416,7 +416,7 @@ def processing(xlsx_file: BytesIO):
                     else:
                         dictionary_netos[valb]=dictionary_netos[valb]-1
             for rowi in range(1,wstemp.max_row+1):
-                valb=str(wstemp["B"+str(rowi)].value)
+                valb=wstemp["B"+str(rowi)].value
                 if valb and valb.startswith('NETO') and valb!="NETO TOP TWO BOX" and valb!="NETO BOTTOM TWO BOX":
                     for rowf in range(rowi+1,wstemp.max_row+1):
                         if valb==wstemp["B"+str(rowf)].value:
@@ -425,7 +425,7 @@ def processing(xlsx_file: BytesIO):
                             break
 
             for rowi in range(wstemp.max_row+1,1,-1):
-                if not wstemp["D"+str(rowi)].value:
+                if not wstemp["D"+str(rowi)].value and not wstemp["C"+str(rowi)].value:
                     delete_row_with_merged_ranges(wstemp,rowi)
 
 
@@ -532,7 +532,7 @@ def processing(xlsx_file: BytesIO):
                         ) # Mean
 
                     for grouped_variable in grouped_variables:
-                        if 'just' not in grouped_variable.lower():
+                        if 'just' not in grouped_variable.lower() and not total is np.nan:
                             percentage = base_inner_df.loc[grouped_variable, sample]
                             mean = base_inner_df.loc[f'MEAN {grouped_variable} VS. IC', sample]
                             jr_mean = base_inner_df.loc[f'MEAN {grouped_variables[1]} VS. IC', sample]
