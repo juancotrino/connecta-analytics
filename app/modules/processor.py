@@ -34,7 +34,7 @@ def getPreProcessCode2(spss_file: BytesIO):
 
 
 def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rutaarchivo=""):
-    result=getProcessCode(spss_file,xlsx_file,checkinclude)
+    result,warning2=getProcessCode(spss_file,xlsx_file,checkinclude)
     file_xlsx = get_temp_file(xlsx_file)
     nombrehoja=pd.read_excel(file_xlsx,usecols="O",skiprows=3,names=["name"]).dropna().iloc[0,0]
     try:
@@ -42,6 +42,9 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
         sufijo=" "+str(sufijo)
     except:
         sufijo=""
+    warning=""
+    if warning2!="":
+        warning+="/"+nombrehoja+"/ "+warning2
     result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
     result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                         +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+nombrehoja+sufijo+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
@@ -68,7 +71,10 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
                     name_sheet=nombrehoja+" "+refdict[refindex].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+sufijo
                 result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                 condition=data[var]==refindex
-                result+=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                result_preg,result_warning=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                result+=result_preg
+                if result_warning!="":
+                    warning+="/"+name_sheet+"/"+result_warning
                 result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                             +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
@@ -96,7 +102,10 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
                             condition1=data[var]==refindex
                             condition2=data[var_segment]==refindex_segment
                             condition=condition1&condition2
-                            result+=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                            result_preg,result_warning=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                            result+=result_preg
+                            if result_warning!="":
+                                warning+="/"+name_sheet+"/"+result_warning
                             result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                             result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                         +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
@@ -129,7 +138,7 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
                         ░░░╚╝╝╚╚╩░░░
                         ░░░░░░░░░░░░
                 ."""
-    return result
+    return result, warning
 
 def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,condition=None):
 
@@ -137,6 +146,7 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,cond
     varsList=pd.read_excel(file_xlsx,usecols="A,B,D,E",skiprows=3,names=["vars","varsTypes","Scales","descendOrder"]).dropna(subset=["vars"])
     colVarsList=pd.melt(pd.read_excel(file_xlsx,nrows=2),var_name="colVars",value_name="colVarsNames").drop(0)
     result=""
+    warning=""
     colvars=colVarsList.iloc[:,0]
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
@@ -192,8 +202,10 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,cond
                         result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
                 result+="\nVARIABLE LABELS "+varsList.iloc[i][0]+" \""+varlabeloriginal+"\"."
         elif varsList.iloc[i][1]=="A":
-            result+=getProcessAbiertas(spss_file,xlsx_file,checkinclude,varsList.iloc[i][0],condition=condition)
-    return result
+            result_abierta,result_warning=getProcessAbiertas(spss_file,xlsx_file,checkinclude,varsList.iloc[i][0],condition=condition)
+            result+=result_abierta
+            warning+=result_warning
+    return result,warning
 
 
 def getPreProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
@@ -260,6 +272,7 @@ def getAbiertasPreCode(var,lcTable):
 
 def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,namevar="",condition=None):
     result=""
+    warning=""
     temp_file_name = get_temp_file(spss_file)
     data2, study_metadata = pyreadstat.read_sav(
         temp_file_name,
@@ -299,6 +312,8 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
             parNeto=[]
             if lcTable.iloc[0][0]!="NETO":
                 parNeto=["First",[]]
+            lista_codigos=[]
+            lista_final_codigos=[]
             for j in range(len(lcTable)):
                 if lcTable.iloc[j][0]=="NETO":
                     if parNeto!=[]:
@@ -310,6 +325,12 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                     parNeto=["End",[95]]
                 else:
                     parNeto[1].append(lcTable.iloc[j][0])
+                lista_final_codigos.append(lcTable.iloc[j][0])
+
+            lcTable2=pd.read_excel(file_xlsx,sheet_name=varsList.iloc[i][1],usecols="A,B",skiprows=1,names=["vars","sheetNames"])
+            for j in range(len(lcTable2)):
+                lista_codigos.append(lcTable2.iloc[j][0])
+
             if parNeto!=[]:
                 listNetos.append(parNeto)
             listatotal=[]
@@ -337,6 +358,19 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                         if count[end]>0:
                             listafinalorde.append(end)
             result+=writeAbiertasQuestion(varAbierta,colvars,listafinalorde,includeall=checkinclude)
+
+            flag_preginclude=True
+            flag_preginclude2=True
+
+            for cod in count:
+                if not cod in lista_final_codigos and flag_preginclude2:
+                    warning+= "#Code without label in " + prefix+"# "
+                    flag_preginclude2=False
+                if not cod in lista_codigos:
+                    if flag_preginclude:
+                        warning+="\nCode Missing in "+prefix+" : "
+                        flag_preginclude=False
+                    warning+=str(cod)+" | "
 
             listatotaluniq=list(set(listatotal))
             for net in listNetos:
@@ -454,7 +488,7 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
                                 nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                                 result+=writeQuestion("NETO_"+nombreneto,"T",colvars,includeall=checkinclude,varanidada=varsList.iloc[i][2]+tipo)
             result+= writeAgrupMulti(prefix,multis,varlabeloriginal)
-    return result
+    return result , warning
 
 def getListOrderConditions(multis,data,listNetos,condition):
     listatotal=[]

@@ -103,16 +103,22 @@ def main():
                 col1, col2, col3  = st.columns(3)
                 with col1:
                     col1.markdown("Code to gen Tables in SPSS:")
+                    warning=""
                     with col1.container(height=250):
                         code_button = st.form_submit_button('Get code SPSS to process')
                         if code_button:
+                            warning=""
                             with st.spinner('Processing Code SPSS...'):
-                                st.code(name_ruta+getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\n"+getSegmentCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\nDATASET ACTIVATE ConjuntoDatos1.\n"+getProcessCode2(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude,rutaarchivo=ruta), line_numbers=True)
+                                process_code,warning=getProcessCode2(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude,rutaarchivo=ruta)
+                                st.code(name_ruta+getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\n"+getSegmentCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\nDATASET ACTIVATE ConjuntoDatos1.\n"+process_code, line_numbers=True)
+                    if warning!="":
+                        st.warning(warning)
                 with col2:
                     col2.markdown("Code to gen Penaltys Tables in SPSS:")
                     with col2.container(height=250):
                         penaltys_button = st.form_submit_button('Get Penaltys code SPSS to process')
                         if penaltys_button:
+                            warning=""
                             with st.spinner('Penaltys Code SPSS...'):
                                 if getPenaltysCode(uploaded_file_process_xlsx)!="":
                                     st.code(name_ruta+getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\n"+getSegmentCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\nDATASET ACTIVATE ConjuntoDatos1.\n"+getPenaltysCode2(uploaded_file_process_sav,uploaded_file_process_xlsx,rutaarchivo=ruta), line_numbers=True)
@@ -124,6 +130,7 @@ def main():
                     with col3.container(height=250):
                         cruces_button = st.form_submit_button('Get Cruces code SPSS to process')
                         if cruces_button:
+                            warning=""
                             with st.spinner('Cruces Code SPSS...'):
                                 if getCruces(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude)!="":
                                     st.code(name_ruta+getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\n"+getSegmentCode(uploaded_file_process_sav,uploaded_file_process_xlsx)+"\nDATASET ACTIVATE ConjuntoDatos1.\n"+getCruces2(uploaded_file_process_sav,uploaded_file_process_xlsx,checkinclude,rutaarchivo=ruta), line_numbers=True)
