@@ -49,7 +49,7 @@ scales = {
 
 # Function to perform chi-square test and return chi2, p-value, and Cramer's V
 def chi_square_test(column1, column2, correction: bool = False):
-    contingency_table = pd.crosstab(column1, column2)
+    contingency_table = pd.crosstab(column1, column2.fillna(0))
     chi2, p_value, _, _ = chi2_contingency(contingency_table, correction=correction)
     n = contingency_table.sum().sum()
     phi2 = chi2 / n
