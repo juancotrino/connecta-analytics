@@ -998,6 +998,12 @@ def getCloneCodeVars(spss_file: BytesIO,xlsx_file: BytesIO):
         apply_value_formats=False
     )
     columnVars=colVars.iloc[:,0]
+
+    columnsclone="\nDELETE VARIABLES"
+    for col in columnVars:
+        if not re.search("^[PFSV].*[1-90].*A",col):
+            columnsclone+=" COL_"+col
+    columnsclone=".\nEXECUTE.\n"
     columnsclone="SPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
     for col in columnVars:
         if not re.search("^[PFSV].*[1-90].*A",col):
