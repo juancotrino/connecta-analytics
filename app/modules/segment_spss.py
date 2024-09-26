@@ -1,5 +1,7 @@
 import os
 import io
+import re
+import itertools
 from io import BytesIO
 import tempfile
 import zipfile
@@ -24,7 +26,6 @@ import pyreadstat
 import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency, pearsonr
-
 # import matplotlib.pyplot as plt
 # import seaborn as sns
 
@@ -370,6 +371,44 @@ def delete_gcs(blob_name: str):
     gcs = CloudStorageClient('connecta-temp-data')
     gcs.delete_from_gcs(blob_name)
 
+def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
+    temp_file_name = get_temp_file(spss_file)
+    data , study_metadata = pyreadstat.read_sav(
+            temp_file_name,
+            apply_value_formats=False
+        )
+    for i in range(len(df)-1,-1,-1):
+        row_original=df.iloc[i]
+        condition=row_original[2]
+        dict_row={}
+        if not condition is None and '#' in condition:
+            variables_to_segment=re.findall(r'#(.*?)#',condition)
+            for var in variables_to_segment:
+                tuples_ref=[]
+                refdict=study_metadata.variable_value_labels[var]
+                refs_unique=list(map(int,data[var].dropna().unique()))
+                refs_unique.sort(reverse=True)
+                for refindex in refs_unique:
+                    tuples_ref.append((refindex,refdict[refindex],var))
+                dict_row[var]=tuples_ref
+
+            combinations= list(itertools.product(*dict_row.values()))
+            for comb in combinations:
+                df = pd.concat([df.iloc[:i+1], pd.DataFrame([row_original]), df.iloc[i+1:]]).reset_index(drop=True)
+                row_duplicate=df.iloc[i+1]
+                new_condition=condition
+                new_name=row_original[0]
+                for tuple in comb:
+                    new_name+="_"+tuple[1]
+                    var_to_replace="#"+tuple[2]+"#"
+                    new_value_to_var="`"+tuple[2]+"`=="+str(tuple[0])
+                    new_condition =new_condition.replace(var_to_replace,new_value_to_var)
+                new_name+="_"+row_original[4]
+                row_duplicate[0]=new_name
+                row_duplicate[2]=new_condition
+            df=df.drop(i)
+    return df
+
 def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scales: bool):
     # print('Started execution')
     temp_file_name = get_temp_file(spss_file)
@@ -389,8 +428,14 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
     files = {}
 
     jobs_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
-    jobs.to_excel(jobs_temp_file.name, index=False)
+    jobscommmands=jobs
+    jobs = add_segment_conditions(jobs,spss_file)
+    with pd.ExcelWriter(jobs_temp_file.name, engine='openpyxl') as writer:
+        jobs.to_excel(writer,sheet_name='scenarios', index=False)
+        jobscommmands.to_excel(writer, sheet_name='commands', index=False)
     files[f"scenarios_{spss_file.name.split('.')[0]}.xlsx"] = jobs_temp_file.name
+
+
 
     if jobs['cross_variable'].any():
 
