@@ -10,8 +10,6 @@ import pyreadstat
 
 def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     file_xlsx = get_temp_file(xlsx_file)
-    varsList=pd.read_excel(file_xlsx,usecols="A,B",skiprows=3,names=["vars","varsTypes"])
-    colVarsList=pd.melt(pd.read_excel(file_xlsx,nrows=2),var_name="colVars",value_name="colVarsNames").drop(0)
     inverseVarsList=pd.read_excel(file_xlsx,usecols="A,E",skiprows=3,names=["vars","inverses"]).dropna()
     inverseVarsList=inverseVarsList[inverseVarsList["inverses"]=="I"].iloc[:,0]
     scaleVarsList=pd.read_excel(file_xlsx,usecols="A,D",skiprows=3,names=["vars","scale"]).dropna()
@@ -867,125 +865,15 @@ def getVarsSav(spss_file: BytesIO):
     )
     return study_metadata.column_names
 
-def processSav(spss_file: BytesIO):
-    temp_file_name = get_temp_file(spss_file)
-    data, study_metadata = pyreadstat.read_sav(
-        temp_file_name,
-        apply_value_formats=False
-    )
-
-    variables_data = study_metadata.variable_value_labels
-    p23labels=[labels for var,labels in variables_data.items() if var=='P23']
-    print(p23labels)
-    print(data)
-    print(data.loc[:,'P23'].mean())
-    print(p23labels[0].values())
-    preg="P24"
-    print(pd.crosstab(data.P23,data.RANGOS,rownames=["p23labels[0].values()"],normalize=True))
-    de=pd.crosstab(data[preg],data.RANGOS,rownames=["val"],normalize=True,dropna=False)
-    print(de*200)
-    de2=de*200
-    print(de2.round())
-    print(data.loc[data['RANGOS']==2].loc[:,preg].mean())
-    print(data.loc[data['RANGOS']==3].loc[:,preg].mean())
-    print(data['RANGOS'].unique())
-    print(pd.crosstab(data[preg],data.RANGOS,rownames=["val"],normalize='index',dropna=False))
-    print(study_metadata.column_names)
-
-def getCodePreProcess(spss_file: BytesIO,inversevars="",columnVars="",namedatasetspss="ConjuntoDatos1"):
-    agrupresult=""
-    temp_file_name = get_temp_file(spss_file)
-    data, study_metadata = pyreadstat.read_sav(
-        temp_file_name,
-        apply_value_formats=False
-    )
-    serie=False
-    prefix=""
-    multis=[]
-    label2=""
-    for var, label in study_metadata.column_names_to_labels.items():
-        if re.search("^[PFSV].*[1-90].*A",var):
-            if not serie:
-                multis=[]
-                prefix=re.search(".*A",var).group()
-                multis.append(var)
-                serie=True
-            else:
-                if re.search(".*A",var).group()==prefix:
-                    multis.append(var)
-                else:
-                    agrupresult+=writeAgrupMulti(prefix,multis,label2)
-                    multis=[]
-                    prefix=re.search(".*A",var).group()
-                    multis.append(var)
-        elif serie:
-            agrupresult+=writeAgrupMulti(prefix,multis,label2)
-            multis=[]
-            serie=False
-        label2=label
-
-    inverserecodes=""
-    for var in inversevars:
-        inverserecodes+="\nRECODE "+var+" (5=1) (4=2) (2=4) (1=5)."
-    inverserecodes+="\nEXECUTE."
-
-    columnsclone="SPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
-    for col in columnVars:
-        if not re.search("^[PFSV].*[1-90].*A",col):
-            columnsclone+=col+" "
-    columnsclone+="\n/OPTIONS FIX=\"COL_\" FIXTYPE=PREFIX ACTION=RUN.\n"
-
-    for col in columnVars:
-        if re.search("^[PFSV].*[1-90].*A",col):
-            prefix=re.search(".*A",col).group()
-            serie=False
-            multis=[]
-            label2=""
-            for var, label in study_metadata.column_names_to_labels.items():
-                if re.search(".A",var):
-                    if re.search(".*A",var).group()==prefix:
-                        serie=True
-                        multis.append(var)
-                        label2=label
-                if serie:
-                    if not re.search(".A",var) or re.search(".*A",var).group()!=prefix:
-                        columnsclone+=writeAgrupMulti("COL_"+prefix,multis,label2)
-                        break
-    refdict=study_metadata.variable_value_labels["REF.1"]
-
-    filterdatabase=""
-    if namedatasetspss=="":
-        namedatasetspss="ConjuntoDatos1"
-    for refindex in data["REF.1"].unique():
-        filterdatabase+="DATASET ACTIVATE "+ namedatasetspss+".\n"
-        filterdatabase+="DATASET COPY REF_"+refdict[refindex]+".\nDATASET ACTIVATE REF_"+refdict[refindex]+".\nFILTER OFF.\nUSE ALL.\n"
-        filterdatabase+="SELECT IF (REF.1 = "+str(int(refindex))+").\nEXECUTE.\n\n"
-    return agrupresult,inverserecodes,columnsclone,filterdatabase
-
-def getCodeProcess(spss_file: BytesIO,colvars,varsTxt,qtypesTxt,checkinclude=False):
-    result=""
-    varsProcess=[var for var in varsTxt.splitlines()]
-    qtypes=[qtype for qtype in qtypesTxt.splitlines()]
-
-    for i in range(len(colvars)):
-        var=colvars[i]
-        if re.search("^[PFSV].*[1-90].*A",var):
-            colvars[i]="$COL_"+re.search(".*A",var).group()[:-1]
-        else:
-            colvars[i]="COL_"+var
-
-    for var in varsProcess:
-        qtype=qtypes[varsProcess.index(var)]
-        result+=writeQuestion(var,colvars,qtype,result,includeall=checkinclude)
-    return result
-
 def writeAgrupMulti(prefix,listVars,label):
     try:
-        txt= "\nMRSETS\n  /MCGROUP NAME=$"+prefix[:-1]+" LABEL='"+str(label) +"'\n    VARIABLES="
-        for var in listVars:
-            txt+=var+" "
-        txt+=".\n"
-        return txt
+        if len(listVars)>1:
+            txt= "\nMRSETS\n  /MCGROUP NAME=$"+prefix[:-1]+" LABEL='"+str(label) +"'\n    VARIABLES="
+            for var in listVars:
+                txt+=var+" "
+            txt+=".\n"
+            return txt
+        return ""
     except:
         return ""
 
@@ -1037,6 +925,10 @@ def getInverseCodeVars(spss_file: BytesIO,inverseVars):
     )
     dictValues=study_metadata.variable_value_labels
     inverserecodes=""
+    inverserecodes="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+    for var in inverseVars:
+        inverserecodes+=var+" "
+    inverserecodes+="\n/OPTIONS FIX=\"BACKUP_INVERSE_\" FIXTYPE=PREFIX ACTION=RUN.\n"
     for var in inverseVars:
         if not re.search("^\([0-9]\).*",dictValues[var][1]):
             inverserecodes+="\nRECODE "+var+" (5=1) (4=2) (2=4) (1=5)."
@@ -1050,6 +942,11 @@ def getInverseCodeVars(spss_file: BytesIO,inverseVars):
 def getScaleCodeVars(spss_file: BytesIO,scaleVars):
     scalerecodes=""
     try:
+        scalerecodes="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+        for i in range(len(scaleVars)):
+            scalerecodes+=scaleVars.iloc[i][0]+" "
+        scalerecodes+="\n/OPTIONS FIX=\"BACKUP_SCALE_\" FIXTYPE=PREFIX ACTION=RUN.\n"
+
         for i in range(len(scaleVars)):
             for num in range(len(scaleVars.iloc[i][1].split())):
                 float(scaleVars.iloc[i][1].split()[num])
