@@ -385,11 +385,17 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
             variables_to_segment=re.findall(r'#(.*?)#',condition)
             for var in variables_to_segment:
                 tuples_ref=[]
+                flag_total=False
+                if re.search(r'\*$',var):
+                    var=var[:-1]
+                    flag_total=True
                 refdict=study_metadata.variable_value_labels[var]
                 refs_unique=list(map(int,data[var].dropna().unique()))
                 refs_unique.sort(reverse=True)
                 for refindex in refs_unique:
                     tuples_ref.append((refindex,refdict[refindex],var))
+                if flag_total:
+                    tuples_ref.append(("T","TOTAL",var))
                 dict_row[var]=tuples_ref
 
             combinations= list(itertools.product(*dict_row.values()))
@@ -401,7 +407,12 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                 for tuple in comb:
                     new_name+="_"+tuple[1]
                     var_to_replace="#"+tuple[2]+"#"
-                    new_value_to_var="`"+tuple[2]+"`=="+str(tuple[0])
+                    if not var_to_replace in new_condition:
+                        var_to_replace="#"+tuple[2]+"*#"
+                    if str(tuple[0])=="T":
+                        new_value_to_var=""
+                    else:
+                        new_value_to_var="`"+tuple[2]+"`=="+str(tuple[0])
                     new_condition =new_condition.replace(var_to_replace,new_value_to_var)
                 new_name+="_"+row_original[4]
                 row_duplicate[0]=new_name
@@ -434,6 +445,7 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
         jobs.to_excel(writer,sheet_name='scenarios', index=False)
         jobscommmands.to_excel(writer, sheet_name='commands', index=False)
     files[f"scenarios_{spss_file.name.split('.')[0]}.xlsx"] = jobs_temp_file.name
+    print(jobs)
 
 
 

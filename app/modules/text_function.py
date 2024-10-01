@@ -1,6 +1,5 @@
 from io import BytesIO
 import re
-import pyperclip
 import pyreadstat
 import numpy as np
 from unidecode import unidecode
@@ -58,7 +57,7 @@ def genRecodes(txtC):
 
 def genLabels(txtQues,txtLabels):
     labels=""
-    if re.search("^[DFPS][0-9]",txtQues):
+    if not re.search("^[DFPS][0-9]",txtQues):
         txtQues=questionFinder(txtQues)
     questions=[quest for quest in txtQues.splitlines()]
     idquestions=[]
@@ -85,6 +84,12 @@ def genLabels(txtQues,txtLabels):
                     preg=preg2.split("_")[0]
                     visit=preg2.split("_")[1]
                     labels+=preg+". "+visit+" "+ " ".join(questions[idquestions.index(preg)].split()[1:])
+                else:
+                    preg=preg2.split("_")[0]
+                    try:
+                        labels+=preg+". "+ " ".join(questions[idquestions.index(preg)].split()[1:])
+                    except:
+                        labels+=preg+". "+ quest[2:]
             elif re.search("^[DFPS][0-9]",idques):
                 if len(idques.split("_"))>1:
                     preg=idques.split("_")[0]
@@ -236,15 +241,6 @@ def genLabels2(txtC):
         result+=line.split()[0]+" \""+re.search("\s.*",line).group()[1:]+"\""+"\n"
     return result
 
-def processSav(spss_file:BytesIO):
-    temp_file_name = get_temp_file(spss_file)
-    data, study_metadata = pyreadstat.read_sav(
-        temp_file_name,
-        apply_value_formats=False
-    )
-
-
-
 def processSavMulti(spss_file: BytesIO):
     try:
         temp_file_name = get_temp_file(spss_file)
@@ -327,17 +323,6 @@ def processSavMulti(spss_file: BytesIO):
 
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
-    #print("........................\n")
-    #print(study_metadata.value_labels)
-    #for i in range(10):
-    #    print(study_metadata.column_names[i])
-    #print(study_metadata.column_names)
-    #for i in range(10):
-    #    if "labels"+str(i) in study_metadata.value_labels:
-    #       st=str(study_metadata.value_labels.get("labels"+str(i)))
-    #        print (study_metadata.value_labels.get("labels"+str(i)))
-    #        print(re.search("\'.*\'",st[:-2]).group())
-
 
 def getAbiertasCode(txtC):
     abiertascode=""

@@ -1,15 +1,9 @@
 import streamlit as st
 import pandas as pd
 
-from app.modules.text_function import questionFinder
-from app.modules.text_function import genLabels
-from app.modules.text_function import genIncludesList
-from app.modules.text_function import processSavMulti
-from app.modules.text_function import getAbiertasCode
-from app.modules.processor import getVarsSav
-from app.modules.processor import getCodeProcess
-from app.modules.processor import getCodePreProcess
+from app.modules.text_function import questionFinder, genLabels
 from app.modules.coder import transform_open_ended, generate_open_ended_db
+from app.modules.processing import get_totals_from_pretables
 from app.modules.utils import (
     get_temp_file,
     write_multiple_df_bytes,
@@ -19,6 +13,7 @@ from app.modules.utils import (
     try_download,
     join_sav
 )
+
 
 def main():
     # -------------- SETTINGS --------------
@@ -42,19 +37,6 @@ def main():
             with st.container(height=200):
                 st.code(questionFinder(entryText))
 
-
-    # with st.expander("Generate Recodes"):
-    #     entryText=st.text_area("Variables:",placeholder="Copy and paste the Vars column from the base")
-    #     btnFinder=st.button("Generate Recodes")
-    #     if btnFinder:
-    #         st.text_area("Recodes:",genRecodes(entryText))
-    #         st.success("Copy to clipboard")
-    #         st.download_button(
-    #             label="Download Sintaxis",
-    #             data=genRecodes(entryText),
-    #             file_name=f'Sintaxis1.sps'
-    #         )
-
     with st.expander("Generate Labels"):
         entryText=st.text_area("Questions:",placeholder="Copy and paste the list of questions",height=200)
         entryText2=st.text_area("Labels SPSS:",placeholder="Copy and paste the label column from SPSS")
@@ -62,6 +44,18 @@ def main():
         if btnFinder:
             with st.container(height=300):
                 st.code(genLabels(entryText,entryText2))
+
+    with st.expander("Get totals from Pretablas:"):
+        pretabla_xlsx=st.file_uploader("Upload `.xlsx` file", type=["xlsx"], key='pretabla_xlsx')
+        btn_get_totals=st.button("Get Totals")
+        if btn_get_totals:
+            with st.spinner('Get totals...'):
+                results_totals = get_totals_from_pretables(pretabla_xlsx)
+                st.success('Tables totals generate successfully.')
+        try:
+            try_download('Download totals tables', results_totals, 'totals_tables', 'xlsx')
+        except:
+            pass
 
 
     # with st.expander("Generate List of Includes"):
@@ -73,54 +67,6 @@ def main():
     #     btnFinder=st.button("Generate Includes List")
     #     if btnFinder:
     #         st.text_area("Labels:",genIncludesList(entryText,entryText2,entryText3,entryText4,entryText5))
-
-    # with st.expander("Category Question Finder"):
-    #     entryText=st.text_area("Text Entry:",placeholder="Copy and paste the entire text of the questionnaire ")
-    #     btnFinder=st.button("Find Categories")
-    #     if btnFinder:
-    #         st.text_area("Questions:",getAbiertasCode(entryText))
-
-
-    # with st.expander("Tool Multiquestion"):
-    #     uploaded_file = st.file_uploader("Upload SAV file", type=["sav"],key="multiquestion")
-    #     if uploaded_file:
-    #         recodes,labels=processSavMulti(uploaded_file)
-    #         st.text_area("RECODES:",recodes)
-    #         st.download_button(
-    #             label="Save Sintaxis",
-    #             data=recodes,
-    #             file_name='Sintaxis.sps',
-    #             mime='application/sps'
-    #         )
-    #         st.text_area("Labels:",labels)
-    #         st.download_button(
-    #             label="Save Etiquetas",
-    #             data=labels,
-    #             file_name='Etiquetas.txt'
-    #         )
-
-    # with st.expander("Preprocessor test"):
-    #     uploaded_file2 = st.file_uploader("Upload SAV file", type=["sav"],key="Preprocessor")
-    #     if uploaded_file2:
-    #         inversVars=st.multiselect("Inverse Variables:",getVarsSav(uploaded_file2))
-    #         colVarsName=st.multiselect("Columns Variables:",getVarsSav(uploaded_file2))
-    #         datasetName=st.text_input("DatasetName (Optional):")
-    #         preproces=st.button("PreProcess")
-    #         if preproces:
-    #             st.text_area("Commands Agrupation:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[0])
-    #             st.text_area("Inverse Recodes:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[1])
-    #             st.text_area("Columns clones:",getCodePreProcess(uploaded_file2,inversVars,colVarsName)[2])
-    #             st.text_area("Filtered Data:",getCodePreProcess(uploaded_file2,inversVars,colVarsName,datasetName)[3])
-
-    # with st.expander("Processor test"):
-    #     uploaded_file = st.file_uploader("Upload SAV file", type=["sav"],key="Processor")
-    #     if uploaded_file:
-    #         colVars=st.multiselect("Column Variables:",getVarsSav(uploaded_file))
-    #         qtypes=st.text_area("Questions Types:")
-    #         vars=st.text_area("Variables to process:")
-    #         proces=st.button("Process All")
-    #         if proces and qtypes and vars:
-    #             st.text_area("Commands Tables:",getCodeProcess(uploaded_file,colVars,vars,qtypes))
 
     with st.expander("Open-ended questions transformation"):
         st.markdown('### First phase')
