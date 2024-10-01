@@ -387,6 +387,82 @@ def composite_columns(n: int, start: str = "AA"):
     columns = [''.join(pair) for pair in product(letters, repeat=2)]
     return columns[start_index-1:start_index-1 + n]
 
+def get_totals_from_pretables(xlsx_file: BytesIO):
+    temp_file_name_xlsx = get_temp_file(xlsx_file, '.xlsx')
+
+    # Load the existing Excel file
+    wb_existing = load_workbook(temp_file_name_xlsx)
+
+    wb_new = Workbook()
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
+    sheets_dfs = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
+
+    ws_totals = wb_new.create_sheet(title="TOTALES")
+    index_totals=1
+
+    # Iterate over all sheets
+    for sheet_name, data in sheets_dfs.items():
+        if data.empty:
+            continue
+
+        if not sheet_name.lower().startswith('penal'):
+            ws_existing = wb_existing[sheet_name]
+            ws_totals.cell(row=1,column=index_totals).value=sheet_name
+
+            redFill = PatternFill(start_color='C80000',
+                   end_color='C80000',
+                   fill_type='solid')
+
+            yellowFill = PatternFill(start_color='FFFF00',
+                   end_color='FFFF00',
+                   fill_type='solid')
+
+            blueFill = PatternFill(start_color='C5D9F1',
+                   end_color='C5D9F1',
+                   fill_type='solid')
+
+            max_col=ws_existing.max_column
+            index_row=2
+            index_ini=0
+
+            for row_actual in range(1,ws_existing.max_row+1):
+                val_a=ws_existing["A"+str(row_actual)].value
+                val_c=ws_existing["C"+str(row_actual)].value
+                if val_a:
+                    if val_c=="1":
+                        ws_totals.cell(row=index_row,column=index_totals).value=val_a
+                elif val_c=="Total":
+                    if index_ini==0:
+                        index_ini=row_actual
+                    for i in range(3,max_col):
+                        ws_totals.cell(row=index_row,column=index_totals+i-1).value=ws_existing.cell(row=row_actual,column=i+1).value
+                        if ws_existing.cell(row=row_actual,column=i+1).value is np.nan:
+                            ws_totals.cell(row=index_row,column=index_totals+i-1).fill=redFill
+                        elif not ws_existing.cell(row=row_actual,column=i+1).value==ws_existing.cell(row=index_ini,column=i+1).value:
+                            ws_totals.cell(row=index_row,column=index_totals+i-1).fill=yellowFill
+                    index_row+=1
+
+            index_totals+=max_col
+    separators=[]
+
+    for col in range(1, ws_totals.max_column + 1):
+        column_letter = get_column_letter(col)
+        if ws_totals.cell(row=1,column=col).value is None and ws_totals.cell(row=1,column=col+1).value is None:
+            ws_totals.column_dimensions[column_letter].width = 3
+        if ws_totals.cell(row=1,column=col).value is None and not ws_totals.cell(row=1,column=col+1).value is None:
+            ws_totals.column_dimensions[column_letter].width = 4
+            separators.append(col)
+        if not ws_totals.cell(row=1,column=col).value is None:
+            ws_totals.column_dimensions[column_letter].width = 14
+
+    for col in separators:
+        for i in range(1,ws_totals.max_row+1):
+            ws_totals.cell(row=i,column=col).fill=blueFill
+
+    return write_temp_excel(wb_new)
+
+
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
 
