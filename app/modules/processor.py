@@ -232,7 +232,7 @@ def getPreProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
                         labelvar=label
         delmultis=[]
         for multi in multis:
-            if study_metadata.column_names_to_labels[multi].startswith("otro"):
+            if study_metadata.column_names_to_labels[multi].lower().startswith("otro"):
                 delmultis.append(multi)
         for multi2 in delmultis:
             multis.remove(multi2)
@@ -373,10 +373,6 @@ def getProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,
             listatotaluniq=list(set(listatotal))
             for net in listNetos:
                 if net[0]!="First" and net[0]!="End" and any(count[ele]>0 for ele in net[1]):
-                    result+="\nDELETE VARIABLES "
-                    for col in multis:
-                        result+="NETO_"+col+" "
-                    result+=".\nEXECUTE."
                     nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                     result+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
                     for col in multis:
@@ -821,9 +817,6 @@ def getCruces(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,condition
                     listatotaluniq=list(set(listatotal))
                     for net in listNetos:
                         if net[0]!="First" and net[0]!="End" and any(count[ele]>0 for ele in net[1]):
-                            crosscode+="\nDELETE VARIABLES "
-                            for col in multis:
-                                crosscode+="NETO_"+col+" "
                             crosscode+=".\nEXECUTE."
                             nombreneto=net[0].strip().replace(" ","_")+"_"+varAbierta
                             crosscode+="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
@@ -891,8 +884,8 @@ def getCloneCodeVars(spss_file: BytesIO,xlsx_file: BytesIO):
     for col in columnVars:
         if not re.search("^[PFSV].*[1-90].*A",col):
             columnsclone+=" COL_"+col
-    columnsclone=".\nEXECUTE.\n"
-    columnsclone="SPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+    columnsclone+=".\nEXECUTE.\n"
+    columnsclone+="SPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
     for col in columnVars:
         if not re.search("^[PFSV].*[1-90].*A",col):
             columnsclone+=col+" "
@@ -1044,7 +1037,7 @@ def getSegmentCode(spss_file: BytesIO,xlsx_file: BytesIO):
                             filterdatabase+="SELECT IF ("+var+" = "+str(int(refindex))+" AND "+var_segment+" = "+str(int(refindex_segment))+").\nEXECUTE.\n\n"
         return filterdatabase
     except:
-        return "References variable not is REF.1"
+        return "Error with Variables to segment"
 
 def writeQuestion(varName,qtype, colVars,descendingorder=False,includeall=False, varanidada=""):
     txt=""
