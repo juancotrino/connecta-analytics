@@ -399,7 +399,9 @@ def get_totals_from_pretables(xlsx_file: BytesIO):
     sheets_dfs = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
 
     ws_totals = wb_new.create_sheet(title="TOTALES")
-    index_totals=1
+    ws_option_5 = wb_new.create_sheet(title="OPCION 5")
+    index_col_totals=1
+    index_col_opt_5=1
 
     # Iterate over all sheets
     for sheet_name, data in sheets_dfs.items():
@@ -408,7 +410,8 @@ def get_totals_from_pretables(xlsx_file: BytesIO):
 
         if not sheet_name.lower().startswith('penal'):
             ws_existing = wb_existing[sheet_name]
-            ws_totals.cell(row=1,column=index_totals).value=sheet_name
+            ws_totals.cell(row=1,column=index_col_totals).value=sheet_name
+            ws_option_5.cell(row=1,column=index_col_opt_5).value=sheet_name
 
             redFill = PatternFill(start_color='C80000',
                    end_color='C80000',
@@ -423,27 +426,38 @@ def get_totals_from_pretables(xlsx_file: BytesIO):
                    fill_type='solid')
 
             max_col=ws_existing.max_column
-            index_row=2
+            index_row_totals=2
             index_ini=0
-
+            index_row_opt_5=2
+            flag_opt_5=False
             for row_actual in range(1,ws_existing.max_row+1):
                 val_a=ws_existing["A"+str(row_actual)].value
+                val_b=ws_existing["B"+str(row_actual)].value
                 val_c=ws_existing["C"+str(row_actual)].value
                 if val_a:
                     if val_c=="1":
-                        ws_totals.cell(row=index_row,column=index_totals).value=val_a
+                        ws_totals.cell(row=index_row_totals,column=index_col_totals).value=val_a
                 elif val_c=="Total":
                     if index_ini==0:
                         index_ini=row_actual
-                    for i in range(3,max_col):
-                        ws_totals.cell(row=index_row,column=index_totals+i-1).value=ws_existing.cell(row=row_actual,column=i+1).value
-                        if ws_existing.cell(row=row_actual,column=i+1).value is np.nan:
-                            ws_totals.cell(row=index_row,column=index_totals+i-1).fill=redFill
-                        elif not ws_existing.cell(row=row_actual,column=i+1).value==ws_existing.cell(row=index_ini,column=i+1).value:
-                            ws_totals.cell(row=index_row,column=index_totals+i-1).fill=yellowFill
-                    index_row+=1
+                    for i in range(4,max_col+1):
+                        ws_totals.cell(row=index_row_totals,column=index_col_totals+i-3).value=ws_existing.cell(row=row_actual,column=i).value
+                        if ws_existing.cell(row=row_actual,column=i).value is np.nan:
+                            ws_totals.cell(row=index_row_totals,column=index_col_totals+i-3).fill=redFill
+                        elif not ws_existing.cell(row=row_actual,column=i).value==ws_existing.cell(row=index_ini,column=i).value:
+                            ws_totals.cell(row=index_row_totals,column=index_col_totals+i-3).fill=yellowFill
+                    index_row_totals+=1
+                if val_b=="NETO TOP TWO BOX":
+                    ws_option_5.cell(row=index_row_opt_5,column=index_col_opt_5).value=ws_existing.cell(row=row_actual,column=1).value
+                    ws_option_5.cell(row=index_row_opt_5,column=index_col_opt_5+1).value=ws_existing.cell(row=row_actual+1,column=2).value
+                    if not "5" in ws_option_5.cell(row=index_row_opt_5,column=index_col_opt_5+1).value:
+                        ws_option_5.cell(row=index_row_opt_5,column=index_col_opt_5+1).fill=yellowFill
+                    index_row_opt_5+=1
+                    flag_opt_5=True
 
-            index_totals+=max_col
+            index_col_totals+=max_col-1
+            if flag_opt_5:
+                index_col_opt_5+=3
     separators=[]
 
     for col in range(1, ws_totals.max_column + 1):
@@ -459,6 +473,23 @@ def get_totals_from_pretables(xlsx_file: BytesIO):
     for col in separators:
         for i in range(1,ws_totals.max_row+1):
             ws_totals.cell(row=i,column=col).fill=blueFill
+
+    separators=[]
+
+    for col in range(1, ws_option_5.max_column + 1):
+        column_letter = get_column_letter(col)
+        if ws_option_5.cell(row=1,column=col).value is None and ws_option_5.cell(row=1,column=col+1).value is None:
+            ws_option_5.column_dimensions[column_letter].width = 10
+        if ws_option_5.cell(row=1,column=col).value is None and not ws_option_5.cell(row=1,column=col+1).value is None:
+            ws_option_5.column_dimensions[column_letter].width = 4
+            separators.append(col)
+        if not ws_option_5.cell(row=1,column=col).value is None:
+            ws_option_5.column_dimensions[column_letter].width = 14
+
+    for col in separators:
+        for i in range(1,ws_option_5.max_row+1):
+            ws_option_5.cell(row=i,column=col).value=" "
+            ws_option_5.cell(row=i,column=col).fill=blueFill
 
     return write_temp_excel(wb_new)
 
