@@ -85,7 +85,9 @@ def main():
                 if uploaded_file and process:
                     with st.spinner('Processing...'):
                         try:
-                            files = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
+                            files, warning_empty = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
+                            if warning_empty!="":
+                                st.warning(warning_empty)
                             zip_path = create_zip('segmented_data.zip', files)
                             file_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
                             st.session_state['gcs_path'] = upload_to_gcs(zip_path, f'segmented_data_{file_timestamp}.zip')

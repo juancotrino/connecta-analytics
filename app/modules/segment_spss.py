@@ -483,6 +483,8 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
         corr_wb = openpyxl.Workbook()
         corr_wb.remove(corr_wb.active)
 
+    warning_empty=""
+
     for _, job in jobs.iterrows():
         if job['variables']:
             if ',' in job['variables']:
@@ -501,7 +503,8 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
             filtered_data = survey_data[variables]
 
         if filtered_data.empty:
-            raise ValueError(f'Conditions produced an empty database for scenario: {job["scenario_name"]}')
+            warning_empty+=(f'Conditions produced an empty database for scenario: {job["scenario_name"]}\n')
+            continue
 
         # Write filtered data to a temporary sav file
         sav_file_name = f"{spss_file.name.split('.')[0].replace('Base ', '')}_{job['scenario_name']}.sav"
@@ -598,4 +601,4 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
         files[corr_xlsx_file_name] = corr_xlsx_temp_file.name
         corr_xlsx_temp_file.close()
 
-    return files
+    return files, warning_empty
