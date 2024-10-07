@@ -232,8 +232,11 @@ def getPreProcessAbiertas(spss_file: BytesIO,xlsx_file: BytesIO):
                         labelvar=label
         delmultis=[]
         for multi in multis:
-            if study_metadata.column_names_to_labels[multi].lower().startswith("otro"):
-                delmultis.append(multi)
+            try:
+                if study_metadata.column_names_to_labels[multi].lower().startswith("otro"):
+                    delmultis.append(multi)
+            except:
+                continue
         for multi2 in delmultis:
             multis.remove(multi2)
         for i in range(len(multis)):
