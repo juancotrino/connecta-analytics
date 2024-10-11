@@ -214,18 +214,20 @@ def copy_chart_style(source_chart, target_chart):
 # Define function to get the color based on value
 def get_color(value):
     match value:
+        case x if x == 0:
+            return 'FFEB84'
         case x if 0 < x < 0.2:
-            return 'E1E483'  # light green
+            return 'E2E383'  # light green
         case x if 0.2 <= x < 0.4:
-            return 'C2DB7F'  # green
+            return 'C2DA81'  # green
         case x if 0.4 <= x < 0.7:
-            return '8FCE80'  # lime green
+            return '94CD7F'  # lime green
         case x if 0.7 <= x < 0.9:
-            return '78C37E'  # green
+            return '74C37C'  # green
         case x if 0.9 <= x < 1.0:
-            return '63BF7E'  # dark green
+            return '65BE7C'  # dark green
         case x if x == 1:
-            return '62BE7B'  # dark green
+            return '63BE7B'  # dark green
         case _:
             return 'FFFFFF'  # white
 
@@ -250,8 +252,9 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     positions = [0, 74000, 83000, 100000]
     for i, value in enumerate(dataframe.iloc[:, 1], start=0):  # assuming values are in the second column
         color = get_color(value)
-        gsLst = [GradientStop(pos=pos, srgbClr='FFFFFF') if pos == 0 else GradientStop(pos=pos, srgbClr=color) for pos in positions]
-        spPr = GraphicalProperties(gradFill=GradientFillProperties(gsLst=gsLst))
+        #gsLst = [GradientStop(pos=pos, srgbClr='FFFFFF') if pos == 0 else GradientStop(pos=pos, srgbClr=color) for pos in positions]
+        #spPr = GraphicalProperties(gradFill=GradientFillProperties(gsLst=gsLst))
+        spPr = GraphicalProperties(solidFill=color)
         dp = DataPoint(idx=i, spPr=spPr)
         new_chart.series[0].dPt.append(dp)
 
@@ -445,8 +448,6 @@ def segment_spss(jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scal
         jobs.to_excel(writer,sheet_name='scenarios', index=False)
         jobscommmands.to_excel(writer, sheet_name='commands', index=False)
     files[f"scenarios_{spss_file.name.split('.')[0]}.xlsx"] = jobs_temp_file.name
-    print(jobs)
-
 
 
     if jobs['cross_variable'].any():
