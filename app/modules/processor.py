@@ -267,7 +267,7 @@ def getAbiertasPreCode(var,lcTable):
             options.append((principal,lcTable.iloc[i][1]))
     abiertascode+="\nVALUE LABELS "+var
     for num,option in options:
-        abiertascode+="\n"+str(num).strip()+" \""+option.strip()+"\""
+        abiertascode+="\n"+str(num).strip()+" \""+str(option).strip()+"\""
     abiertascode+=".\nEXECUTE.\n"
     return abiertascode
 
