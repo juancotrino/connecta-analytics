@@ -69,10 +69,8 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
                     name_sheet=nombrehoja+" "+refdict[refindex].replace("ñ","n").replace(".","").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ó","o")[:10]+sufijo
                 result+="DATASET ACTIVATE REF_"+name_dataset+".\n"
                 condition=data[var]==refindex
-                result_preg,result_warning=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                result_preg,_=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
                 result+=result_preg
-                if result_warning!="":
-                    warning+="/"+name_sheet+"/"+result_warning
                 result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                 result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                             +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
@@ -100,10 +98,8 @@ def getProcessCode2(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,rut
                             condition1=data[var]==refindex
                             condition2=data[var_segment]==refindex_segment
                             condition=condition1&condition2
-                            result_preg,result_warning=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
+                            result_preg,_=getProcessCode(spss_file,xlsx_file,checkinclude,condition=condition)
                             result+=result_preg
-                            if result_warning!="":
-                                warning+="/"+name_sheet+"/"+result_warning
                             result+="\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
                             result+=("\nOUTPUT EXPORT\n  /CONTENTS  EXPORT=VISIBLE  LAYERS=VISIBLE  MODELVIEWS=PRINTSETTING\n  /XLSX  DOCUMENTFILE='"
                                         +rutaarchivo+"'\n     OPERATION=CREATESHEET  SHEET='"+name_sheet+"'\n     LOCATION=LASTCOLUMN  NOTESCAPTIONS=NO.\n"
@@ -160,8 +156,10 @@ def getProcessCode(spss_file: BytesIO,xlsx_file: BytesIO,checkinclude=False,cond
 
     for i in range(len(varsList)):
         if varsList.iloc[i][1]!="A":
-            if varsList.iloc[i][3]!="D":
+            if varsList.iloc[i][3]!="D" and varsList.iloc[i][3]!="P":
                 result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude)
+            elif varsList.iloc[i][3]=="P":
+                result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,includeall=checkinclude,custom_order=varsList.iloc[i][2])
             else:
                 result+=writeQuestion(varsList.iloc[i][0],varsList.iloc[i][1],colvars,descendingorder=True,includeall=checkinclude)
             if not pd.isnull(varsList.iloc[i][2]) and not pd.isnull(varsList.iloc[i][3]) and not varsList.iloc[i][3] in ["I","D"]:
@@ -1042,7 +1040,7 @@ def getSegmentCode(spss_file: BytesIO,xlsx_file: BytesIO):
     except:
         return "Error with Variables to segment"
 
-def writeQuestion(varName,qtype, colVars,descendingorder=False,includeall=False, varanidada=""):
+def writeQuestion(varName,qtype, colVars,descendingorder=False,includeall=False, varanidada="",custom_order=""):
     txt=""
     if qtype=="M":
         varName="$"+re.search(".*A",varName).group()[:-1]
@@ -1070,7 +1068,9 @@ def writeQuestion(varName,qtype, colVars,descendingorder=False,includeall=False,
     if varanidada!="":
         txt+=")"
     txt+="\n  /SLABELS POSITION=ROW\n  /CATEGORIES VARIABLES="+varName
-    if qtype in ["E","J"]:
+    if custom_order !="":
+        txt+=" "+custom_order+" "
+    elif qtype in ["E","J"]:
         txt+=" [&cat1, 5, 4, 3, 2, 1, &cat2] "
     elif qtype in ["M"]:
         txt+=" ORDER=D KEY=COUNT "
