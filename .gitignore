@@ -1,5 +1,6 @@
 .python-version
 .vscode
+.DS_Store
 *.sh
 google_key.json
 firebase_key.json
