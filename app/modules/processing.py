@@ -493,6 +493,19 @@ def get_totals_from_pretables(xlsx_file: BytesIO):
 
     return write_temp_excel(wb_new)
 
+def get_letters_subset_fixed(combined_differences_df: pd.DataFrame) -> pd.DataFrame:
+    letters_subset = combined_differences_df[combined_differences_df["TOTAL"] == '(A)']
+    letters_template_index = letters_subset[letters_subset["Grillas Comparativas"] == '(A)'].iloc[0]
+
+    # Fill rows where 'Grillas Comparativas' is not '(A)' with values from the first '(A)' row
+    for col in letters_subset.columns:
+        letters_subset.loc[:, col] = letters_subset.apply(
+            lambda row: letters_template_index[col]
+            if row[col] != letters_template_index[col] and pd.notna(row[col])
+            else row[col], axis=1
+        )
+
+    return letters_subset
 
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
@@ -690,12 +703,15 @@ def processing(xlsx_file: BytesIO):
                 [(initial_category_indexes[-1][0], len(category_groups_columns) - 1)]
             )
             for cat in initial_category_indexes:
-                if len(cat)>1:
+                if len(cat) > 1:
                     for cat1 in cat:
-                        if cat1!=cat[-1]:
-                            category_indexes+=[(cat1,cat1)]
+                        if cat1 != cat[-1]:
+                            category_indexes += [(cat1,cat1)]
 
-            total_differeces_df = pd.DataFrame(index=range(len(data_differences)), columns=data_differences.columns)
+            total_differeces_df = pd.DataFrame(
+                index=range(len(data_differences)),
+                columns=data_differences.columns
+            )
 
             for question_group in question_groups:
                 df_total_search = data_differences.loc[question_group[-1]:question_group[-1] + 6, :]
@@ -714,7 +730,13 @@ def processing(xlsx_file: BytesIO):
 
                     columns_category_groups = category_groups_columns.loc[category_group[0]:category_group[1]]['index'].to_list()
 
-                    inner_df = data.loc[question_group, columns_category_groups].map(extract_digits).replace({None: np.nan}).dropna(axis=1, how='all')
+                    inner_df = (
+                        data.loc[question_group, columns_category_groups]
+                        .map(extract_digits)
+                        .replace({None: np.nan})
+                        .dropna(axis=1, how='all')
+                    )
+                    # print(inner_df)
 
                     data_differences.update(inner_df)
 
@@ -744,6 +766,9 @@ def processing(xlsx_file: BytesIO):
                 first_all_nan_index = combined_differences_df[combined_differences_df.isna().all(axis=1)].index[0]
             else:
                 first_all_nan_index = 2
+
+            letters_subset = get_letters_subset_fixed(combined_differences_df)
+            combined_differences_df.update(letters_subset)
 
             ws_new = wb_new.create_sheet(title=sheet_name)
 
