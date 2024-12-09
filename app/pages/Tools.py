@@ -146,7 +146,7 @@ def main():
         st.markdown('### Split')
         with st.form('split_spss_form'):
             split_file = st.file_uploader("Upload `.sav` file", type=["sav"], key="split_file_sav")
-            number_of_records = st.number_input('Number of records per chunk', step=1, min_value=50)
+            number_of_records = st.number_input('Number of records per chunk', step=1, min_value=1)
 
             split_database = st.form_submit_button('Split database')
 
