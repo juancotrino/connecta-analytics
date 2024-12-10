@@ -408,7 +408,9 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                 new_condition=condition
                 new_name=row_original[0]
                 for tuple in comb:
-                    new_name+="_"+tuple[1]
+                    if not row_original[0] is None and not row_original[0] =="":
+                        new_name+="_"
+                    new_name+=tuple[1]
                     var_to_replace="#"+tuple[2]+"#"
                     if not var_to_replace in new_condition:
                         var_to_replace="#"+tuple[2]+"*#"
@@ -417,7 +419,9 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                     else:
                         new_value_to_var="`"+tuple[2]+"`=="+str(tuple[0])
                     new_condition =new_condition.replace(var_to_replace,new_value_to_var)
-                new_name+="_"+row_original[4]
+
+                if not row_original[4] is None and not row_original[0] =="":
+                    new_name+="_"+row_original[4]
                 row_duplicate[0]=new_name
                 row_duplicate[2]=new_condition
             df=df.drop(i)
