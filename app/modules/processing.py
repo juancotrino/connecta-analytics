@@ -493,9 +493,20 @@ def get_totals_from_pretables(xlsx_file: BytesIO):
 
     return write_temp_excel(wb_new)
 
+# Function to get the next column name
+def get_next_column_name(df, current_column):
+    try:
+        # Get the current column index
+        current_index = df.columns.get_loc(current_column)
+        # Get the next column name
+        return df.columns[current_index + 1]
+    except (KeyError, IndexError):
+        return None
+
 def get_letters_subset_fixed(combined_differences_df: pd.DataFrame) -> pd.DataFrame:
     letters_subset = combined_differences_df[combined_differences_df["TOTAL"] == '(A)']
-    letters_template_index = letters_subset[letters_subset["Grillas Comparativas"] == '(A)'].iloc[0]
+    letter_start_column = get_next_column_name(combined_differences_df, "TOTAL")
+    letters_template_index = letters_subset[letters_subset[letter_start_column] == '(A)'].iloc[0]
 
     # Fill rows where 'Grillas Comparativas' is not '(A)' with values from the first '(A)' row
     for col in letters_subset.columns:
