@@ -26,6 +26,19 @@ def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
     preprocesscode+=getPreProcessAbiertas(spss_file,xlsx_file)
     return preprocesscode
 
+def checkPreProcessCodeUnique(spss_file: BytesIO,xlsx_file: BytesIO):
+    file_xlsx = get_temp_file(xlsx_file)
+    inverseVarsList=pd.read_excel(file_xlsx,usecols="A,E",skiprows=3,names=["vars","inverses"]).dropna()
+    inverseVarsList=inverseVarsList[inverseVarsList["inverses"]=="I"].iloc[:,0]
+    scaleVarsList=pd.read_excel(file_xlsx,usecols="A,D",skiprows=3,names=["vars","scale"]).dropna()
+    flag1=False
+    flag2=False
+    if not inverseVarsList.empty:
+        flag1=checkInverseCodeVars(spss_file,inverseVarsList)
+    if not scaleVarsList.empty:
+        flag2=getScaleCodeVars(spss_file,scaleVarsList)!=""
+    return flag1,flag2
+
 def getPreProcessCode2(spss_file: BytesIO):
     preprocesscode=processSavMulti(spss_file)[1]+processSavMulti(spss_file)[0]
     return preprocesscode
@@ -933,6 +946,23 @@ def getInverseCodeVars(spss_file: BytesIO,inverseVars):
     inverserecodes+="\nEXECUTE."
     return inverserecodes
 
+def checkInverseCodeVars(spss_file: BytesIO,inverseVars):
+    temp_file_name = get_temp_file(spss_file)
+    data, study_metadata = pyreadstat.read_sav(
+        temp_file_name,
+        apply_value_formats=False
+    )
+    dictValues=study_metadata.variable_value_labels
+    inverserecodes=""
+    inverserecodes="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+    for var in inverseVars:
+        inverserecodes+=var+" "
+    inverserecodes+="\n/OPTIONS FIX=\"BACKUP_INVERSE_\" FIXTYPE=PREFIX ACTION=RUN.\n"
+    for var in inverseVars:
+        if not re.search("^\([0-9]\).*",dictValues[var][1]):
+            return True
+    return False
+
 def getScaleCodeVars(spss_file: BytesIO,scaleVars):
     scalerecodes=""
     try:
@@ -940,14 +970,22 @@ def getScaleCodeVars(spss_file: BytesIO,scaleVars):
         for i in range(len(scaleVars)):
             scalerecodes+=scaleVars.iloc[i][0]+" "
         scalerecodes+="\n/OPTIONS FIX=\"BACKUP_SCALE_\" FIXTYPE=PREFIX ACTION=RUN.\n"
+        scalecodeback=scalerecodes
 
         for i in range(len(scaleVars)):
-            for num in range(len(scaleVars.iloc[i][1].split())):
-                float(scaleVars.iloc[i][1].split()[num])
-            scalerecodes+="\nRECODE "+scaleVars.iloc[i][0]
-            for num in range(len(scaleVars.iloc[i][1].split())):
-                scalerecodes+=" ("+str(num+1)+"="+scaleVars.iloc[i][1].split()[num]+")"
-            scalerecodes+="."
+            scalecode1=""
+            try:
+                for num in range(len(scaleVars.iloc[i][1].split())):
+                    float(scaleVars.iloc[i][1].split()[num])
+                scalecode1+="\nRECODE "+scaleVars.iloc[i][0]
+                for num in range(len(scaleVars.iloc[i][1].split())):
+                    scalecode1+=" ("+str(num+1)+"="+scaleVars.iloc[i][1].split()[num]+")"
+                scalecode1+="."
+            except:
+                scalecode1=""
+            scalerecodes+=scalecode1
+        if scalerecodes==scalecodeback:
+            return ""
         scalerecodes+="\nEXECUTE."
         temp_file_name = get_temp_file(spss_file)
         data, study_metadata = pyreadstat.read_sav(
@@ -956,10 +994,17 @@ def getScaleCodeVars(spss_file: BytesIO,scaleVars):
         )
         dictValues=study_metadata.variable_value_labels
         for i in range(len(scaleVars)):
-            scalerecodes+="\nVALUE LABELS "+scaleVars.iloc[i][0]
-            for num in range(len(scaleVars.iloc[i][1].split())):
-                scalerecodes+="\n"+scaleVars.iloc[i][1].split()[num]+" \"("+scaleVars.iloc[i][1].split()[num]+") "+dictValues[scaleVars.iloc[i][0]][num+1]+"\""
-            scalerecodes+="."
+            try:
+                scalecode2=""
+                for num in range(len(scaleVars.iloc[i][1].split())):
+                        float(scaleVars.iloc[i][1].split()[num])
+                scalecode2+="\nVALUE LABELS "+scaleVars.iloc[i][0]
+                for num in range(len(scaleVars.iloc[i][1].split())):
+                    scalecode2+="\n"+scaleVars.iloc[i][1].split()[num]+" \"("+scaleVars.iloc[i][1].split()[num]+") "+dictValues[scaleVars.iloc[i][0]][num+1]+"\""
+                scalecode2+="."
+            except:
+                scalecode2=""
+            scalerecodes+=scalecode2
         return scalerecodes
     except:
         return ""

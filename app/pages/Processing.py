@@ -8,6 +8,7 @@ from app.modules.database_transformation import transform_database
 from app.modules.processor import (
     getPreProcessCode,
     getPreProcessCode2,
+    checkPreProcessCodeUnique,
     getProcessCode2,
     getSegmentCode,
     getPenaltysCode2,
@@ -95,6 +96,17 @@ def main():
                     col1.markdown("Preprocess code:")
                     with col1.container(height=250):
                         st.code(getPreProcessCode(uploaded_file_process_sav,uploaded_file_process_xlsx), line_numbers=True)
+                    warning=""
+                    if checkPreProcessCodeUnique(uploaded_file_process_sav,uploaded_file_process_xlsx)[0]:
+                        if warning=="":
+                            warning+="Run PreProcess Code only one time"
+                        warning+=" --- Code with Inverse code"
+                    if checkPreProcessCodeUnique(uploaded_file_process_sav,uploaded_file_process_xlsx)[1]:
+                        if warning=="":
+                            warning+="Run PreProcess Code only one time"
+                        warning+=" --- Code with Custom Scales code"
+                    if warning!="":
+                        st.warning(warning)
                 with col2:
                     col2.markdown("Code to segment base by references:")
                     with col2.container(height=250):
