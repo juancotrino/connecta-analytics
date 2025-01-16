@@ -975,6 +975,12 @@ def checkInverseCodeVars(spss_file: BytesIO,inverseVars):
 def getScaleCodeVars(spss_file: BytesIO,scaleVars):
     scalerecodes=""
     try:
+        temp_file_name = get_temp_file(spss_file)
+        data, study_metadata = pyreadstat.read_sav(
+            temp_file_name,
+            apply_value_formats=False
+        )
+        dictValues=study_metadata.variable_value_labels
         scalerecodes="\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
         for i in range(len(scaleVars)):
             scalerecodes+=scaleVars.iloc[i][0]+" "
@@ -998,12 +1004,7 @@ def getScaleCodeVars(spss_file: BytesIO,scaleVars):
         if scalerecodes==scalecodeback:
             return ""
         scalerecodes+="\nEXECUTE."
-        temp_file_name = get_temp_file(spss_file)
-        data, study_metadata = pyreadstat.read_sav(
-            temp_file_name,
-            apply_value_formats=False
-        )
-        dictValues=study_metadata.variable_value_labels
+
         for i in range(len(scaleVars)):
             try:
                 scalecode2=""
@@ -1237,8 +1238,9 @@ def getVarsForPlantilla(spss_file: BytesIO):
     ws_plantilla.cell(row=1,column=3).value="NValids"
     ws_plantilla.cell(row=1,column=4).value="Unique Distinct Values"
     ws_plantilla.cell(row=1,column=5).value="Total Options Values"
+    ws_plantilla.cell(row=1,column=6).value="Option 5"
 
-    for col in range(1,6):
+    for col in range(1,7):
         ws_plantilla.cell(row=1,column=col).fill=greenFillTitle
         ws_plantilla.cell(row=1,column=col).font = Font(color = "FFFFFF")
         ws_plantilla.cell(row=1,column=col).border = medium_border
@@ -1255,7 +1257,7 @@ def getVarsForPlantilla(spss_file: BytesIO):
     multis=[]
     row_num=2
 
-    vars_to_ignore=["s1","s2","Response_ID","REF","IMAGEN","MARCA","PRECIO","TelA","N.encuesta","tipo_super","ABIERTAS","ETIQUETAS","tipo.super","Tel.","N.enc.","tipo.","acabado."]
+    vars_to_ignore=["s1","s2","Response_ID","IMAGEN","MARCA","PRECIO","TelA","N.encuesta","tipo_super","ABIERTAS","ETIQUETAS","tipo.super","Tel.","N.enc.","tipo.","acabado."]
     for var in list_vars:
 
         if var_type_base[var].startswith("A") or any(var.lower().startswith(ignore.lower()) for ignore in vars_to_ignore):
@@ -1305,6 +1307,9 @@ def getVarsForPlantilla(spss_file: BytesIO):
                     else:
                         textPlantilla+="E\t"
                         ws_plantilla.cell(row=row_num,column=2).value="E"
+                        if not "5" in dict_values[var][5]:
+                            ws_plantilla.cell(row=row_num,column=6).value="not 5"
+                            ws_plantilla.cell(row=row_num,column=6).fill=yellowFill
                 elif dict_values[var][1]=="":
                     textPlantilla+="N\t"
                     ws_plantilla.cell(row=row_num,column=2).value="N"
