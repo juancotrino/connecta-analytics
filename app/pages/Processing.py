@@ -9,6 +9,7 @@ from app.modules.processor import (
     getPreProcessCode,
     getPreProcessCode2,
     checkPreProcessCodeUnique,
+    getVarsForPlantilla,
     getProcessCode2,
     getSegmentCode,
     getPenaltysCode2,
@@ -150,9 +151,19 @@ def main():
                                     st.code("No Cruces", line_numbers=True)
             elif process_button and uploaded_file_process_sav:
                 col1, col2   = st.columns(2)
-                col1.markdown("Preprocess code:")
-                with col1.container(height=250):
-                    st.code(getPreProcessCode2(uploaded_file_process_sav), line_numbers=True)
+                with col1:
+                    col1.markdown("Preprocess code:")
+                    with col1.container(height=250):
+                        st.code(getPreProcessCode2(uploaded_file_process_sav), line_numbers=True)
+                with col2:
+                    col2.markdown("Text for Plantilla:")
+                    with col2.container(height=250):
+                        st.code(getVarsForPlantilla(uploaded_file_process_sav)[0], line_numbers=True)
+                        results_plantilla=getVarsForPlantilla(uploaded_file_process_sav)[1]
+        try:
+            try_download('Download Stadistics Plantilla', results_plantilla, 'stadistics_plantilla', 'xlsx')
+        except:
+            pass
 
         st.markdown('### Statistical Significance | Penalties')
 

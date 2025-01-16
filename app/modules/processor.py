@@ -4,8 +4,17 @@ import re
 import pandas as pd
 import numpy as np
 import math
+import tempfile
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
+from openpyxl import Workbook, load_workbook
+from openpyxl.cell.text import InlineFont
+from openpyxl.cell.rich_text import TextBlock, CellRichText
+from openpyxl.utils import get_column_letter
+from openpyxl.utils.cell import range_boundaries
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font
+
 import pyreadstat
 
 def getPreProcessCode(spss_file: BytesIO,xlsx_file: BytesIO):
@@ -977,6 +986,8 @@ def getScaleCodeVars(spss_file: BytesIO,scaleVars):
             try:
                 for num in range(len(scaleVars.iloc[i][1].split())):
                     float(scaleVars.iloc[i][1].split()[num])
+                for num in range(len(scaleVars.iloc[i][1].split())):
+                    "\n"+scaleVars.iloc[i][1].split()[num]+" \"("+scaleVars.iloc[i][1].split()[num]+") "+dictValues[scaleVars.iloc[i][0]][num+1]+"\""
                 scalecode1+="\nRECODE "+scaleVars.iloc[i][0]
                 for num in range(len(scaleVars.iloc[i][1].split())):
                     scalecode1+=" ("+str(num+1)+"="+scaleVars.iloc[i][1].split()[num]+")"
@@ -1173,3 +1184,152 @@ def writeAbiertasQuestion(varName,colVars,orderlist,includeall=False,varanidada=
     txt+=("\n  /CRITERIA CILEVEL=95\n  /COMPARETEST TYPE=PROP ALPHA=0.05 ADJUST=BONFERRONI ORIGIN=COLUMN INCLUDEMRSETS=YES"
         + "\n  CATEGORIES=SUBTOTALS MERGE=YES STYLE=SIMPLE SHOWSIG=NO.\n")
     return txt
+
+def write_temp_excel(wb):
+    with tempfile.NamedTemporaryFile() as tmpfile:
+        # Write the DataFrame to the temporary SPSS file
+        wb.save(tmpfile.name)
+
+        with open(tmpfile.name, 'rb') as f:
+            return BytesIO(f.read())
+
+def getVarsForPlantilla(spss_file: BytesIO):
+    temp_file_name = get_temp_file(spss_file)
+    data, study_metadata = pyreadstat.read_sav(
+        temp_file_name,
+        apply_value_formats=False
+    )
+    dict_values=study_metadata.variable_value_labels
+    list_vars=study_metadata.column_names
+    n_total=study_metadata.number_rows
+    var_type_base=study_metadata.original_variable_types#F-- Float / A-- String
+    # Create a new Workbook
+    wb_new = Workbook()
+    # Remove the default sheet created with the new workbook
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
+
+    ws_plantilla = wb_new.create_sheet(title="Estadisticas Plantilla")
+
+    redFill = PatternFill(start_color='C80000',
+                   end_color='C80000',
+                   fill_type='solid')
+
+    yellowFill = PatternFill(start_color='FFFF00',
+            end_color='FFFF00',
+            fill_type='solid')
+
+    blueFill = PatternFill(start_color='C5D9F1',
+            end_color='C5D9F1',
+            fill_type='solid')
+
+    greenFillTitle = PatternFill(start_color='70AD47',
+            end_color='70AD47',
+            fill_type='solid')
+
+    medium_border = Border(left=Side(style='medium'),
+                     right=Side(style='medium'),
+                     top=Side(style='medium'),
+                     bottom=Side(style='medium'))
+
+    ws_plantilla.cell(row=1,column=1).value="Variable"
+    ws_plantilla.cell(row=1,column=2).value="Tipo de Variable"
+    ws_plantilla.cell(row=1,column=3).value="NValids"
+    ws_plantilla.cell(row=1,column=4).value="Unique Distinct Values"
+    ws_plantilla.cell(row=1,column=5).value="Total Options Values"
+
+    for col in range(1,6):
+        ws_plantilla.cell(row=1,column=col).fill=greenFillTitle
+        ws_plantilla.cell(row=1,column=col).font = Font(color = "FFFFFF")
+        ws_plantilla.cell(row=1,column=col).border = medium_border
+        column_letter = get_column_letter(col)
+        if col==1:
+            width_col=22
+        else:
+            width_col=7
+        ws_plantilla.column_dimensions[column_letter].width = width_col
+
+    ws_plantilla.auto_filter.ref = ws_plantilla.dimensions
+
+    textPlantilla="Variable\tTipo de Variable\tNValids\tUnique Values"
+    multis=[]
+    row_num=2
+
+    vars_to_ignore=["s1","s2","Response_ID","REF","IMAGEN","MARCA","PRECIO","TelA","N.encuesta","tipo_super","ABIERTAS","ETIQUETAS","tipo.super","Tel.","N.enc.","tipo.","acabado."]
+    for var in list_vars:
+
+        if var_type_base[var].startswith("A") or any(var.lower().startswith(ignore.lower()) for ignore in vars_to_ignore):
+            continue
+        if re.search("^[FPS].*A.*[1-90]",var):
+            group_multi=re.search(".*A",var).group()
+            if group_multi in multis:
+                continue
+            multis.append(group_multi)
+
+            textPlantilla+="\n"+var+"\t"
+            ws_plantilla.cell(row=row_num,column=1).value=var
+            try:
+                dict_values[var]
+                textPlantilla+="M\t"
+                ws_plantilla.cell(row=row_num,column=2).value="M"
+            except:
+                textPlantilla+="A\t"
+                ws_plantilla.cell(row=row_num,column=2).value="A"
+            index_list=[]
+            count_unique=0
+            count_total=0
+            for var2 in list_vars:
+                if re.search(group_multi,var2):
+                    count_total+=1
+                    if len(data[var2].dropna().index.tolist())!=0:
+                        count_unique+=1
+                    for ind in data[var2].dropna().index.tolist():
+                        index_list.append(ind)
+            textPlantilla+=str(len(list(set(index_list))))+"\t"+str(count_unique)+"|"+str(count_total)
+            ws_plantilla.cell(row=row_num,column=3).value=str(len(list(set(index_list))))
+            if ws_plantilla.cell(row=row_num,column=3).value != str(n_total):
+                ws_plantilla.cell(row=row_num,column=3).fill=yellowFill
+            if ws_plantilla.cell(row=row_num,column=3).value == "0":
+                ws_plantilla.cell(row=row_num,column=3).fill=redFill
+            ws_plantilla.cell(row=row_num,column=4).value=str(count_unique)+"|"+str(count_total)
+            if ws_plantilla.cell(row=row_num,column=4).value=="1|1":
+                ws_plantilla.cell(row=row_num,column=4).fill=yellowFill
+        else:
+            textPlantilla+="\n"+var+"\t"
+            ws_plantilla.cell(row=row_num,column=1).value=var
+            try:
+                if len(dict_values[var])==5:
+                    if "just" in dict_values[var][3] or "Just" in dict_values[var][3]:
+                        textPlantilla+="J\t"
+                        ws_plantilla.cell(row=row_num,column=2).value="J"
+                    else:
+                        textPlantilla+="E\t"
+                        ws_plantilla.cell(row=row_num,column=2).value="E"
+                elif dict_values[var][1]=="":
+                    textPlantilla+="N\t"
+                    ws_plantilla.cell(row=row_num,column=2).value="N"
+                else:
+                    textPlantilla+="U\t"
+                    ws_plantilla.cell(row=row_num,column=2).value="U"
+            except:
+                textPlantilla+="U\t"
+                ws_plantilla.cell(row=row_num,column=2).value="U"
+            textPlantilla+=str(len(data[var].dropna()))+"\t"
+            ws_plantilla.cell(row=row_num,column=3).value=str(len(data[var].dropna()))
+            if ws_plantilla.cell(row=row_num,column=3).value != str(n_total):
+                ws_plantilla.cell(row=row_num,column=3).fill=yellowFill
+            if ws_plantilla.cell(row=row_num,column=3).value == "0":
+                ws_plantilla.cell(row=row_num,column=3).fill=redFill
+
+            ws_plantilla.cell(row=row_num,column=4).value=str(len(list(set(data[var].dropna()))))
+            if ws_plantilla.cell(row=row_num,column=4).value=="1":
+                ws_plantilla.cell(row=row_num,column=4).fill=yellowFill
+
+            try:
+                textPlantilla+=str(len(list(set(data[var].dropna()))))+"\t/"+str(len(dict_values[var]))
+                ws_plantilla.cell(row=row_num,column=5).value="/"+str(len(dict_values[var]))
+            except:
+                textPlantilla+=str(len(list(set(data[var].dropna()))))+"\t/--"
+                ws_plantilla.cell(row=row_num,column=5).value="/--"
+        row_num+=1
+    return textPlantilla , write_temp_excel(wb_new)
