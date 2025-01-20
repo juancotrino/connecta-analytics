@@ -73,9 +73,9 @@ def sort_key(item):
 
     return (prefix, visit_number, question_number)
 
-def reorder_columns(df: pd.DataFrame, db: pd.DataFrame) -> pd.DataFrame:
+def reorder_columns(df: pd.DataFrame, db: pd.DataFrame,last_num_var) -> pd.DataFrame:
 
-    new_columns = df.loc[:, db.columns[-1]:].iloc[:, 1:].columns.to_list()
+    new_columns = df.loc[:, last_num_var:].iloc[:, 1:].columns.to_list()
     new_columns = sorted(new_columns, key=sort_key)
 
     string_columns = df.select_dtypes(include=['object']).columns.sort_values().tolist()

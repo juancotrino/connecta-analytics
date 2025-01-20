@@ -192,8 +192,22 @@ def join_sav(original_db_path: str, files_path: list[str]):
     total_df = pd.concat(dfs).sort_values(by='Response_ID').reset_index(drop=True)
     total_df = total_df.drop(columns=['ABIERTAS', 'ETIQUETAS'])
 
-    final_df = reorder_columns(total_df, original_db)
+    last_numeric_var=get_last_numeric_var(original_db_path)
+    final_df = reorder_columns(total_df, original_db,last_numeric_var)
     variable_format = {column: 'F20.0' for column in final_df.columns}
     variable_format.update({column: '' for column in final_df.select_dtypes(include=['object']).columns})
 
     return write_temp_sav(final_df, original_meta)
+
+def get_last_numeric_var(original_db_path):
+    original_db, original_meta = pyreadstat.read_sav(
+        original_db_path,
+        apply_value_formats=False
+    )
+    var_type_base=original_meta.original_variable_types#F-- Float / A-- String
+
+    last_num_var=""
+    for var in original_meta.column_names:
+        if not var_type_base[var].startswith("A"):
+            last_num_var=var
+    return last_num_var
