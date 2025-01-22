@@ -8,6 +8,7 @@ import tempfile
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
 from openpyxl import Workbook, load_workbook
+from difflib import SequenceMatcher
 from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.utils import get_column_letter
@@ -1338,3 +1339,206 @@ def getVarsForPlantilla(spss_file: BytesIO):
                 ws_plantilla.cell(row=row_num,column=5).value="/--"
         row_num+=1
     return textPlantilla , write_temp_excel(wb_new)
+
+def get_comparison_tables(spss_file1: BytesIO,spss_file2: BytesIO):
+    # Create a new Workbook
+    wb_new = Workbook()
+    # Remove the default sheet created with the new workbook
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
+    for caso in range(2):
+        ws_plantilla = wb_new.create_sheet(title="Estadisticas Plantilla "+str(caso+1))
+        if caso==0:
+            archivo1=spss_file1
+            archivo2=spss_file2
+        else:
+            archivo1=spss_file2
+            archivo2=spss_file1
+        temp_file_name = get_temp_file(archivo1)
+        data, study_metadata = pyreadstat.read_sav(
+            temp_file_name,
+            apply_value_formats=False
+        )
+        temp_file_name2 = get_temp_file(archivo2)
+        data2, study_metadata2 = pyreadstat.read_sav(
+            temp_file_name2,
+            apply_value_formats=False
+        )
+
+        dict_values=study_metadata.variable_value_labels
+        list_vars=study_metadata.column_names
+        dict_values2=study_metadata2.variable_value_labels
+        list_vars2=study_metadata2.column_names
+        n_total=study_metadata.number_rows
+        var_type_base=study_metadata.original_variable_types#F-- Float / A-- String
+
+        redFill = PatternFill(start_color='C80000',
+                    end_color='C80000',
+                    fill_type='solid')
+
+        yellowFill = PatternFill(start_color='FFFF00',
+                end_color='FFFF00',
+                fill_type='solid')
+
+        blueFill = PatternFill(start_color='C5D9F1',
+                end_color='C5D9F1',
+                fill_type='solid')
+
+        grayFill = PatternFill(start_color='DBDBDB',
+                end_color='DBDBDB',
+                fill_type='solid')
+
+        greenFillTitle = PatternFill(start_color='70AD47',
+                end_color='70AD47',
+                fill_type='solid')
+
+        medium_border = Border(left=Side(style='medium'),
+                        right=Side(style='medium'),
+                        top=Side(style='medium'),
+                        bottom=Side(style='medium'))
+
+        ws_plantilla.cell(row=1,column=1).value="Variable"
+        ws_plantilla.cell(row=1,column=2).value="Tipo de Variable"
+        ws_plantilla.cell(row=1,column=3).value="NValids"
+        ws_plantilla.cell(row=1,column=4).value="Unique Distinct Values"
+        ws_plantilla.cell(row=1,column=5).value="Total Options Values"
+        ws_plantilla.cell(row=1,column=6).value="Option 5"
+        ws_plantilla.cell(row=1,column=7).value="Var in other Base"
+        ws_plantilla.cell(row=1,column=8).value="Same Value labels"
+        ws_plantilla.cell(row=1,column=9).value="Labels Base 1"
+        ws_plantilla.cell(row=1,column=10).value="Labels Base 2"
+        ws_plantilla.cell(row=1,column=11).value="T. Options"
+
+        for col in range(1,12):
+            if col in [7,8,9]:
+                fillcol=blueFill
+            else:
+                fillcol=greenFillTitle
+            ws_plantilla.cell(row=1,column=col).fill=fillcol
+            ws_plantilla.cell(row=1,column=col).font = Font(color = "FFFFFF")
+            ws_plantilla.cell(row=1,column=col).border = medium_border
+            column_letter = get_column_letter(col)
+            if col==1:
+                width_col=22
+            else:
+                width_col=7
+            ws_plantilla.column_dimensions[column_letter].width = width_col
+
+        ws_plantilla.auto_filter.ref = ws_plantilla.dimensions
+
+        multis=[]
+        row_num=2
+
+        vars_to_ignore=["s1","s2","Response_ID","IMAGEN","MARCA","PRECIO","TelA","N.encuesta","tipo_super","ABIERTAS","ETIQUETAS","tipo.super","Tel.","N.enc.","tipo.","acabado."]
+        for var in list_vars:
+
+            if var_type_base[var].startswith("A") or any(var.lower().startswith(ignore.lower()) for ignore in vars_to_ignore):
+                continue
+            if re.search("^[FPS].*A.*[1-90]",var):
+                group_multi=re.search(".*A",var).group()
+                if group_multi in multis:
+                    continue
+                multis.append(group_multi)
+
+                ws_plantilla.cell(row=row_num,column=1).value=var
+                try:
+                    dict_values[var]
+                    ws_plantilla.cell(row=row_num,column=2).value="M"
+                except:
+                    ws_plantilla.cell(row=row_num,column=2).value="A"
+                index_list=[]
+                count_unique=0
+                count_total=0
+                for var2 in list_vars:
+                    if re.search(group_multi,var2):
+                        count_total+=1
+                        if len(data[var2].dropna().index.tolist())!=0:
+                            count_unique+=1
+                        for ind in data[var2].dropna().index.tolist():
+                            index_list.append(ind)
+                ws_plantilla.cell(row=row_num,column=3).value=str(len(list(set(index_list))))
+                if ws_plantilla.cell(row=row_num,column=3).value != str(n_total):
+                    ws_plantilla.cell(row=row_num,column=3).fill=yellowFill
+                if ws_plantilla.cell(row=row_num,column=3).value == "0":
+                    ws_plantilla.cell(row=row_num,column=3).fill=redFill
+                ws_plantilla.cell(row=row_num,column=4).value=str(count_unique)+"|"+str(count_total)
+                if ws_plantilla.cell(row=row_num,column=4).value=="1|1":
+                    ws_plantilla.cell(row=row_num,column=4).fill=yellowFill
+                if var in list_vars2:
+                    ws_plantilla.cell(row=row_num,column=7).value=var
+                    try:
+                        labelval1=dict_values[var]
+                    except:
+                        labelval1==""
+                    try:
+                        labelval2=dict_values2[var]
+                    except:
+                        labelval2==""
+                    if(labelval1==labelval2):
+                        ws_plantilla.cell(row=row_num,column=8).value="Yes"
+                    else:
+                        ws_plantilla.cell(row=row_num,column=8).value="No"
+                        ws_plantilla.cell(row=row_num,column=8).fill=redFill
+                        ws_plantilla.cell(row=row_num,column=9).value=str(labelval2)
+                        ws_plantilla.cell(row=row_num,column=9).fill=grayFill
+                        ws_plantilla.cell(row=row_num,column=7).fill=grayFill
+                        ws_plantilla.cell(row=row_num,column=10).value=str(labelval1)
+                        ws_plantilla.cell(row=row_num,column=11).value=str(len(labelval2))+"|"+str(len(labelval1)) +"--"+'{0:.0%}'.format(SequenceMatcher(None, str(labelval2).lower(), str(labelval1).lower()).ratio())
+                else:
+                    ws_plantilla.cell(row=row_num,column=7).value="No"
+                    ws_plantilla.cell(row=row_num,column=7).fill=blueFill
+            else:
+                ws_plantilla.cell(row=row_num,column=1).value=var
+                try:
+                    if len(dict_values[var])==5:
+                        if "just" in dict_values[var][3] or "Just" in dict_values[var][3]:
+                            ws_plantilla.cell(row=row_num,column=2).value="J"
+                        else:
+                            ws_plantilla.cell(row=row_num,column=2).value="E"
+                            if not "5" in dict_values[var][5]:
+                                ws_plantilla.cell(row=row_num,column=6).value="not 5"
+                                ws_plantilla.cell(row=row_num,column=6).fill=yellowFill
+                    elif dict_values[var][1]=="":
+                        ws_plantilla.cell(row=row_num,column=2).value="N"
+                    else:
+                        ws_plantilla.cell(row=row_num,column=2).value="U"
+                except:
+                    ws_plantilla.cell(row=row_num,column=2).value="U"
+                ws_plantilla.cell(row=row_num,column=3).value=str(len(data[var].dropna()))
+                if ws_plantilla.cell(row=row_num,column=3).value != str(n_total):
+                    ws_plantilla.cell(row=row_num,column=3).fill=yellowFill
+                if ws_plantilla.cell(row=row_num,column=3).value == "0":
+                    ws_plantilla.cell(row=row_num,column=3).fill=redFill
+
+                ws_plantilla.cell(row=row_num,column=4).value=str(len(list(set(data[var].dropna()))))
+                if ws_plantilla.cell(row=row_num,column=4).value=="1":
+                    ws_plantilla.cell(row=row_num,column=4).fill=yellowFill
+                try:
+                    ws_plantilla.cell(row=row_num,column=5).value="/"+str(len(dict_values[var]))
+                except:
+                    ws_plantilla.cell(row=row_num,column=5).value="/--"
+                if var in list_vars2:
+                    ws_plantilla.cell(row=row_num,column=7).value=var
+                    try:
+                        labelval1=dict_values[var]
+                    except:
+                        labelval1==""
+                    try:
+                        labelval2=dict_values2[var]
+                    except:
+                        labelval2==""
+                    if(labelval1==labelval2):
+                        ws_plantilla.cell(row=row_num,column=8).value="Yes"
+                    else:
+                        ws_plantilla.cell(row=row_num,column=8).value="No"
+                        ws_plantilla.cell(row=row_num,column=8).fill=redFill
+                        ws_plantilla.cell(row=row_num,column=9).value=str(labelval2)
+                        ws_plantilla.cell(row=row_num,column=9).fill=grayFill
+                        ws_plantilla.cell(row=row_num,column=7).fill=grayFill
+                        ws_plantilla.cell(row=row_num,column=10).value=str(labelval1)
+                        ws_plantilla.cell(row=row_num,column=11).value=str(len(labelval2))+"|"+str(len(labelval1))+"--"+'{0:.0%}'.format(SequenceMatcher(None, str(labelval2).lower(), str(labelval1).lower()).ratio())
+                else:
+                    ws_plantilla.cell(row=row_num,column=7).value="No"
+                    ws_plantilla.cell(row=row_num,column=7).fill=blueFill
+            row_num+=1
+    return write_temp_excel(wb_new)

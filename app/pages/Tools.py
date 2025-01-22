@@ -4,6 +4,7 @@ import pandas as pd
 from app.modules.text_function import questionFinder, genLabels
 from app.modules.coder import transform_open_ended, generate_open_ended_db
 from app.modules.processing import get_totals_from_pretables
+from app.modules.processor import get_comparison_tables
 from app.modules.utils import (
     get_temp_file,
     write_multiple_df_bytes,
@@ -54,6 +55,22 @@ def main():
                 st.success('Tables totals generate successfully.')
         try:
             try_download('Download totals tables', results_totals, 'totals_tables', 'xlsx')
+        except:
+            pass
+
+    with st.expander("Compare 2 Bases SAV Files:"):
+        col1, col2 = st.columns(2)
+        with col1:
+            comparebases1_sav=st.file_uploader("Upload `.sav` file", type=["sav"], key='comparebases1_sav')
+        with col2:
+            comparebases2_sav=st.file_uploader("Upload `.sav` file", type=["sav"], key='comparebases2_sav')
+        btn_get_comparison=st.button("Get Comparison")
+        if btn_get_comparison:
+            with st.spinner('Get Comparison...'):
+                results_totals2 = get_comparison_tables(comparebases1_sav,comparebases2_sav)
+                st.success('Comparison generate successfully.')
+        try:
+            try_download('Download Comparison tables', results_totals2, 'comparison_tables', 'xlsx')
         except:
             pass
 
