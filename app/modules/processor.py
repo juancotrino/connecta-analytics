@@ -1456,6 +1456,10 @@ def get_comparison_tables(spss_file1: BytesIO,spss_file2: BytesIO):
                             count_unique+=1
                         for ind in data[var2].dropna().index.tolist():
                             index_list.append(ind)
+                count_total2=0
+                for var3 in list_vars2:
+                    if re.search(group_multi,var3):
+                        count_total2+=1
                 ws_plantilla.cell(row=row_num,column=3).value=str(len(list(set(index_list))))
                 if ws_plantilla.cell(row=row_num,column=3).value != str(n_total):
                     ws_plantilla.cell(row=row_num,column=3).fill=yellowFill
@@ -1474,8 +1478,13 @@ def get_comparison_tables(spss_file1: BytesIO,spss_file2: BytesIO):
                         labelval2=dict_values2[var]
                     except:
                         labelval2==""
-                    if(labelval1==labelval2):
+                    if(labelval1==labelval2) and (count_total==count_total2):
                         ws_plantilla.cell(row=row_num,column=8).value="Yes"
+                    elif (labelval1==labelval2) and (count_total!=count_total2):
+                        ws_plantilla.cell(row=row_num,column=8).value="No"
+                        ws_plantilla.cell(row=row_num,column=8).fill=redFill
+                        ws_plantilla.cell(row=row_num,column=9).value="Distint number of variables in multiple"
+                        ws_plantilla.cell(row=row_num,column=10).value=str(count_total2)+" | "+str(count_total)
                     else:
                         ws_plantilla.cell(row=row_num,column=8).value="No"
                         ws_plantilla.cell(row=row_num,column=8).fill=redFill
