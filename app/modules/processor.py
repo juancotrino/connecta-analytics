@@ -1400,15 +1400,10 @@ def get_comparison_tables(spss_file1: BytesIO,spss_file2: BytesIO):
                         top=Side(style='medium'),
                         bottom=Side(style='medium'))
         green_thin_border = Border(
-                        left=Side(border_style="thin", color="DCE7C3"),
-                        right=Side(border_style="thin", color="DCE7C3"),
-                        top=Side(border_style="thin", color="DCE7C3"),
-                        bottom=Side(border_style="thin", color="DCE7C3"))
-        blue_thin_border = Border(
-                        left=Side(border_style="thin", color="D3DFED"),
-                        right=Side(border_style="thin", color="D3DFED"),
-                        top=Side(border_style="thin", color="D3DFED"),
-                        bottom=Side(border_style="thin", color="D3DFED"))
+                        left=Side(border_style="thin", color="F7F9F1"),
+                        right=Side(border_style="thin", color="F7F9F1"),
+                        top=Side(border_style="thin", color="F7F9F1"),
+                        bottom=Side(border_style="thin", color="F7F9F1"))
         greenBackground = PatternFill(start_color='EBF1DE',
                 end_color='EBF1DE',
                 fill_type='solid')
@@ -1434,7 +1429,16 @@ def get_comparison_tables(spss_file1: BytesIO,spss_file2: BytesIO):
         ws_plantilla.cell(row=1,column=16).value=archivo1.name
         ws_plantilla.cell(row=1,column=17).value=archivo2.name
 
-
+        # for row in range(2,len(list_vars)+1):
+        #     for col in range(1,16):
+        #         if col in [7,8,9,12,13,17]:
+        #             fillcol=blueBackground
+        #             bordercol=blue_thin_border
+        #         else:
+        #             fillcol=greenBackground
+        #             bordercol=green_thin_border
+        #         ws_plantilla.cell(row=row,column=col).fill=fillcol
+        #         ws_plantilla.cell(row=row,column=col).border=bordercol
 
         for col in range(1,18):
             if col in [7,8,9,12,13,17]:
@@ -1607,15 +1611,5 @@ def get_comparison_tables(spss_file1: BytesIO,spss_file2: BytesIO):
                     ws_plantilla.cell(row=row_num,column=7).value="No"
                     ws_plantilla.cell(row=row_num,column=7).fill=blueFill
             row_num+=1
-        for row in range(2,ws_plantilla.max_row+1):
-            for col in range(1,16):
-                if col in [7,8,9,12,13,17]:
-                    fillcol=blueBackground
-                    bordercol=blue_thin_border
-                else:
-                    fillcol=greenBackground
-                    bordercol=green_thin_border
-                ws_plantilla.cell(row=row,column=col).fill=fillcol
-                ws_plantilla.cell(row=row,column=col).border=bordercol
 
     return write_temp_excel(wb_new)
