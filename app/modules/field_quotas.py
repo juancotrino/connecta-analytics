@@ -3,20 +3,6 @@ import itertools
 import numpy as np
 import pandas as pd
 
-from firebase_admin import firestore
-
-import streamlit as st
-
-
-@st.cache_data(show_spinner=False)
-def get_field_quotas_data():
-    db = firestore.client()
-    document = db.collection("settings").document("field_quotas").get()
-
-    if document.exists:
-        field_quotas = document.to_dict()
-        return field_quotas
-
 
 def get_expanded_surveys(
     total_surveys: int,
@@ -44,11 +30,12 @@ def get_expanded_surveys(
             how="left",
             suffixes=["_comb", f"_{variable}"],
         )
+
     for variable in variable_nested_percentages_dict:
         combinations_df = pd.merge(
             combinations_df,
             variable_nested_percentages_dict[variable],
-            on=variable.split("-"),
+            on=[v.strip() for v in variable.split("-")],
             how="left",
             suffixes=["_independent", f"_{variable}"],
         )

@@ -6,18 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.utils import try_download, write_temp_excel
-from app.modules.field_quotas import get_field_quotas_data, get_expanded_surveys
-
-
-field_quotas = get_field_quotas_data()
-
-
-def combine_percentages(
-    row, variable_percentages_dict: dict, variable_nested_percentages_dict: dict
-):
-    final_percentage = 1
-    for variable in row:
-        final_percentage *= variable_percentages_dict[variable]
+from app.modules.field_quotas import get_expanded_surveys
 
 
 def main():
@@ -30,26 +19,56 @@ def main():
     """)
 
     st.markdown("""
-    ### Filters
+    ### Variables definition
     """)
 
-    selected_variables = st.multiselect(
-        "Select variables:",
-        field_quotas["variables"],
-        key="variables",
+    number_of_variables = st.number_input(
+        "Number of Variables",
+        min_value=0,
+        key="number_of_variables",
     )
 
-    # Generate all combinations of two elements
-    combinations = [
-        (a, b, False) for a, b in itertools.combinations(selected_variables, 2)
-    ]
+    if number_of_variables == 0:
+        return
 
-    nested_variables_df = st.data_editor(
-        pd.DataFrame(
-            combinations, columns=[f"Level {i}" for i in range(2)] + ["Nested"]
-        ),
-        num_rows="fixed",
-    ).replace({None: np.nan})
+    cols = st.columns(number_of_variables)
+
+    variable_dict = {}
+    for i in range(number_of_variables):
+        with cols[i]:
+            variable_name = st.text_input(f"Name for variable {i + 1}")
+            st.markdown("Variable values:")
+            variable_values = st.data_editor(
+                pd.DataFrame(columns=["Values"]),
+                num_rows="dynamic",
+                hide_index=True,
+                key=f"variable_values_{i}",
+                use_container_width=True,
+            ).replace({None: np.nan})
+            variable_dict[variable_name] = variable_values
+
+    selected_variables = list(variable_dict.keys())
+
+    nested_variables = pd.DataFrame(
+        columns=[f"Level {i}" for i in range(2)] + ["Nested"]
+    )
+
+    with st.expander("Nested variables"):
+        # Generate all combinations of two elements
+        combinations = [
+            (a, b, False) for a, b in itertools.combinations(selected_variables, 2)
+        ]
+
+        nested_variables = st.data_editor(
+            pd.DataFrame(
+                combinations, columns=[f"Level {i}" for i in range(2)] + ["Nested"]
+            ),
+            num_rows="fixed",
+        ).replace({None: np.nan})
+
+        nested_variables = nested_variables[
+            nested_variables["Nested"] == True  # noqa: E712
+        ].reset_index(drop=True)
 
     st.markdown("""
     ### Percentages
@@ -75,16 +94,11 @@ def main():
                 max_value=100,
                 format="%.0f%%",  # Format with suffix of percentage
                 required=True,
-                width="medium",
             )
         }
 
-        nested_variables = nested_variables_df[
-            nested_variables_df["Nested"] == True  # noqa: E712
-        ].reset_index(drop=True)
-
         selected_variables_data = {
-            variable: field_quotas["variables"][variable]
+            variable: variable_dict[variable]["Values"]
             for variable in selected_variables
         }
 
@@ -134,7 +148,7 @@ def main():
                 with cols[i]:
                     higher_variable = nested_variable["Level 0"]
                     lower_variable = nested_variable["Level 1"]
-                    nested_variable_str = f"{higher_variable}-{lower_variable}"
+                    nested_variable_str = f"{higher_variable} - {lower_variable}"
 
                     st.write(f"#### {nested_variable_str}")
 
