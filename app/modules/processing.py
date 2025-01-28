@@ -1,6 +1,5 @@
 import warnings
 from io import BytesIO
-import tempfile
 import string
 from itertools import product
 
@@ -16,7 +15,7 @@ from openpyxl.utils.cell import range_boundaries
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font
 
-from app.modules.utils import get_temp_file
+from app.modules.utils import get_temp_file, write_temp_excel
 
 letters_list = list(string.ascii_uppercase)
 
@@ -238,15 +237,6 @@ def apply_red_color_to_letter(cell):
         rich_text_cell.append(f"{num} ")
         rich_text_cell.append(TextBlock(red, letter))
         cell.value = rich_text_cell
-
-
-def write_temp_excel(wb):
-    with tempfile.NamedTemporaryFile() as tmpfile:
-        # Write the DataFrame to the temporary SPSS file
-        wb.save(tmpfile.name)
-
-        with open(tmpfile.name, "rb") as f:
-            return BytesIO(f.read())
 
 
 def write_statistical_siginificance_sheet(
