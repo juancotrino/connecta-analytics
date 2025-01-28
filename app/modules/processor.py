@@ -2386,6 +2386,9 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
         n_total = study_metadata.number_rows
         var_type_base = study_metadata.original_variable_types  # F-- Float / A-- String
 
+        dict_labels = study_metadata.column_names_to_labels
+        dict_labels2 = study_metadata2.column_names_to_labels
+
         redFill = PatternFill(
             start_color="C80000", end_color="C80000", fill_type="solid"
         )
@@ -2412,6 +2415,18 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
             top=Side(style="medium"),
             bottom=Side(style="medium"),
         )
+        green_thin_border = Border(
+            left=Side(border_style="thin", color="F7F9F1"),
+            right=Side(border_style="thin", color="F7F9F1"),
+            top=Side(border_style="thin", color="F7F9F1"),
+            bottom=Side(border_style="thin", color="F7F9F1"),
+        )
+        greenBackground = PatternFill(
+            start_color="EBF1DE", end_color="EBF1DE", fill_type="solid"
+        )
+        blueBackground = PatternFill(
+            start_color="DCE6F1", end_color="DCE6F1", fill_type="solid"
+        )
 
         ws_plantilla.cell(row=1, column=1).value = "Variable"
         ws_plantilla.cell(row=1, column=2).value = "Tipo de Variable"
@@ -2423,10 +2438,27 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
         ws_plantilla.cell(row=1, column=8).value = "Same Value labels"
         ws_plantilla.cell(row=1, column=9).value = "Labels Base 1"
         ws_plantilla.cell(row=1, column=10).value = "Labels Base 2"
-        ws_plantilla.cell(row=1, column=11).value = "T. Options"
+        ws_plantilla.cell(row=1, column=11).value = "T. Rate Options"
+        ws_plantilla.cell(row=1, column=12).value = "Same label"
+        ws_plantilla.cell(row=1, column=13).value = "Label 1"
+        ws_plantilla.cell(row=1, column=14).value = "Label 2"
+        ws_plantilla.cell(row=1, column=15).value = "Similar Rate"
+        ws_plantilla.cell(row=1, column=16).value = archivo1.name
+        ws_plantilla.cell(row=1, column=17).value = archivo2.name
 
-        for col in range(1, 12):
-            if col in [7, 8, 9]:
+        # for row in range(2,len(list_vars)+1):
+        #     for col in range(1,16):
+        #         if col in [7,8,9,12,13,17]:
+        #             fillcol=blueBackground
+        #             bordercol=blue_thin_border
+        #         else:
+        #             fillcol=greenBackground
+        #             bordercol=green_thin_border
+        #         ws_plantilla.cell(row=row,column=col).fill=fillcol
+        #         ws_plantilla.cell(row=row,column=col).border=bordercol
+
+        for col in range(1, 18):
+            if col in [7, 8, 9, 12, 13, 17]:
                 fillcol = blueFill
             else:
                 fillcol = greenFillTitle
@@ -2434,8 +2466,12 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
             ws_plantilla.cell(row=1, column=col).font = Font(color="FFFFFF")
             ws_plantilla.cell(row=1, column=col).border = medium_border
             column_letter = get_column_letter(col)
-            if col == 1:
+            if col in [1]:
                 width_col = 22
+            elif col in [11]:
+                width_col = 9
+            elif col in [16, 17]:
+                width_col = 50
             else:
                 width_col = 7
             ws_plantilla.column_dimensions[column_letter].width = width_col
@@ -2490,6 +2526,10 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                             count_unique += 1
                         for ind in data[var2].dropna().index.tolist():
                             index_list.append(ind)
+                count_total2 = 0
+                for var3 in list_vars2:
+                    if re.search(group_multi, var3):
+                        count_total2 += 1
                 ws_plantilla.cell(row=row_num, column=3).value = str(
                     len(list(set(index_list)))
                 )
@@ -2506,14 +2546,25 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                     ws_plantilla.cell(row=row_num, column=7).value = var
                     try:
                         labelval1 = dict_values[var]
-                    except Exception:
-                        labelval1 == ""
+                    except:
+                        labelval1 = ""
                     try:
                         labelval2 = dict_values2[var]
-                    except Exception:
-                        labelval2 == ""
-                    if labelval1 == labelval2:
+                    except:
+                        labelval2 = ""
+                    label_base1 = dict_labels[var]
+                    label_base2 = dict_labels2[var]
+                    if (labelval1 == labelval2) and (count_total == count_total2):
                         ws_plantilla.cell(row=row_num, column=8).value = "Yes"
+                    elif (labelval1 == labelval2) and (count_total != count_total2):
+                        ws_plantilla.cell(row=row_num, column=8).value = "Same Labels"
+                        ws_plantilla.cell(row=row_num, column=8).fill = yellowFill
+                        ws_plantilla.cell(
+                            row=row_num, column=9
+                        ).value = "Distint number of variables in multiple"
+                        ws_plantilla.cell(row=row_num, column=10).value = (
+                            str(count_total2) + " | " + str(count_total)
+                        )
                     else:
                         ws_plantilla.cell(row=row_num, column=8).value = "No"
                         ws_plantilla.cell(row=row_num, column=8).fill = redFill
@@ -2531,6 +2582,26 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                                     None, str(labelval2).lower(), str(labelval1).lower()
                                 ).ratio()
                             )
+                        )
+                    if label_base1 == label_base2:
+                        ws_plantilla.cell(row=row_num, column=12).value = "Yes"
+                    else:
+                        ws_plantilla.cell(row=row_num, column=12).value = "No"
+                        ws_plantilla.cell(row=row_num, column=12).fill = blueFill
+                        ws_plantilla.cell(row=row_num, column=13).value = str(
+                            label_base2
+                        )
+                        ws_plantilla.cell(row=row_num, column=13).fill = grayFill
+                        ws_plantilla.cell(row=row_num, column=7).fill = grayFill
+                        ws_plantilla.cell(row=row_num, column=14).value = str(
+                            label_base1
+                        )
+                        ws_plantilla.cell(
+                            row=row_num, column=15
+                        ).value = "{0:.0%}".format(
+                            SequenceMatcher(
+                                None, str(label_base2).lower(), str(label_base1).lower()
+                            ).ratio()
                         )
                 else:
                     ws_plantilla.cell(row=row_num, column=7).value = "No"
@@ -2580,12 +2651,16 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                     ws_plantilla.cell(row=row_num, column=7).value = var
                     try:
                         labelval1 = dict_values[var]
-                    except Exception:
-                        labelval1 == ""
+                    except:
+                        labelval1 = ""
                     try:
                         labelval2 = dict_values2[var]
-                    except Exception:
-                        labelval2 == ""
+                    except:
+                        labelval2 = ""
+
+                    label_base1 = dict_labels[var]
+                    label_base2 = dict_labels2[var]
+
                     if labelval1 == labelval2:
                         ws_plantilla.cell(row=row_num, column=8).value = "Yes"
                     else:
@@ -2606,8 +2681,29 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                                 ).ratio()
                             )
                         )
+                    if label_base1 == label_base2:
+                        ws_plantilla.cell(row=row_num, column=12).value = "Yes"
+                    else:
+                        ws_plantilla.cell(row=row_num, column=12).value = "No"
+                        ws_plantilla.cell(row=row_num, column=12).fill = blueFill
+                        ws_plantilla.cell(row=row_num, column=13).value = str(
+                            label_base2
+                        )
+                        ws_plantilla.cell(row=row_num, column=13).fill = grayFill
+                        ws_plantilla.cell(row=row_num, column=7).fill = grayFill
+                        ws_plantilla.cell(row=row_num, column=14).value = str(
+                            label_base1
+                        )
+                        ws_plantilla.cell(
+                            row=row_num, column=15
+                        ).value = "{0:.0%}".format(
+                            SequenceMatcher(
+                                None, str(label_base2).lower(), str(label_base1).lower()
+                            ).ratio()
+                        )
                 else:
                     ws_plantilla.cell(row=row_num, column=7).value = "No"
                     ws_plantilla.cell(row=row_num, column=7).fill = blueFill
             row_num += 1
+
     return write_temp_excel(wb_new)
