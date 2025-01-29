@@ -4,6 +4,34 @@ import numpy as np
 import pandas as pd
 
 
+def check_percentage_total(
+    variables: dict[str, pd.DataFrame], variable_type: str = "independent"
+):
+    for variable, data in variables.items():
+        match variable_type:
+            case "independent":
+                if data["percentage"].sum() != 100:
+                    raise Exception(
+                        f"Percentage sum for variable '{variable}' is not 100. "
+                        f"Actual sum: {data['percentage'].sum()}."
+                    )
+            case "nested":
+                higher_variable = variable.split("-")[0].strip()
+                grouped_data = data.groupby(higher_variable).sum().reset_index()
+                unique_values = data.iloc[:, 0].unique()
+
+                for value in unique_values:
+                    value_percentage_sum = grouped_data[
+                        grouped_data[higher_variable] == value
+                    ]["percentage"].to_list()[0]
+                    if value_percentage_sum != 100:
+                        raise Exception(
+                            f"Percentage sum for nested variable '{variable}' "
+                            f"for value '{value}' is not 100. "
+                            f"Actual sum: {value_percentage_sum}."
+                        )
+
+
 def get_expanded_surveys(
     total_surveys: int,
     total_pollsters: int,
@@ -12,6 +40,12 @@ def get_expanded_surveys(
     selected_variables_data: dict,
     selected_variables: list[str],
 ):
+    if not total_surveys:
+        raise Exception("Missing total number of surveys.")
+
+    if not total_pollsters:
+        raise Exception("Missing number of pollsters.")
+
     ordered_selected_variables_data = {
         variable: selected_variables_data[variable] for variable in selected_variables
     }
@@ -28,7 +62,7 @@ def get_expanded_surveys(
             variable_percentages_dict[variable],
             on=variable,
             how="left",
-            suffixes=["_comb", f"_{variable}"],
+            suffixes=[f"_comb_{variable}", f"_{variable}"],
         )
 
     for variable in variable_nested_percentages_dict:
@@ -37,7 +71,7 @@ def get_expanded_surveys(
             variable_nested_percentages_dict[variable],
             on=[v.strip() for v in variable.split("-")],
             how="left",
-            suffixes=["_independent", f"_{variable}"],
+            suffixes=[f"_independent_{variable}", f"_{variable}"],
         )
     percentage_columns = combinations_df.loc[
         :, combinations_df.columns.str.contains("percentage")
@@ -51,11 +85,10 @@ def get_expanded_surveys(
     combinations_df["surveys_float"] = combinations_df["percentage"] * total_surveys
     combinations_df["surveys"] = round(combinations_df["surveys_float"])
 
-    # Step 8: Calculate the difference between the total surveys and the sum of rounded surveys
+    # Calculate the difference between the total surveys and the sum of rounded surveys
     survey_diff = int(total_surveys - combinations_df["surveys"].sum())
 
-    # Step 9: Adjust the survey counts to match total_surveys
-    # If there's a difference, adjust the surveys by either incrementing or decrementing some rows
+    # Adjust the survey counts to match total_surveys
     if survey_diff != 0:
         # Find the rows with the smallest fractional part
         differences = (
@@ -69,19 +102,25 @@ def get_expanded_surveys(
         # Adjust the rows to make the total sum match total_surveys
         for i in range(abs(survey_diff)):
             if survey_diff > 0:
+                # Increment the survey count for the row with the smallest fractional part
                 combinations_df.iloc[i, combinations_df.columns.get_loc("surveys")] += 1
             elif survey_diff < 0:
-                combinations_df.iloc[i, combinations_df.columns.get_loc("surveys")] -= 1
+                # Decrement the survey count for the row with the smallest fractional part, but ensure it's not negative
+                if (
+                    combinations_df.iloc[i, combinations_df.columns.get_loc("surveys")]
+                    > 0
+                ):
+                    combinations_df.iloc[
+                        i, combinations_df.columns.get_loc("surveys")
+                    ] -= 1
 
-    # Step 10: Ensure surveys are integers
+    # Ensure surveys are integers and non-negative
+    combinations_df["surveys"] = combinations_df["surveys"].clip(lower=0).astype(int)
+
+    # Ensure surveys are integers
     combinations_df["surveys"] = combinations_df["surveys"].astype(int)
-    # # Step 11: Final output
-    # final_percentage_df = combinations_df[
-    #     selected_variables + ["percentage"]
-    # ].sort_index()
 
-    # final_survey_df = combinations_df[selected_variables + ["surveys"]].sort_index()
-    # Step 12: Create the new DataFrame by repeating each row based on the 'surveys' column
+    # Create the new DataFrame by repeating each row based on the 'surveys' column
     expanded_df = combinations_df[selected_variables].loc[
         np.repeat(combinations_df.index.values, combinations_df["surveys"])
     ]
@@ -99,5 +138,10 @@ def get_expanded_surveys(
 
     # Add this array as a new column in your DataFrame
     expanded_df["Pollster"] = repeated_elements
+
+    # Ensure final length matches total_surveys
+    if len(expanded_df) != total_surveys:
+        # If there's a discrepancy, adjust the number of rows
+        expanded_df = expanded_df.head(total_surveys)
 
     return expanded_df

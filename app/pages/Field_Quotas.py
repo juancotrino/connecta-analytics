@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.utils import try_download, write_temp_excel
-from app.modules.field_quotas import get_expanded_surveys
+from app.modules.field_quotas import get_expanded_surveys, check_percentage_total
 
 
 def main():
@@ -108,12 +108,16 @@ def main():
             if variable not in nested_variables["Level 1"].tolist()
         ]
 
-        if outer_variables:
+        if all(variable for variable in outer_variables) and not all(
+            data.empty for _, data in selected_variables_data.items()
+        ):
             st.write("### Percentages for independent variables")
             cols = st.columns(len(outer_variables))
 
             variable_percentages_dict = {}
             for i, outer_variable in enumerate(outer_variables):
+                if selected_variables_data[outer_variable].empty:
+                    continue
                 with cols[i]:
                     st.write(f"#### {outer_variable}")
                     df_percentage = pd.DataFrame(
@@ -139,11 +143,11 @@ def main():
 
                     variable_percentages_dict[outer_variable] = variable_percentage_df
 
+        variable_nested_percentages_dict = {}
         if not nested_variables.empty:
             st.write("### Percentages for nested variables")
             cols = st.columns(len(nested_variables))
 
-            variable_nested_percentages_dict = {}
             for i, nested_variable in nested_variables.iterrows():
                 with cols[i]:
                     higher_variable = nested_variable["Level 0"]
@@ -197,16 +201,26 @@ def main():
         submitted = st.form_submit_button("Generate survey list")
 
         if submitted:
-            expanded_surveys = write_temp_excel(
-                get_expanded_surveys(
-                    total_surveys,
-                    total_pollsters,
-                    variable_percentages_dict,
-                    variable_nested_percentages_dict,
-                    selected_variables_data,
-                    selected_variables,
+            try:
+                check_percentage_total(
+                    variable_percentages_dict, variable_type="independent"
                 )
-            )
+                check_percentage_total(
+                    variable_nested_percentages_dict, variable_type="nested"
+                )
+
+                expanded_surveys = write_temp_excel(
+                    get_expanded_surveys(
+                        total_surveys,
+                        total_pollsters,
+                        variable_percentages_dict,
+                        variable_nested_percentages_dict,
+                        selected_variables_data,
+                        selected_variables,
+                    )
+                )
+            except Exception as e:
+                st.error(e)
 
     try:
         try_download(
