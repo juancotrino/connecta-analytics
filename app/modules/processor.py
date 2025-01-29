@@ -2415,18 +2415,18 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
             top=Side(style="medium"),
             bottom=Side(style="medium"),
         )
-        green_thin_border = Border(
-            left=Side(border_style="thin", color="F7F9F1"),
-            right=Side(border_style="thin", color="F7F9F1"),
-            top=Side(border_style="thin", color="F7F9F1"),
-            bottom=Side(border_style="thin", color="F7F9F1"),
-        )
-        greenBackground = PatternFill(
-            start_color="EBF1DE", end_color="EBF1DE", fill_type="solid"
-        )
-        blueBackground = PatternFill(
-            start_color="DCE6F1", end_color="DCE6F1", fill_type="solid"
-        )
+        # green_thin_border = Border(
+        #     left=Side(border_style="thin", color="F7F9F1"),
+        #     right=Side(border_style="thin", color="F7F9F1"),
+        #     top=Side(border_style="thin", color="F7F9F1"),
+        #     bottom=Side(border_style="thin", color="F7F9F1"),
+        # )
+        # greenBackground = PatternFill(
+        #     start_color="EBF1DE", end_color="EBF1DE", fill_type="solid"
+        # )
+        # blueBackground = PatternFill(
+        #     start_color="DCE6F1", end_color="DCE6F1", fill_type="solid"
+        # )
 
         ws_plantilla.cell(row=1, column=1).value = "Variable"
         ws_plantilla.cell(row=1, column=2).value = "Tipo de Variable"
@@ -2546,11 +2546,11 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                     ws_plantilla.cell(row=row_num, column=7).value = var
                     try:
                         labelval1 = dict_values[var]
-                    except:
+                    except Exception:
                         labelval1 = ""
                     try:
                         labelval2 = dict_values2[var]
-                    except:
+                    except Exception:
                         labelval2 = ""
                     label_base1 = dict_labels[var]
                     label_base2 = dict_labels2[var]
@@ -2651,11 +2651,11 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                     ws_plantilla.cell(row=row_num, column=7).value = var
                     try:
                         labelval1 = dict_values[var]
-                    except:
+                    except Exception:
                         labelval1 = ""
                     try:
                         labelval2 = dict_values2[var]
-                    except:
+                    except Exception:
                         labelval2 = ""
 
                     label_base1 = dict_labels[var]
