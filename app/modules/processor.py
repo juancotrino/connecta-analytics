@@ -2184,6 +2184,7 @@ def getVarsForPlantilla(spss_file: BytesIO):
     list_vars = study_metadata.column_names
     n_total = study_metadata.number_rows
     var_type_base = study_metadata.original_variable_types  # F-- Float / A-- String
+    dict_labels=study_metadata.column_names_to_labels
     # Create a new Workbook
     wb_new = Workbook()
     # Remove the default sheet created with the new workbook
@@ -2215,16 +2216,22 @@ def getVarsForPlantilla(spss_file: BytesIO):
     ws_plantilla.cell(row=1, column=4).value = "Unique Distinct Values"
     ws_plantilla.cell(row=1, column=5).value = "Total Options Values"
     ws_plantilla.cell(row=1, column=6).value = "Option 5"
+    ws_plantilla.cell(row=1,column=7).value="Nombre Var"
+    ws_plantilla.cell(row=1,column=8).value="Opt. Labels"
 
-    for col in range(1, 7):
-        ws_plantilla.cell(row=1, column=col).fill = greenFillTitle
-        ws_plantilla.cell(row=1, column=col).font = Font(color="FFFFFF")
-        ws_plantilla.cell(row=1, column=col).border = medium_border
+    for col in range(1,9):
+        ws_plantilla.cell(row=1,column=col).fill=greenFillTitle
+        ws_plantilla.cell(row=1,column=col).font = Font(color = "FFFFFF")
+        ws_plantilla.cell(row=1,column=col).border = medium_border
         column_letter = get_column_letter(col)
-        if col == 1:
-            width_col = 22
+        if col==1:
+            width_col=22
+        elif col in [7]:
+            width_col=20
+        elif col in [8]:
+            width_col=25
         else:
-            width_col = 7
+            width_col=7
         ws_plantilla.column_dimensions[column_letter].width = width_col
 
     ws_plantilla.auto_filter.ref = ws_plantilla.dimensions
@@ -2350,6 +2357,14 @@ def getVarsForPlantilla(spss_file: BytesIO):
             except Exception:
                 textPlantilla += str(len(list(set(data[var].dropna())))) + "\t/--"
                 ws_plantilla.cell(row=row_num, column=5).value = "/--"
+        try:
+            labelval1=dict_values[var]
+        except:
+            labelval1="None"
+        label_base1=dict_labels[var]
+        ws_plantilla.cell(row=row_num,column=7).value=str(label_base1)
+        ws_plantilla.cell(row=row_num,column=8).value=str(labelval1)
+        ws_plantilla.cell(row=row_num,column=9).value=" "
         row_num += 1
     return textPlantilla, write_temp_excel(wb_new)
 
