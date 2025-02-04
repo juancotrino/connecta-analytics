@@ -144,4 +144,7 @@ def get_expanded_surveys(
         # If there's a discrepancy, adjust the number of rows
         expanded_df = expanded_df.head(total_surveys)
 
+    expanded_df = expanded_df.reset_index(names="ID")
+    expanded_df["ID"] += 1
+
     return expanded_df
