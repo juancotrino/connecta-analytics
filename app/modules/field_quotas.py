@@ -32,9 +32,25 @@ def check_percentage_total(
                         )
 
 
+def get_expanded_variable_pollsters(variable_pollsters_df: pd.DataFrame):
+    # Step 1: Repeat rows based on the 'Number of Pollsters' column
+    expanded_df = variable_pollsters_df.loc[
+        variable_pollsters_df.index.repeat(
+            variable_pollsters_df["Number of Pollsters"].astype(int)
+        )
+    ].reset_index(drop=True)
+
+    # Step 2: Add a 'ID per Variable' column within each group (Values)
+    expanded_df["ID per Variable"] = expanded_df.groupby("Values").cumcount() + 1
+
+    return expanded_df
+
+
 def get_expanded_surveys(
     total_surveys: int,
     total_pollsters: int,
+    variable_pollsters: str | None,
+    expanded_variable_pollsters: pd.DataFrame | None,
     variable_percentages_dict: dict,
     variable_nested_percentages_dict: dict,
     selected_variables_data: dict,
@@ -128,20 +144,53 @@ def get_expanded_surveys(
     # Optionally, reset the index for the new DataFrame
     expanded_df = expanded_df.sort_values(selected_variables).reset_index(drop=True)
 
-    # Create an array of 16 elements (you can change these values as needed)
-    pollsters = np.arange(1, total_pollsters + 1)  # Here I'm using numbers 1 to 16
+    if expanded_variable_pollsters is None:
+        # Create an array of 16 elements (you can change these values as needed)
+        pollsters = np.arange(1, total_pollsters + 1)  # Here I'm using numbers 1 to 16
 
-    # Repeat the elements array until it covers the entire number of rows
-    repeated_elements = np.tile(
-        pollsters, int(np.ceil(len(expanded_df) / total_pollsters))
-    )[: len(expanded_df)]
+        # Repeat the elements array until it covers the entire number of rows
+        repeated_elements = np.tile(
+            pollsters, int(np.ceil(len(expanded_df) / total_pollsters))
+        )[: len(expanded_df)]
 
-    # Add this array as a new column in your DataFrame
-    expanded_df["Pollster"] = repeated_elements
+        # Add this array as a new column in your DataFrame
+        expanded_df["Pollster"] = repeated_elements
+    else:
+        unique_values_variable_pollster = (
+            expanded_variable_pollsters["Values"].unique().tolist()
+        )
+        expanded_df["Pollster"] = None
+        for unique_value in unique_values_variable_pollster:
+            filtered_expanded_df = expanded_df[
+                expanded_df[variable_pollsters] == unique_value
+            ].copy()
+            pollsters_per_variable_value = expanded_variable_pollsters[
+                expanded_variable_pollsters["Values"] == unique_value
+            ]["ID per Variable"]
+            repeated_elements = np.tile(
+                pollsters_per_variable_value,
+                int(
+                    np.ceil(
+                        len(filtered_expanded_df) / len(pollsters_per_variable_value)
+                    )
+                ),
+            )[: len(filtered_expanded_df)]
+
+            filtered_expanded_df["Pollster"] = repeated_elements
+            filtered_expanded_df["Pollster"] = (
+                filtered_expanded_df[variable_pollsters].astype(str)
+                + "-"
+                + filtered_expanded_df["Pollster"].astype(str)
+            )
+
+            expanded_df.update(filtered_expanded_df)
 
     # Ensure final length matches total_surveys
     if len(expanded_df) != total_surveys:
         # If there's a discrepancy, adjust the number of rows
         expanded_df = expanded_df.head(total_surveys)
+
+    expanded_df = expanded_df.reset_index(names="ID")
+    expanded_df["ID"] += 1
 
     return expanded_df
