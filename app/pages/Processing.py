@@ -280,7 +280,7 @@ def main():
             try_download(
                 "Download Stadistics Plantilla",
                 results_plantilla,
-                "stadistics_plantilla",
+                "stadistics_plantilla"+uploaded_file_process_sav.name,
                 "xlsx",
             )
         except Exception:
