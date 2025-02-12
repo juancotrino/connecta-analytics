@@ -414,7 +414,7 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                     elif not first:
                         new_name+="_"
                     first=False
-                    new_name+=tuple[1]
+                    new_name+=tuple[1][:10]
                     var_to_replace="#"+tuple[2]+"#"
                     if not var_to_replace in new_condition:
                         var_to_replace="#"+tuple[2]+"*#"
