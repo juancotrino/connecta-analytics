@@ -84,7 +84,6 @@ def get_studies(limit: int = 50, offset: int = 0, **kwargs):
     for _filter in filters:
         if kwargs.get(_filter):
             if _filter == "study_id":
-                print("TEEEEEST", kwargs.get(_filter))
                 filter_list = ", ".join(
                     [str(element) for element in kwargs.get(_filter)]
                 )
@@ -103,7 +102,7 @@ def get_studies(limit: int = 50, offset: int = 0, **kwargs):
         ORDER BY study_id DESC
         LIMIT {limit} OFFSET {offset}
     """
-    print(query)
+
     studies_data = bq.fetch_data(query)
 
     studies_data["status"] = studies_data["status"].apply(
