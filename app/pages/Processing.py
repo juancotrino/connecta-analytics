@@ -1,3 +1,7 @@
+import os
+from io import BytesIO
+import requests
+
 import pandas as pd
 
 import streamlit as st
@@ -300,8 +304,19 @@ def main():
 
             if uploaded_file_xlsx and process:
                 with st.spinner("Processing..."):
-                    results = processing(uploaded_file_xlsx)
-                    st.success("Tables processed successfully.")
+                    response = requests.post(
+                        f"{os.getenv('SERVICE_PROCESSING_URL')}/statistical_processing",
+                        files={"file": uploaded_file_xlsx},
+                    )
+
+                    # Check the response status
+                    if response.status_code == 200:
+                        results = BytesIO(response.content)
+                        st.success("Tables processed successfully.")
+                    else:
+                        st.error(
+                            f"Failed to upload the file. Status code: {response.status_code}"
+                        )
 
         try:
             try_download(
