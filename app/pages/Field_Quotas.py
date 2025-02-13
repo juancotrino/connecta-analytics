@@ -118,9 +118,10 @@ def main():
                         f"pollsters in variable '{variable_pollsters}' options."
                     )
 
-                expanded_variable_pollsters = get_expanded_variable_pollsters(
-                    variable_pollsters_df
-                )
+                elif not any(variable_pollsters_df["Number of Pollsters"].isnull()):
+                    expanded_variable_pollsters = get_expanded_variable_pollsters(
+                        variable_pollsters_df
+                    )
 
     with st.form(key="field_quotas"):
         st.markdown("""
