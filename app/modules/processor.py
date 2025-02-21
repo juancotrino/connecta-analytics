@@ -1,9 +1,9 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from io import BytesIO
 import re
 import pandas as pd
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from difflib import SequenceMatcher
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import PatternFill, Border, Side, Font
@@ -2720,5 +2720,135 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                     ws_plantilla.cell(row=row_num, column=7).value = "No"
                     ws_plantilla.cell(row=row_num, column=7).fill = blueFill
             row_num += 1
+
+    return write_temp_excel(wb_new)
+
+
+def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
+    file_xlsx1 = get_temp_file(lc_xlsx_file1, ".xlsx")
+    file_xlsx2 = get_temp_file(lc_xlsx_file2, ".xlsx")
+
+    wb_lc_1_first = load_workbook(file_xlsx1)
+    wb_lc_2_first = load_workbook(file_xlsx2)
+
+    wb_new = Workbook()
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
+
+    for caso in range(2):
+        if caso == 0:
+            wb_lc1 = wb_lc_1_first
+            wb_lc2 = wb_lc_2_first
+            name_sheet=lc_xlsx_file1.name[:10]
+        else:
+            wb_lc1 = wb_lc_2_first
+            wb_lc2 = wb_lc_1_first
+            name_sheet=lc_xlsx_file2.name[:10]
+
+        ws_lc_comparison = wb_new.create_sheet(
+            title="LC comparison -"+name_sheet+ str(caso + 1)
+        )
+
+        ws_lc_comparison.cell(row=1, column=1).value = "Sheet Name"
+        ws_lc_comparison.cell(row=1, column=2).value = "Codes duplicated"
+        ws_lc_comparison.cell(row=1, column=3).value = "Verbatims duplicated"
+        ws_lc_comparison.cell(row=1, column=4).value = "In LC 2"
+        ws_lc_comparison.cell(row=1, column=5).value = "LC equals"
+        ws_lc_comparison.cell(row=1, column=6).value = "Codes Missing in LC2"
+        ws_lc_comparison.cell(row=1, column=7).value = "Distinct labels in LC2"
+        ws_lc_comparison.cell(row=1, column=8).value = " "
+
+        blueFill = PatternFill(
+            start_color="C5D9F1", end_color="C5D9F1", fill_type="solid"
+        )
+        yellowFill = PatternFill(
+            start_color="FFFF00", end_color="FFFF00", fill_type="solid"
+        )
+        medium_border = Border(
+            left=Side(style="medium"),
+            right=Side(style="medium"),
+            top=Side(style="medium"),
+            bottom=Side(style="medium"),
+        )
+
+        for col in range(1, 8):
+            ws_lc_comparison.cell(row=1, column=col).fill = blueFill
+            ws_lc_comparison.cell(row=1, column=col).border = medium_border
+
+        row_num=2
+        for sheet in wb_lc1:
+            ws_lc_comparison.cell(row=row_num, column=1).value = sheet.title
+
+            for col_dup in range(2):
+                valores = []
+                for fila in sheet.iter_rows(min_col=col_dup+1, max_col=col_dup+1, min_row=2, values_only=True):
+                    if fila[0] is not None and fila[0]!='NETO':  # Ignorar celdas vacías
+                        valores.append(fila[0])
+
+                # Buscar duplicados
+                duplicados = set([valor for valor in valores if valores.count(valor) > 1])
+
+                if duplicados:
+                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).value=str(duplicados)
+                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).fill=yellowFill
+                else:
+                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).value="No"
+
+            if sheet.title in wb_lc2.sheetnames:
+                ws_lc_comparison.cell(row=row_num, column=4).value = "Yes"
+                ws1=sheet
+                ws2=wb_lc2[sheet.title]
+
+                dict_code_and_values1 = defaultdict(list)
+                dict_code_and_values2 = defaultdict(list)
+                max_filas = max(ws1.max_row, ws2.max_row)
+
+                for fila in range(1, max_filas + 1):
+                    valor_ws1_col1 = ws1.cell(row=fila, column=1).value
+                    valor_ws1_col2 = ws1.cell(row=fila, column=2).value
+
+                    valor_ws2_col1 = ws2.cell(row=fila, column=1).value
+                    valor_ws2_col2 = ws2.cell(row=fila, column=2).value
+
+                    if valor_ws1_col1 != valor_ws2_col1 or valor_ws1_col2 != valor_ws2_col2:
+                        ws_lc_comparison.cell(row=row_num, column=5).value = "No"
+
+                    if valor_ws1_col1 is not None:
+                        dict_code_and_values1[valor_ws1_col1].append(valor_ws1_col2 if valor_ws1_col2 is not None else "")
+
+                    if valor_ws2_col1 is not None:
+                        dict_code_and_values2[valor_ws2_col1].append(valor_ws2_col2 if valor_ws2_col2 is not None else "")
+
+                if ws_lc_comparison.cell(row=row_num, column=5).value != "No":
+                    ws_lc_comparison.cell(row=row_num, column=5).value = "Yes"
+
+                codes_missings=[]
+                distints_labels=[]
+                dict_distint_lab1=[]
+                dict_distint_lab2=[]
+                for key_lc1 in dict_code_and_values1.keys():
+                    if not key_lc1 in dict_code_and_values2.keys():
+                        codes_missings.append(key_lc1)
+                    elif dict_code_and_values1[key_lc1]!=dict_code_and_values2[key_lc1]:
+                        distints_labels.append(str(key_lc1)+"-"+str(dict_code_and_values1[key_lc1])+"|"+str(dict_code_and_values2[key_lc1]))
+                        dict_distint_lab1.append(str(dict_code_and_values1[key_lc1]))
+                        dict_distint_lab2.append(str(dict_code_and_values2[key_lc1]))
+                if codes_missings:
+                    ws_lc_comparison.cell(row=row_num, column=6).value = str(codes_missings)
+                else:
+                    ws_lc_comparison.cell(row=row_num, column=6).value = "         LC2 Contain all codes"
+                if distints_labels:
+                    if(all(val=="['']" for val in dict_distint_lab1)):
+                        ws_lc_comparison.cell(row=row_num, column=7).value = "  LC1 Subcodes"
+                    elif(all(val=="['']" for val in dict_distint_lab2)):
+                        ws_lc_comparison.cell(row=row_num, column=7).value = "  LC2 Subcodes"
+                    else:
+                        ws_lc_comparison.cell(row=row_num, column=7).value = str(distints_labels)
+                else:
+                    ws_lc_comparison.cell(row=row_num, column=7).value = "         All Labels are equal"
+                ws_lc_comparison.cell(row=row_num, column=8).value=" "
+            else:
+                ws_lc_comparison.cell(row=row_num, column=4).value = "No"
+            row_num+=1
 
     return write_temp_excel(wb_new)
