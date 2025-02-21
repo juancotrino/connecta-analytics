@@ -6,7 +6,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 from difflib import SequenceMatcher
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import PatternFill, Border, Side, Font
+from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
 
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
@@ -2739,14 +2739,16 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
         if caso == 0:
             wb_lc1 = wb_lc_1_first
             wb_lc2 = wb_lc_2_first
-            name_sheet=lc_xlsx_file1.name[:10]
+            name_sheet=lc_xlsx_file1.name
+            name_sheet2=lc_xlsx_file2.name
         else:
             wb_lc1 = wb_lc_2_first
             wb_lc2 = wb_lc_1_first
-            name_sheet=lc_xlsx_file2.name[:10]
+            name_sheet=lc_xlsx_file2.name
+            name_sheet2=lc_xlsx_file1.name
 
         ws_lc_comparison = wb_new.create_sheet(
-            title="LC comparison -"+name_sheet+ str(caso + 1)
+            title="LC comparison -"+name_sheet[:10]+ str(caso + 1)
         )
 
         ws_lc_comparison.cell(row=1, column=1).value = "Sheet Name"
@@ -2756,7 +2758,9 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
         ws_lc_comparison.cell(row=1, column=5).value = "LC equals"
         ws_lc_comparison.cell(row=1, column=6).value = "Codes Missing in LC2"
         ws_lc_comparison.cell(row=1, column=7).value = "Distinct labels in LC2"
-        ws_lc_comparison.cell(row=1, column=8).value = " "
+        ws_lc_comparison.cell(row=1, column=8).value = f"LC1={name_sheet}"
+        ws_lc_comparison.cell(row=1, column=9).value = f"LC2={name_sheet2}"
+        ws_lc_comparison.cell(row=1, column=10).value = " "
 
         blueFill = PatternFill(
             start_color="C5D9F1", end_color="C5D9F1", fill_type="solid"
@@ -2771,7 +2775,7 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
             bottom=Side(style="medium"),
         )
 
-        for col in range(1, 8):
+        for col in range(1, 10):
             ws_lc_comparison.cell(row=1, column=col).fill = blueFill
             ws_lc_comparison.cell(row=1, column=col).border = medium_border
 
@@ -2789,8 +2793,17 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
                 duplicados = set([valor for valor in valores if valores.count(valor) > 1])
 
                 if duplicados:
-                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).value=str(duplicados)
                     ws_lc_comparison.cell(row=row_num, column=col_dup+2).fill=yellowFill
+                    text_dups=""
+                    for dup in duplicados:
+                        list_rows=[]
+                        list_values=[]
+                        for rowi in range(1,sheet.max_row+1):
+                            if sheet.cell(row=rowi, column=col_dup+1).value==dup:
+                                list_rows.append(rowi)
+                                list_values.append(sheet.cell(row=rowi, column=2-col_dup).value)
+                        text_dups+=f"{dup} \t |-- values: {list_values}  --|-- rows: {list_rows}\n"
+                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).value=text_dups[:-2]
                 else:
                     ws_lc_comparison.cell(row=row_num, column=col_dup+2).value="No"
 
@@ -2838,12 +2851,14 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
                 else:
                     ws_lc_comparison.cell(row=row_num, column=6).value = "         LC2 Contain all codes"
                 if distints_labels:
-                    if(all(val=="['']" for val in dict_distint_lab1)):
-                        ws_lc_comparison.cell(row=row_num, column=7).value = "  LC1 Subcodes"
-                    elif(all(val=="['']" for val in dict_distint_lab2)):
-                        ws_lc_comparison.cell(row=row_num, column=7).value = "  LC2 Subcodes"
-                    else:
-                        ws_lc_comparison.cell(row=row_num, column=7).value = str(distints_labels)
+                    text_distint_labels=""
+                    subcodes1=dict_distint_lab1.count("['']")
+                    subcodes2=dict_distint_lab2.count("['']")
+                    for val in distints_labels:
+                        if re.search("\[''\]",val):
+                            continue
+                        text_distint_labels+=val+"\n"
+                    ws_lc_comparison.cell(row=row_num, column=7).value = text_distint_labels+ f"S1={subcodes1},S2={subcodes2}"
                 else:
                     ws_lc_comparison.cell(row=row_num, column=7).value = "         All Labels are equal"
                 ws_lc_comparison.cell(row=row_num, column=8).value=" "
@@ -2851,4 +2866,27 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
                 ws_lc_comparison.cell(row=row_num, column=4).value = "No"
             row_num+=1
 
+        for row in ws_lc_comparison.iter_rows():
+            max_lines = 1  # Valor mínimo de líneas por celda
+            for cell in row:
+                if cell.value and isinstance(cell.value, str):  # Si el contenido es texto
+                    max_lines = max(max_lines, cell.value.count("\n") + 1)
+                    cell.alignment = Alignment(wrap_text=True)
+
+            # Ajustar la altura de la fila (cada línea adicional suma un tamaño base)
+            ws_lc_comparison.row_dimensions[row[0].row].height = max_lines * 15  # Ajustar según necesidad
+
+        columnas_ajustar = ["B", "C", "G"]
+        for col in columnas_ajustar:
+            max_length = 0
+            for cell in ws_lc_comparison[col]:
+                if cell.value and isinstance(cell.value, str):
+                    lineas = cell.value.split("\n")  # Dividir en líneas
+                    max_line_length = max(len(linea) for linea in lineas)  # Buscar la línea más larga
+                    max_length = max(max_length, max_line_length)
+            max_length=min(max_length,100)
+            ws_lc_comparison.column_dimensions[col].width = max_length*0.9
+
+        ws_lc_comparison.column_dimensions["H"].width = 30
+        ws_lc_comparison.column_dimensions["I"].width = 30
     return write_temp_excel(wb_new)
