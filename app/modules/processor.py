@@ -2,6 +2,7 @@ from collections import Counter, defaultdict
 from io import BytesIO
 import re
 import pandas as pd
+from unidecode import unidecode
 
 from openpyxl import Workbook, load_workbook
 from difflib import SequenceMatcher
@@ -15,7 +16,7 @@ from app.modules.utils import write_temp_excel
 import pyreadstat
 
 
-def getPreProcessCode(spss_file: BytesIO, xlsx_file: BytesIO):
+def getPreProcessCode(spss_file: BytesIO, xlsx_file: BytesIO,xlsx_file_LC: BytesIO):
     file_xlsx = get_temp_file(xlsx_file)
     inverseVarsList = pd.read_excel(
         file_xlsx, usecols="A,E", skiprows=3, names=["vars", "inverses"]
@@ -34,7 +35,7 @@ def getPreProcessCode(spss_file: BytesIO, xlsx_file: BytesIO):
         preprocesscode += getScaleCodeVars(spss_file, scaleVarsList)
     preprocesscode += "\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nVALUE LABELS TOTAL 1 \"TOTAL\".\nEXECUTE.\n"
     preprocesscode += getCloneCodeVars(spss_file, xlsx_file)
-    preprocesscode += getPreProcessAbiertas(spss_file, xlsx_file)
+    preprocesscode += getPreProcessAbiertas(spss_file, xlsx_file,xlsx_file_LC)
     return preprocesscode
 
 
@@ -62,9 +63,9 @@ def getPreProcessCode2(spss_file: BytesIO):
 
 
 def getProcessCode2(
-    spss_file: BytesIO, xlsx_file: BytesIO, checkinclude=False, rutaarchivo=""
+    spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO, checkinclude=False, rutaarchivo=""
 ):
-    result, warning2 = getProcessCode(spss_file, xlsx_file, checkinclude)
+    result, warning2 = getProcessCode(spss_file, xlsx_file, xlsx_file_LC, checkinclude)
     file_xlsx = get_temp_file(xlsx_file)
     nombrehoja = (
         pd.read_excel(file_xlsx, usecols="O", skiprows=3, names=["name"])
@@ -122,41 +123,25 @@ def getProcessCode2(
             refs_unique = data[var].dropna().unique()
             refs_unique.sort()
             for refindex in refs_unique:
-                name_var = re.sub(
-                    "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                )
+                name_var = limpiar_texto(refdict[refindex])
                 name_dataset = name_var
                 name_sheet = (
                     nombrehoja
                     + " "
-                    + refdict[refindex]
-                    .replace("ñ", "n")
-                    .replace(".", "")
-                    .replace("á", "a")
-                    .replace("é", "e")
-                    .replace("í", "i")
-                    .replace("ó", "o")
-                    .replace("ó", "o")
+                    + unidecode(refdict[refindex]).replace(".", "")
                     + sufijo
                 )
                 if len(name_sheet) > 30:
                     name_sheet = (
                         nombrehoja
                         + " "
-                        + refdict[refindex]
-                        .replace("ñ", "n")
-                        .replace(".", "")
-                        .replace("á", "a")
-                        .replace("é", "e")
-                        .replace("í", "i")
-                        .replace("ó", "o")
-                        .replace("ó", "o")[:10]
+                        + unidecode(refdict[refindex]).replace(".", "")[:10]
                         + sufijo
                     )
                 result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
                 condition = data[var] == refindex
                 result_preg, _ = getProcessCode(
-                    spss_file, xlsx_file, checkinclude, condition=condition
+                    spss_file, xlsx_file, xlsx_file_LC, checkinclude, condition=condition
                 )
                 result += result_preg
                 result += "\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
@@ -183,63 +168,29 @@ def getProcessCode2(
             refs_segment_unique = data[var_segment].dropna().unique()
             refs_segment_unique.sort()
             for refindex_segment in refs_segment_unique:
-                name_var_segment = re.sub(
-                    "[()\-+áéíóú]",
-                    "",
-                    refdict_segment[refindex_segment].replace(" ", "_"),
-                )
+                name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                 for var in varsList:
                     refdict = study_metadata.variable_value_labels[var]
                     refs_unique = data[var].dropna().unique()
                     refs_unique.sort()
                     for refindex in refs_unique:
-                        name_var = re.sub(
-                            "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                        )
+                        name_var = limpiar_texto(refdict[refindex])
                         name_dataset = name_var + "_" + name_var_segment
                         name_sheet = (
                             nombrehoja
                             + " "
-                            + refdict[refindex]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")
+                            + unidecode(refdict[refindex]).replace(".", "")
                             + " "
-                            + refdict_segment[refindex_segment]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")
+                            + unidecode(refdict_segment[refindex_segment]).replace(".", "")
                             + sufijo
                         )
                         if len(name_sheet) > 30:
                             name_sheet = (
                                 nombrehoja
                                 + " "
-                                + refdict[refindex]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")[:10]
+                                + unidecode(refdict[refindex]).replace(".", "")[:10]
                                 + " "
-                                + refdict_segment[refindex_segment]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")[:10]
+                                + unidecode(refdict_segment[refindex_segment]).replace(".", "")[:10]
                                 + sufijo
                             )
                         result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -247,7 +198,7 @@ def getProcessCode2(
                         condition2 = data[var_segment] == refindex_segment
                         condition = condition1 & condition2
                         result_preg, _ = getProcessCode(
-                            spss_file, xlsx_file, checkinclude, condition=condition
+                            spss_file, xlsx_file, xlsx_file_LC, checkinclude, condition=condition
                         )
                         result += result_preg
                         result += "\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
@@ -299,7 +250,7 @@ def getProcessCode2(
 
 
 def getProcessCode(
-    spss_file: BytesIO, xlsx_file: BytesIO, checkinclude=False, condition=None
+    spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO, checkinclude=False, condition=None
 ):
     file_xlsx = get_temp_file(xlsx_file)
     varsList = pd.read_excel(
@@ -547,6 +498,7 @@ def getProcessCode(
             result_abierta, result_warning = getProcessAbiertas(
                 spss_file,
                 xlsx_file,
+                xlsx_file_LC,
                 checkinclude,
                 varsList.iloc[i][0],
                 condition=condition,
@@ -556,19 +508,20 @@ def getProcessCode(
     return result, warning
 
 
-def getPreProcessAbiertas(spss_file: BytesIO, xlsx_file: BytesIO):
+def getPreProcessAbiertas(spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO):
     result = ""
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
         temp_file_name, apply_value_formats=False
     )
     file_xlsx = get_temp_file(xlsx_file)
+    file_xlsx_LC = get_temp_file(xlsx_file_LC)
     varsList = pd.read_excel(
         file_xlsx, usecols="A,C", skiprows=3, names=["vars", "sheetNames"]
     ).dropna()
     for i in range(len(varsList)):
         lcTable = pd.read_excel(
-            file_xlsx,
+            file_xlsx_LC,
             sheet_name=varsList.iloc[i][1],
             usecols="A,B",
             skiprows=1,
@@ -637,6 +590,7 @@ def getAbiertasPreCode(var, lcTable):
 def getProcessAbiertas(
     spss_file: BytesIO,
     xlsx_file: BytesIO,
+    xlsx_file_LC: BytesIO,
     checkinclude=False,
     namevar="",
     condition=None,
@@ -654,6 +608,7 @@ def getProcessAbiertas(
         data = data2[condition]
 
     file_xlsx = get_temp_file(xlsx_file)
+    file_xlsx_LC = get_temp_file(xlsx_file_LC)
     varsList = pd.read_excel(
         file_xlsx,
         usecols="A,C,D,E",
@@ -673,7 +628,7 @@ def getProcessAbiertas(
     for i in range(len(varsList)):
         if namevar == "" or namevar == varsList.iloc[i][0]:
             lcTable = pd.read_excel(
-                file_xlsx,
+                file_xlsx_LC,
                 sheet_name=varsList.iloc[i][1],
                 usecols="A,B",
                 skiprows=1,
@@ -710,7 +665,7 @@ def getProcessAbiertas(
                 lista_final_codigos.append(lcTable.iloc[j][0])
 
             lcTable2 = pd.read_excel(
-                file_xlsx,
+                file_xlsx_LC,
                 sheet_name=varsList.iloc[i][1],
                 usecols="A,B",
                 skiprows=1,
@@ -1136,35 +1091,19 @@ def getPenaltysCode2(spss_file: BytesIO, xlsx_file: BytesIO, rutaarchivo=""):
                 refs_unique = data[var].dropna().unique()
                 refs_unique.sort()
                 for refindex in refs_unique:
-                    name_var = re.sub(
-                        "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                    )
+                    name_var = limpiar_texto(refdict[refindex])
                     name_dataset = name_var
                     name_sheet = (
                         nombrehoja
                         + " "
-                        + refdict[refindex]
-                        .replace("ñ", "n")
-                        .replace(".", "")
-                        .replace("á", "a")
-                        .replace("é", "e")
-                        .replace("í", "i")
-                        .replace("ó", "o")
-                        .replace("ó", "o")
+                        + unidecode(refdict[refindex]).replace(".", "")
                         + sufijo
                     )
                     if len(name_sheet) > 30:
                         name_sheet = (
                             nombrehoja
                             + " "
-                            + refdict[refindex]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")[:10]
+                            + unidecode(refdict[refindex]).replace(".", "")[:10]
                             + sufijo
                         )
                     result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -1192,63 +1131,29 @@ def getPenaltysCode2(spss_file: BytesIO, xlsx_file: BytesIO, rutaarchivo=""):
                 refs_segment_unique = data[var_segment].dropna().unique()
                 refs_segment_unique.sort()
                 for refindex_segment in refs_segment_unique:
-                    name_var_segment = re.sub(
-                        "[()\-+áéíóú]",
-                        "",
-                        refdict_segment[refindex_segment].replace(" ", "_"),
-                    )
+                    name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                     for var in varsList:
                         refdict = study_metadata.variable_value_labels[var]
                         refs_unique = data[var].dropna().unique()
                         refs_unique.sort()
                         for refindex in refs_unique:
-                            name_var = re.sub(
-                                "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                            )
+                            name_var = limpiar_texto(refdict[refindex])
                             name_dataset = name_var + "_" + name_var_segment
                             name_sheet = (
                                 nombrehoja
                                 + " "
-                                + refdict[refindex]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict[refindex]).replace(".", "")
                                 + " "
-                                + refdict_segment[refindex_segment]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict_segment[refindex_segment]).replace(".", "")
                                 + sufijo
                             )
                             if len(name_sheet) > 30:
                                 name_sheet = (
                                     nombrehoja
                                     + " "
-                                    + refdict[refindex]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict[refindex]).replace(".", "")[:10]
                                     + " "
-                                    + refdict_segment[refindex_segment]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict_segment[refindex_segment]).replace(".", "")[:10]
                                     + sufijo
                                 )
                             result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -1423,35 +1328,19 @@ def getCruces2(
                 refs_unique = data[var].dropna().unique()
                 refs_unique.sort()
                 for refindex in refs_unique:
-                    name_var = re.sub(
-                        "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                    )
+                    name_var = limpiar_texto(refdict[refindex])
                     name_dataset = name_var
                     name_sheet = (
                         nombrehoja
                         + " "
-                        + refdict[refindex]
-                        .replace("ñ", "n")
-                        .replace(".", "")
-                        .replace("á", "a")
-                        .replace("é", "e")
-                        .replace("í", "i")
-                        .replace("ó", "o")
-                        .replace("ó", "o")
+                        + unidecode(refdict[refindex]).replace(".", "")
                         + sufijo
                     )
                     if len(name_sheet) > 30:
                         name_sheet = (
                             nombrehoja
                             + " "
-                            + refdict[refindex]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")[:10]
+                            + unidecode(refdict[refindex]).replace(".", "")[:10]
                             + sufijo
                         )
                     result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -1483,63 +1372,29 @@ def getCruces2(
                 refs_segment_unique = data[var_segment].dropna().unique()
                 refs_segment_unique.sort()
                 for refindex_segment in refs_segment_unique:
-                    name_var_segment = re.sub(
-                        "[()\-+áéíóú]",
-                        "",
-                        refdict_segment[refindex_segment].replace(" ", "_"),
-                    )
+                    name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                     for var in varsList:
                         refdict = study_metadata.variable_value_labels[var]
                         refs_unique = data[var].dropna().unique()
                         refs_unique.sort()
                         for refindex in refs_unique:
-                            name_var = re.sub(
-                                "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                            )
+                            name_var = limpiar_texto(refdict[refindex])
                             name_dataset = name_var + "_" + name_var_segment
                             name_sheet = (
                                 nombrehoja
                                 + " "
-                                + refdict[refindex]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict[refindex]).replace(".", "")
                                 + " "
-                                + refdict_segment[refindex_segment]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict_segment[refindex_segment]).replace(".", "")
                                 + sufijo
                             )
                             if len(name_sheet) > 30:
                                 name_sheet = (
                                     nombrehoja
                                     + " "
-                                    + refdict[refindex]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict[refindex]).replace(".", "")[:10]
                                     + " "
-                                    + refdict_segment[refindex_segment]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict_segment[refindex_segment]).replace(".", "")[:10]
                                     + sufijo
                                 )
                             result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -2008,13 +1863,9 @@ def getSegmentCode(spss_file: BytesIO, xlsx_file: BytesIO):
                     filterdatabase += "DATASET ACTIVATE " + namedatasetspss + ".\n"
                     filterdatabase += (
                         "DATASET COPY REF_"
-                        + re.sub(
-                            "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                        )
+                        + limpiar_texto(refdict[refindex])
                         + ".\nDATASET ACTIVATE REF_"
-                        + re.sub(
-                            "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                        )
+                        + limpiar_texto(refdict[refindex])
                         + ".\nFILTER OFF.\nUSE ALL.\n"
                     )
                     filterdatabase += (
@@ -2030,19 +1881,13 @@ def getSegmentCode(spss_file: BytesIO, xlsx_file: BytesIO):
                 refs_segment_unique = data[var_segment].dropna().unique()
                 refs_segment_unique.sort()
                 for refindex_segment in refs_segment_unique:
-                    name_var_segment = re.sub(
-                        "[()\-+áéíóú]",
-                        "",
-                        refdict_segment[refindex_segment].replace(" ", "_"),
-                    )
+                    name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                     for var in varsList:
                         refdict = study_metadata.variable_value_labels[var]
                         refs_unique = data[var].dropna().unique()
                         refs_unique.sort()
                         for refindex in refs_unique:
-                            name_var = re.sub(
-                                "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                            )
+                            name_var = limpiar_texto(refdict[refindex])
                             name_dataset = name_var + "_" + name_var_segment
                             filterdatabase += (
                                 "DATASET ACTIVATE " + namedatasetspss + ".\n"
@@ -2174,6 +2019,12 @@ def writeAbiertasQuestion(varName, colVars, orderlist, includeall=False, varanid
     )
     return txt
 
+
+def limpiar_texto(texto):
+    texto = unidecode(texto)
+    texto = re.sub(r'[^a-zA-Z0-9\s]', '', texto)
+    texto = re.sub(r'\s+', '_', texto)
+    return texto
 
 def getVarsForPlantilla(spss_file: BytesIO):
     temp_file_name = get_temp_file(spss_file)
