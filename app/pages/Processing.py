@@ -102,12 +102,12 @@ def main():
             with col1:
                 st.markdown("#### Plantilla")
                 uploaded_file_process_xlsx = st.file_uploader(
-                    "Upload `.xlsx` file", type=["xlsx"], key="processing_xlsx"
+                    "Upload `.xlsx` file", type=["xlsx", "xlsm"], key="processing_xlsx"
                 )
             with col2:
                 st.markdown("#### LC")
                 uploaded_file_process_xlsx_LC = st.file_uploader(
-                    "Upload `.xlsx` file", type=["xlsx"], key="processing_xlsx_LC"
+                    "Upload `.xlsx` file", type=["xlsx", "xlsm"], key="processing_xlsx_LC"
                 )
 
             st.markdown("#### Base")
