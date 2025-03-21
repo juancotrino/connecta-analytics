@@ -16,6 +16,7 @@ from app.modules.processor import (
     getCruces2,
     getPenaltysCode,
     getCruces,
+    getWarning
 )
 from app.modules.utils import try_download, get_temp_file, write_temp_sav
 
@@ -152,6 +153,9 @@ def main():
                         if warning == "":
                             warning += "Run PreProcess Code only one time"
                         warning += " --- Code with Custom Scales code"
+                    warning+=getWarning(
+                                uploaded_file_process_sav, uploaded_file_process_xlsx, uploaded_file_process_xlsx_LC
+                            )
                     if warning != "":
                         st.warning(warning)
                 with col2:

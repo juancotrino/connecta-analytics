@@ -355,6 +355,50 @@ def getProcessCode(
                             includeall=checkinclude,
                             varanidada=varsList.iloc[i][2] + tipo,
                         )
+                    elif tipo == "TB":
+                        result += (
+                            "\nDELETE VARIABLES "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ".\nEXECUTE."
+                        )
+                        result += (
+                            "\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+                            + varsList.iloc[i][2]
+                            + '\n/OPTIONS FIX="'
+                            + tipo
+                            + '" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE.'
+                        )
+                        result += (
+                            "\nVALUE LABELS "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ' 1 "'
+                            + tipo
+                            + '".'
+                        )
+                        result += (
+                            "\nRECODE "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + " (5=1) (4=SYSMIS) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        )
+                        result += (
+                            "\nVARIABLE LABELS "
+                            + varsList.iloc[i][0]
+                            + ' "'
+                            + varlabeloriginal
+                            + " - "
+                            + tipo
+                            + '".'
+                        )
+                        result += writeQuestion(
+                            varsList.iloc[i][0],
+                            varsList.iloc[i][1],
+                            colvars,
+                            includeall=checkinclude,
+                            varanidada=varsList.iloc[i][2] + tipo,
+                        )
                     elif tipo == "MB":
                         result += (
                             "\nDELETE VARIABLES "
@@ -506,6 +550,31 @@ def getProcessCode(
             result += result_abierta
             warning += result_warning
     return result, warning
+
+def getWarning(
+    spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO, checkinclude=False, condition=None
+):
+    file_xlsx = get_temp_file(xlsx_file)
+    varsList = pd.read_excel(
+        file_xlsx,
+        usecols="A,B,D,E",
+        skiprows=3,
+        names=["vars", "varsTypes", "Scales", "descendOrder"],
+    ).dropna(subset=["vars"])
+    warning = ""
+
+    for i in range(len(varsList)):
+        if varsList.iloc[i][1] == "A":
+            _, result_warning = getProcessAbiertas(
+                spss_file,
+                xlsx_file,
+                xlsx_file_LC,
+                checkinclude,
+                varsList.iloc[i][0],
+                condition=condition,
+            )
+            warning += result_warning
+    return warning
 
 
 def getPreProcessAbiertas(spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO):
@@ -709,11 +778,11 @@ def getProcessAbiertas(
 
             for cod in count:
                 if cod not in lista_final_codigos and flag_preginclude2:
-                    warning += "#Code without label in " + prefix + "# "
+                    warning += "#Code without label " + prefix + "# "
                     flag_preginclude2 = False
                 if cod not in lista_codigos:
                     if flag_preginclude:
-                        warning += "\nCode Missing in " + prefix + " : "
+                        warning += "\nCode Missing " + prefix + " : "
                         flag_preginclude = False
                     warning += str(cod) + " | "
 
@@ -800,6 +869,66 @@ def getProcessAbiertas(
                         condition1 = data[varsList.iloc[i][2]] == 5
                         condition2 = data[varsList.iloc[i][2]] == 4
                         filtro = condition1 | condition2
+                        result += writeAbiertasQuestion(
+                            varAbierta,
+                            colvars,
+                            getListOrderConditions(multis, data, listNetos, filtro),
+                            includeall=checkinclude,
+                            varanidada=varsList.iloc[i][2] + tipo,
+                        )
+                        listatotal = []
+                        for var in multis:
+                            listatotal += data[filtro][var].tolist()
+                        count2 = Counter(listatotal)
+                        listatotaluniq = list(set(listatotal))
+                        for net in listNetos:
+                            if (
+                                net[0] != "First"
+                                and net[0] != "End"
+                                and any(count2[ele] > 0 for ele in net[1])
+                            ):
+                                nombreneto = (
+                                    net[0].strip().replace(" ", "_") + "_" + varAbierta
+                                )
+                                result += writeQuestion(
+                                    "NETO_" + nombreneto,
+                                    "T",
+                                    colvars,
+                                    includeall=checkinclude,
+                                    varanidada=varsList.iloc[i][2] + tipo,
+                                )
+                    elif tipo == "TB":
+                        result += (
+                            "\nDELETE VARIABLES "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ".\nEXECUTE."
+                        )
+                        result += (
+                            "\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+                            + varsList.iloc[i][2]
+                            + '\n/OPTIONS FIX="'
+                            + tipo
+                            + '" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE.'
+                        )
+                        result += (
+                            "\nVALUE LABELS "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ' 1 "'
+                            + tipo
+                            + '".'
+                        )
+                        result += (
+                            "\nRECODE "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + " (5=1) (4=SYSMIS) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        )
+                        result += writeAgrupMulti(
+                            prefix, multis, varlabeloriginal + " - " + tipo
+                        )
+                        filtro = data[varsList.iloc[i][2]] == 5
                         result += writeAbiertasQuestion(
                             varAbierta,
                             colvars,
@@ -2690,13 +2819,20 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
                 distints_labels=[]
                 dict_distint_lab1=[]
                 dict_distint_lab2=[]
+                count_sames=0
                 for key_lc1 in dict_code_and_values1.keys():
                     if not key_lc1 in dict_code_and_values2.keys():
                         codes_missings.append(key_lc1)
                     elif dict_code_and_values1[key_lc1]!=dict_code_and_values2[key_lc1]:
-                        distints_labels.append(str(key_lc1)+"-"+str(dict_code_and_values1[key_lc1])+"|"+str(dict_code_and_values2[key_lc1]))
+                        distints_labels.append(str(key_lc1)+"-"+str(dict_code_and_values1[key_lc1])+"|"+str(dict_code_and_values2[key_lc1])+"|"+"{0:.0%}".format(
+                            SequenceMatcher(
+                                None, str(dict_code_and_values1[key_lc1]).lower(), str(dict_code_and_values2[key_lc1]).lower()
+                            ).ratio()
+                        ))
                         dict_distint_lab1.append(str(dict_code_and_values1[key_lc1]))
                         dict_distint_lab2.append(str(dict_code_and_values2[key_lc1]))
+                    elif dict_code_and_values1[key_lc1]==dict_code_and_values2[key_lc1]:
+                        count_sames+=1
                 if codes_missings:
                     ws_lc_comparison.cell(row=row_num, column=6).value = str(codes_missings)
                 else:
@@ -2709,7 +2845,7 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
                         if re.search("\[''\]",val):
                             continue
                         text_distint_labels+=val+"\n"
-                    ws_lc_comparison.cell(row=row_num, column=7).value = text_distint_labels+ f"S1={subcodes1},S2={subcodes2}"
+                    ws_lc_comparison.cell(row=row_num, column=7).value = text_distint_labels+ f"S1={subcodes1},S2={subcodes2},Sames={count_sames}"
                 else:
                     ws_lc_comparison.cell(row=row_num, column=7).value = "         All Labels are equal"
                 ws_lc_comparison.cell(row=row_num, column=8).value=" "
