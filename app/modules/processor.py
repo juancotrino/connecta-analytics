@@ -17,26 +17,29 @@ import pyreadstat
 
 
 def getPreProcessCode(spss_file: BytesIO, xlsx_file: BytesIO,xlsx_file_LC: BytesIO):
-    file_xlsx = get_temp_file(xlsx_file)
-    inverseVarsList = pd.read_excel(
-        file_xlsx, usecols="A,E", skiprows=3, names=["vars", "inverses"]
-    ).dropna()
-    inverseVarsList = inverseVarsList[inverseVarsList["inverses"] == "I"].iloc[:, 0]
-    scaleVarsList = pd.read_excel(
-        file_xlsx, usecols="A,D", skiprows=3, names=["vars", "scale"]
-    ).dropna()
+    try:
+        file_xlsx = get_temp_file(xlsx_file)
+        inverseVarsList = pd.read_excel(
+            file_xlsx, usecols="A,E", skiprows=3, names=["vars", "inverses"]
+        ).dropna()
+        inverseVarsList = inverseVarsList[inverseVarsList["inverses"] == "I"].iloc[:, 0]
+        scaleVarsList = pd.read_excel(
+            file_xlsx, usecols="A,D", skiprows=3, names=["vars", "scale"]
+        ).dropna()
 
-    preprocesscode = ""
-    preprocesscode += processSavMulti(spss_file)[1] + processSavMulti(spss_file)[0]
-    preprocesscode += getGroupCreateMultisCode(spss_file)
-    if not inverseVarsList.empty:
-        preprocesscode += getInverseCodeVars(spss_file, inverseVarsList)
-    if not scaleVarsList.empty:
-        preprocesscode += getScaleCodeVars(spss_file, scaleVarsList)
-    preprocesscode += "\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nVALUE LABELS TOTAL 1 \"TOTAL\".\nEXECUTE.\n"
-    preprocesscode += getCloneCodeVars(spss_file, xlsx_file)
-    preprocesscode += getPreProcessAbiertas(spss_file, xlsx_file,xlsx_file_LC)
-    return preprocesscode
+        preprocesscode = ""
+        preprocesscode += processSavMulti(spss_file)[1] + processSavMulti(spss_file)[0]
+        preprocesscode += getGroupCreateMultisCode(spss_file)
+        if not inverseVarsList.empty:
+            preprocesscode += getInverseCodeVars(spss_file, inverseVarsList)
+        if not scaleVarsList.empty:
+            preprocesscode += getScaleCodeVars(spss_file, scaleVarsList)
+        preprocesscode += "\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nVALUE LABELS TOTAL 1 \"TOTAL\".\nEXECUTE.\n"
+        preprocesscode += getCloneCodeVars(spss_file, xlsx_file)
+        preprocesscode += getPreProcessAbiertas(spss_file, xlsx_file,xlsx_file_LC)
+        return preprocesscode
+    except Exception:
+        return "Error with plantilla hwen try to get preprocess code"
 
 
 def checkPreProcessCodeUnique(spss_file: BytesIO, xlsx_file: BytesIO):
@@ -828,6 +831,7 @@ def getProcessAbiertas(
                         + net[0].strip()
                         + '".\nEXECUTE.\n'
                     )
+                    result+=f"TEMPORARY.\nFILTER BY {multis[0]}.\n"
                     result += writeQuestion(
                         "NETO_" + nombreneto, "T", colvars, includeall=checkinclude
                     )
@@ -890,6 +894,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -950,6 +955,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -1010,6 +1016,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -1072,6 +1079,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -1135,6 +1143,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
