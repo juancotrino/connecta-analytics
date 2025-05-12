@@ -1,12 +1,13 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from io import BytesIO
 import re
 import pandas as pd
+from unidecode import unidecode
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from difflib import SequenceMatcher
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import PatternFill, Border, Side, Font
+from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
 
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
@@ -15,27 +16,30 @@ from app.modules.utils import write_temp_excel
 import pyreadstat
 
 
-def getPreProcessCode(spss_file: BytesIO, xlsx_file: BytesIO):
-    file_xlsx = get_temp_file(xlsx_file)
-    inverseVarsList = pd.read_excel(
-        file_xlsx, usecols="A,E", skiprows=3, names=["vars", "inverses"]
-    ).dropna()
-    inverseVarsList = inverseVarsList[inverseVarsList["inverses"] == "I"].iloc[:, 0]
-    scaleVarsList = pd.read_excel(
-        file_xlsx, usecols="A,D", skiprows=3, names=["vars", "scale"]
-    ).dropna()
+def getPreProcessCode(spss_file: BytesIO, xlsx_file: BytesIO,xlsx_file_LC: BytesIO):
+    try:
+        file_xlsx = get_temp_file(xlsx_file)
+        inverseVarsList = pd.read_excel(
+            file_xlsx, usecols="A,E", skiprows=3, names=["vars", "inverses"]
+        ).dropna()
+        inverseVarsList = inverseVarsList[inverseVarsList["inverses"] == "I"].iloc[:, 0]
+        scaleVarsList = pd.read_excel(
+            file_xlsx, usecols="A,D", skiprows=3, names=["vars", "scale"]
+        ).dropna()
 
-    preprocesscode = ""
-    preprocesscode += processSavMulti(spss_file)[1] + processSavMulti(spss_file)[0]
-    preprocesscode += getGroupCreateMultisCode(spss_file)
-    if not inverseVarsList.empty:
-        preprocesscode += getInverseCodeVars(spss_file, inverseVarsList)
-    if not scaleVarsList.empty:
-        preprocesscode += getScaleCodeVars(spss_file, scaleVarsList)
-    preprocesscode += "\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nVALUE LABELS TOTAL 1 \"TOTAL\".\nEXECUTE.\n"
-    preprocesscode += getCloneCodeVars(spss_file, xlsx_file)
-    preprocesscode += getPreProcessAbiertas(spss_file, xlsx_file)
-    return preprocesscode
+        preprocesscode = ""
+        preprocesscode += processSavMulti(spss_file)[1] + processSavMulti(spss_file)[0]
+        preprocesscode += getGroupCreateMultisCode(spss_file)
+        if not inverseVarsList.empty:
+            preprocesscode += getInverseCodeVars(spss_file, inverseVarsList)
+        if not scaleVarsList.empty:
+            preprocesscode += getScaleCodeVars(spss_file, scaleVarsList)
+        preprocesscode += "\nCOMPUTE TOTAL=1.\nVARIABLE LABELS TOTAL 'TOTAL'.\nVALUE LABELS TOTAL 1 \"TOTAL\".\nEXECUTE.\n"
+        preprocesscode += getCloneCodeVars(spss_file, xlsx_file)
+        preprocesscode += getPreProcessAbiertas(spss_file, xlsx_file,xlsx_file_LC)
+        return preprocesscode
+    except Exception:
+        return "Error with plantilla hwen try to get preprocess code"
 
 
 def checkPreProcessCodeUnique(spss_file: BytesIO, xlsx_file: BytesIO):
@@ -62,9 +66,9 @@ def getPreProcessCode2(spss_file: BytesIO):
 
 
 def getProcessCode2(
-    spss_file: BytesIO, xlsx_file: BytesIO, checkinclude=False, rutaarchivo=""
+    spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO, checkinclude=False, rutaarchivo=""
 ):
-    result, warning2 = getProcessCode(spss_file, xlsx_file, checkinclude)
+    result, warning2 = getProcessCode(spss_file, xlsx_file, xlsx_file_LC, checkinclude)
     file_xlsx = get_temp_file(xlsx_file)
     nombrehoja = (
         pd.read_excel(file_xlsx, usecols="O", skiprows=3, names=["name"])
@@ -122,41 +126,25 @@ def getProcessCode2(
             refs_unique = data[var].dropna().unique()
             refs_unique.sort()
             for refindex in refs_unique:
-                name_var = re.sub(
-                    "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                )
+                name_var = limpiar_texto(refdict[refindex])
                 name_dataset = name_var
                 name_sheet = (
                     nombrehoja
                     + " "
-                    + refdict[refindex]
-                    .replace("ñ", "n")
-                    .replace(".", "")
-                    .replace("á", "a")
-                    .replace("é", "e")
-                    .replace("í", "i")
-                    .replace("ó", "o")
-                    .replace("ó", "o")
+                    + unidecode(refdict[refindex]).replace(".", "")
                     + sufijo
                 )
                 if len(name_sheet) > 30:
                     name_sheet = (
                         nombrehoja
                         + " "
-                        + refdict[refindex]
-                        .replace("ñ", "n")
-                        .replace(".", "")
-                        .replace("á", "a")
-                        .replace("é", "e")
-                        .replace("í", "i")
-                        .replace("ó", "o")
-                        .replace("ó", "o")[:10]
+                        + unidecode(refdict[refindex]).replace(".", "")[:10]
                         + sufijo
                     )
                 result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
                 condition = data[var] == refindex
                 result_preg, _ = getProcessCode(
-                    spss_file, xlsx_file, checkinclude, condition=condition
+                    spss_file, xlsx_file, xlsx_file_LC, checkinclude, condition=condition
                 )
                 result += result_preg
                 result += "\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
@@ -183,63 +171,29 @@ def getProcessCode2(
             refs_segment_unique = data[var_segment].dropna().unique()
             refs_segment_unique.sort()
             for refindex_segment in refs_segment_unique:
-                name_var_segment = re.sub(
-                    "[()\-+áéíóú]",
-                    "",
-                    refdict_segment[refindex_segment].replace(" ", "_"),
-                )
+                name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                 for var in varsList:
                     refdict = study_metadata.variable_value_labels[var]
                     refs_unique = data[var].dropna().unique()
                     refs_unique.sort()
                     for refindex in refs_unique:
-                        name_var = re.sub(
-                            "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                        )
+                        name_var = limpiar_texto(refdict[refindex])
                         name_dataset = name_var + "_" + name_var_segment
                         name_sheet = (
                             nombrehoja
                             + " "
-                            + refdict[refindex]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")
+                            + unidecode(refdict[refindex]).replace(".", "")
                             + " "
-                            + refdict_segment[refindex_segment]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")
+                            + unidecode(refdict_segment[refindex_segment]).replace(".", "")
                             + sufijo
                         )
                         if len(name_sheet) > 30:
                             name_sheet = (
                                 nombrehoja
                                 + " "
-                                + refdict[refindex]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")[:10]
+                                + unidecode(refdict[refindex]).replace(".", "")[:10]
                                 + " "
-                                + refdict_segment[refindex_segment]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")[:10]
+                                + unidecode(refdict_segment[refindex_segment]).replace(".", "")[:10]
                                 + sufijo
                             )
                         result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -247,7 +201,7 @@ def getProcessCode2(
                         condition2 = data[var_segment] == refindex_segment
                         condition = condition1 & condition2
                         result_preg, _ = getProcessCode(
-                            spss_file, xlsx_file, checkinclude, condition=condition
+                            spss_file, xlsx_file, xlsx_file_LC, checkinclude, condition=condition
                         )
                         result += result_preg
                         result += "\nOUTPUT MODIFY\n  /SELECT ALL EXCEPT (TABLES)\n  /DELETEOBJECT DELETE = YES."
@@ -299,7 +253,7 @@ def getProcessCode2(
 
 
 def getProcessCode(
-    spss_file: BytesIO, xlsx_file: BytesIO, checkinclude=False, condition=None
+    spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO, checkinclude=False, condition=None
 ):
     file_xlsx = get_temp_file(xlsx_file)
     varsList = pd.read_excel(
@@ -396,6 +350,50 @@ def getProcessCode(
                             + " - "
                             + tipo
                             + '".\nEXECUTE.\n'
+                        )
+                        result += writeQuestion(
+                            varsList.iloc[i][0],
+                            varsList.iloc[i][1],
+                            colvars,
+                            includeall=checkinclude,
+                            varanidada=varsList.iloc[i][2] + tipo,
+                        )
+                    elif tipo == "TB":
+                        result += (
+                            "\nDELETE VARIABLES "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ".\nEXECUTE."
+                        )
+                        result += (
+                            "\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+                            + varsList.iloc[i][2]
+                            + '\n/OPTIONS FIX="'
+                            + tipo
+                            + '" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE.'
+                        )
+                        result += (
+                            "\nVALUE LABELS "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ' 1 "'
+                            + tipo
+                            + '".'
+                        )
+                        result += (
+                            "\nRECODE "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + " (5=1) (4=SYSMIS) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        )
+                        result += (
+                            "\nVARIABLE LABELS "
+                            + varsList.iloc[i][0]
+                            + ' "'
+                            + varlabeloriginal
+                            + " - "
+                            + tipo
+                            + '".'
                         )
                         result += writeQuestion(
                             varsList.iloc[i][0],
@@ -547,6 +545,7 @@ def getProcessCode(
             result_abierta, result_warning = getProcessAbiertas(
                 spss_file,
                 xlsx_file,
+                xlsx_file_LC,
                 checkinclude,
                 varsList.iloc[i][0],
                 condition=condition,
@@ -555,20 +554,46 @@ def getProcessCode(
             warning += result_warning
     return result, warning
 
+def getWarning(
+    spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO, checkinclude=False, condition=None
+):
+    file_xlsx = get_temp_file(xlsx_file)
+    varsList = pd.read_excel(
+        file_xlsx,
+        usecols="A,B,D,E",
+        skiprows=3,
+        names=["vars", "varsTypes", "Scales", "descendOrder"],
+    ).dropna(subset=["vars"])
+    warning = ""
 
-def getPreProcessAbiertas(spss_file: BytesIO, xlsx_file: BytesIO):
+    for i in range(len(varsList)):
+        if varsList.iloc[i][1] == "A":
+            _, result_warning = getProcessAbiertas(
+                spss_file,
+                xlsx_file,
+                xlsx_file_LC,
+                checkinclude,
+                varsList.iloc[i][0],
+                condition=condition,
+            )
+            warning += result_warning
+    return warning
+
+
+def getPreProcessAbiertas(spss_file: BytesIO, xlsx_file: BytesIO, xlsx_file_LC: BytesIO):
     result = ""
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
         temp_file_name, apply_value_formats=False
     )
     file_xlsx = get_temp_file(xlsx_file)
+    file_xlsx_LC = get_temp_file(xlsx_file_LC)
     varsList = pd.read_excel(
         file_xlsx, usecols="A,C", skiprows=3, names=["vars", "sheetNames"]
     ).dropna()
     for i in range(len(varsList)):
         lcTable = pd.read_excel(
-            file_xlsx,
+            file_xlsx_LC,
             sheet_name=varsList.iloc[i][1],
             usecols="A,B",
             skiprows=1,
@@ -637,6 +662,7 @@ def getAbiertasPreCode(var, lcTable):
 def getProcessAbiertas(
     spss_file: BytesIO,
     xlsx_file: BytesIO,
+    xlsx_file_LC: BytesIO,
     checkinclude=False,
     namevar="",
     condition=None,
@@ -654,6 +680,7 @@ def getProcessAbiertas(
         data = data2[condition]
 
     file_xlsx = get_temp_file(xlsx_file)
+    file_xlsx_LC = get_temp_file(xlsx_file_LC)
     varsList = pd.read_excel(
         file_xlsx,
         usecols="A,C,D,E",
@@ -673,7 +700,7 @@ def getProcessAbiertas(
     for i in range(len(varsList)):
         if namevar == "" or namevar == varsList.iloc[i][0]:
             lcTable = pd.read_excel(
-                file_xlsx,
+                file_xlsx_LC,
                 sheet_name=varsList.iloc[i][1],
                 usecols="A,B",
                 skiprows=1,
@@ -710,7 +737,7 @@ def getProcessAbiertas(
                 lista_final_codigos.append(lcTable.iloc[j][0])
 
             lcTable2 = pd.read_excel(
-                file_xlsx,
+                file_xlsx_LC,
                 sheet_name=varsList.iloc[i][1],
                 usecols="A,B",
                 skiprows=1,
@@ -754,11 +781,11 @@ def getProcessAbiertas(
 
             for cod in count:
                 if cod not in lista_final_codigos and flag_preginclude2:
-                    warning += "#Code without label in " + prefix + "# "
+                    warning += "#Code without label " + prefix + "# "
                     flag_preginclude2 = False
                 if cod not in lista_codigos:
                     if flag_preginclude:
-                        warning += "\nCode Missing in " + prefix + " : "
+                        warning += "\nCode Missing " + prefix + " : "
                         flag_preginclude = False
                     warning += str(cod) + " | "
 
@@ -804,6 +831,7 @@ def getProcessAbiertas(
                         + net[0].strip()
                         + '".\nEXECUTE.\n'
                     )
+                    result+=f"TEMPORARY.\nFILTER BY {multis[0]}.\n"
                     result += writeQuestion(
                         "NETO_" + nombreneto, "T", colvars, includeall=checkinclude
                     )
@@ -866,6 +894,68 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
+                                result += writeQuestion(
+                                    "NETO_" + nombreneto,
+                                    "T",
+                                    colvars,
+                                    includeall=checkinclude,
+                                    varanidada=varsList.iloc[i][2] + tipo,
+                                )
+                    elif tipo == "TB":
+                        result += (
+                            "\nDELETE VARIABLES "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ".\nEXECUTE."
+                        )
+                        result += (
+                            "\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+                            + varsList.iloc[i][2]
+                            + '\n/OPTIONS FIX="'
+                            + tipo
+                            + '" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE.'
+                        )
+                        result += (
+                            "\nVALUE LABELS "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ' 1 "'
+                            + tipo
+                            + '".'
+                        )
+                        result += (
+                            "\nRECODE "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + " (5=1) (4=SYSMIS) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        )
+                        result += writeAgrupMulti(
+                            prefix, multis, varlabeloriginal + " - " + tipo
+                        )
+                        filtro = data[varsList.iloc[i][2]] == 5
+                        result += writeAbiertasQuestion(
+                            varAbierta,
+                            colvars,
+                            getListOrderConditions(multis, data, listNetos, filtro),
+                            includeall=checkinclude,
+                            varanidada=varsList.iloc[i][2] + tipo,
+                        )
+                        listatotal = []
+                        for var in multis:
+                            listatotal += data[filtro][var].tolist()
+                        count2 = Counter(listatotal)
+                        listatotaluniq = list(set(listatotal))
+                        for net in listNetos:
+                            if (
+                                net[0] != "First"
+                                and net[0] != "End"
+                                and any(count2[ele] > 0 for ele in net[1])
+                            ):
+                                nombreneto = (
+                                    net[0].strip().replace(" ", "_") + "_" + varAbierta
+                                )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -926,6 +1016,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -988,6 +1079,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -1051,6 +1143,7 @@ def getProcessAbiertas(
                                 nombreneto = (
                                     net[0].strip().replace(" ", "_") + "_" + varAbierta
                                 )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
                                 result += writeQuestion(
                                     "NETO_" + nombreneto,
                                     "T",
@@ -1136,35 +1229,19 @@ def getPenaltysCode2(spss_file: BytesIO, xlsx_file: BytesIO, rutaarchivo=""):
                 refs_unique = data[var].dropna().unique()
                 refs_unique.sort()
                 for refindex in refs_unique:
-                    name_var = re.sub(
-                        "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                    )
+                    name_var = limpiar_texto(refdict[refindex])
                     name_dataset = name_var
                     name_sheet = (
                         nombrehoja
                         + " "
-                        + refdict[refindex]
-                        .replace("ñ", "n")
-                        .replace(".", "")
-                        .replace("á", "a")
-                        .replace("é", "e")
-                        .replace("í", "i")
-                        .replace("ó", "o")
-                        .replace("ó", "o")
+                        + unidecode(refdict[refindex]).replace(".", "")
                         + sufijo
                     )
                     if len(name_sheet) > 30:
                         name_sheet = (
                             nombrehoja
                             + " "
-                            + refdict[refindex]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")[:10]
+                            + unidecode(refdict[refindex]).replace(".", "")[:10]
                             + sufijo
                         )
                     result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -1192,63 +1269,29 @@ def getPenaltysCode2(spss_file: BytesIO, xlsx_file: BytesIO, rutaarchivo=""):
                 refs_segment_unique = data[var_segment].dropna().unique()
                 refs_segment_unique.sort()
                 for refindex_segment in refs_segment_unique:
-                    name_var_segment = re.sub(
-                        "[()\-+áéíóú]",
-                        "",
-                        refdict_segment[refindex_segment].replace(" ", "_"),
-                    )
+                    name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                     for var in varsList:
                         refdict = study_metadata.variable_value_labels[var]
                         refs_unique = data[var].dropna().unique()
                         refs_unique.sort()
                         for refindex in refs_unique:
-                            name_var = re.sub(
-                                "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                            )
+                            name_var = limpiar_texto(refdict[refindex])
                             name_dataset = name_var + "_" + name_var_segment
                             name_sheet = (
                                 nombrehoja
                                 + " "
-                                + refdict[refindex]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict[refindex]).replace(".", "")
                                 + " "
-                                + refdict_segment[refindex_segment]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict_segment[refindex_segment]).replace(".", "")
                                 + sufijo
                             )
                             if len(name_sheet) > 30:
                                 name_sheet = (
                                     nombrehoja
                                     + " "
-                                    + refdict[refindex]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict[refindex]).replace(".", "")[:10]
                                     + " "
-                                    + refdict_segment[refindex_segment]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict_segment[refindex_segment]).replace(".", "")[:10]
                                     + sufijo
                                 )
                             result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -1423,35 +1466,19 @@ def getCruces2(
                 refs_unique = data[var].dropna().unique()
                 refs_unique.sort()
                 for refindex in refs_unique:
-                    name_var = re.sub(
-                        "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                    )
+                    name_var = limpiar_texto(refdict[refindex])
                     name_dataset = name_var
                     name_sheet = (
                         nombrehoja
                         + " "
-                        + refdict[refindex]
-                        .replace("ñ", "n")
-                        .replace(".", "")
-                        .replace("á", "a")
-                        .replace("é", "e")
-                        .replace("í", "i")
-                        .replace("ó", "o")
-                        .replace("ó", "o")
+                        + unidecode(refdict[refindex]).replace(".", "")
                         + sufijo
                     )
                     if len(name_sheet) > 30:
                         name_sheet = (
                             nombrehoja
                             + " "
-                            + refdict[refindex]
-                            .replace("ñ", "n")
-                            .replace(".", "")
-                            .replace("á", "a")
-                            .replace("é", "e")
-                            .replace("í", "i")
-                            .replace("ó", "o")
-                            .replace("ó", "o")[:10]
+                            + unidecode(refdict[refindex]).replace(".", "")[:10]
                             + sufijo
                         )
                     result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -1483,63 +1510,29 @@ def getCruces2(
                 refs_segment_unique = data[var_segment].dropna().unique()
                 refs_segment_unique.sort()
                 for refindex_segment in refs_segment_unique:
-                    name_var_segment = re.sub(
-                        "[()\-+áéíóú]",
-                        "",
-                        refdict_segment[refindex_segment].replace(" ", "_"),
-                    )
+                    name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                     for var in varsList:
                         refdict = study_metadata.variable_value_labels[var]
                         refs_unique = data[var].dropna().unique()
                         refs_unique.sort()
                         for refindex in refs_unique:
-                            name_var = re.sub(
-                                "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                            )
+                            name_var = limpiar_texto(refdict[refindex])
                             name_dataset = name_var + "_" + name_var_segment
                             name_sheet = (
                                 nombrehoja
                                 + " "
-                                + refdict[refindex]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict[refindex]).replace(".", "")
                                 + " "
-                                + refdict_segment[refindex_segment]
-                                .replace("ñ", "n")
-                                .replace(".", "")
-                                .replace("á", "a")
-                                .replace("é", "e")
-                                .replace("í", "i")
-                                .replace("ó", "o")
-                                .replace("ó", "o")
+                                + unidecode(refdict_segment[refindex_segment]).replace(".", "")
                                 + sufijo
                             )
                             if len(name_sheet) > 30:
                                 name_sheet = (
                                     nombrehoja
                                     + " "
-                                    + refdict[refindex]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict[refindex]).replace(".", "")[:10]
                                     + " "
-                                    + refdict_segment[refindex_segment]
-                                    .replace("ñ", "n")
-                                    .replace(".", "")
-                                    .replace("á", "a")
-                                    .replace("é", "e")
-                                    .replace("í", "i")
-                                    .replace("ó", "o")
-                                    .replace("ó", "o")[:10]
+                                    + unidecode(refdict_segment[refindex_segment]).replace(".", "")[:10]
                                     + sufijo
                                 )
                             result += "DATASET ACTIVATE REF_" + name_dataset + ".\n"
@@ -2008,13 +2001,9 @@ def getSegmentCode(spss_file: BytesIO, xlsx_file: BytesIO):
                     filterdatabase += "DATASET ACTIVATE " + namedatasetspss + ".\n"
                     filterdatabase += (
                         "DATASET COPY REF_"
-                        + re.sub(
-                            "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                        )
+                        + limpiar_texto(refdict[refindex])
                         + ".\nDATASET ACTIVATE REF_"
-                        + re.sub(
-                            "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                        )
+                        + limpiar_texto(refdict[refindex])
                         + ".\nFILTER OFF.\nUSE ALL.\n"
                     )
                     filterdatabase += (
@@ -2030,19 +2019,13 @@ def getSegmentCode(spss_file: BytesIO, xlsx_file: BytesIO):
                 refs_segment_unique = data[var_segment].dropna().unique()
                 refs_segment_unique.sort()
                 for refindex_segment in refs_segment_unique:
-                    name_var_segment = re.sub(
-                        "[()\-+áéíóú]",
-                        "",
-                        refdict_segment[refindex_segment].replace(" ", "_"),
-                    )
+                    name_var_segment = limpiar_texto(refdict_segment[refindex_segment])
                     for var in varsList:
                         refdict = study_metadata.variable_value_labels[var]
                         refs_unique = data[var].dropna().unique()
                         refs_unique.sort()
                         for refindex in refs_unique:
-                            name_var = re.sub(
-                                "[()\-+áéíóú]", "", refdict[refindex].replace(" ", "_")
-                            )
+                            name_var = limpiar_texto(refdict[refindex])
                             name_dataset = name_var + "_" + name_var_segment
                             filterdatabase += (
                                 "DATASET ACTIVATE " + namedatasetspss + ".\n"
@@ -2175,6 +2158,12 @@ def writeAbiertasQuestion(varName, colVars, orderlist, includeall=False, varanid
     return txt
 
 
+def limpiar_texto(texto):
+    texto = unidecode(texto)
+    texto = re.sub(r'[^a-zA-Z0-9\s]', '', texto)
+    texto = re.sub(r'\s+', '_', texto)
+    return texto
+
 def getVarsForPlantilla(spss_file: BytesIO):
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
@@ -2184,6 +2173,7 @@ def getVarsForPlantilla(spss_file: BytesIO):
     list_vars = study_metadata.column_names
     n_total = study_metadata.number_rows
     var_type_base = study_metadata.original_variable_types  # F-- Float / A-- String
+    dict_labels=study_metadata.column_names_to_labels
     # Create a new Workbook
     wb_new = Workbook()
     # Remove the default sheet created with the new workbook
@@ -2215,16 +2205,22 @@ def getVarsForPlantilla(spss_file: BytesIO):
     ws_plantilla.cell(row=1, column=4).value = "Unique Distinct Values"
     ws_plantilla.cell(row=1, column=5).value = "Total Options Values"
     ws_plantilla.cell(row=1, column=6).value = "Option 5"
+    ws_plantilla.cell(row=1,column=7).value="Nombre Var"
+    ws_plantilla.cell(row=1,column=8).value="Opt. Labels"
 
-    for col in range(1, 7):
-        ws_plantilla.cell(row=1, column=col).fill = greenFillTitle
-        ws_plantilla.cell(row=1, column=col).font = Font(color="FFFFFF")
-        ws_plantilla.cell(row=1, column=col).border = medium_border
+    for col in range(1,9):
+        ws_plantilla.cell(row=1,column=col).fill=greenFillTitle
+        ws_plantilla.cell(row=1,column=col).font = Font(color = "FFFFFF")
+        ws_plantilla.cell(row=1,column=col).border = medium_border
         column_letter = get_column_letter(col)
-        if col == 1:
-            width_col = 22
+        if col==1:
+            width_col=22
+        elif col in [7]:
+            width_col=20
+        elif col in [8]:
+            width_col=25
         else:
-            width_col = 7
+            width_col=7
         ws_plantilla.column_dimensions[column_letter].width = width_col
 
     ws_plantilla.auto_filter.ref = ws_plantilla.dimensions
@@ -2350,6 +2346,14 @@ def getVarsForPlantilla(spss_file: BytesIO):
             except Exception:
                 textPlantilla += str(len(list(set(data[var].dropna())))) + "\t/--"
                 ws_plantilla.cell(row=row_num, column=5).value = "/--"
+        try:
+            labelval1=dict_values[var]
+        except:
+            labelval1="None"
+        label_base1=dict_labels[var]
+        ws_plantilla.cell(row=row_num,column=7).value=str(label_base1)
+        ws_plantilla.cell(row=row_num,column=8).value=str(labelval1)
+        ws_plantilla.cell(row=row_num,column=9).value=" "
         row_num += 1
     return textPlantilla, write_temp_excel(wb_new)
 
@@ -2706,4 +2710,179 @@ def get_comparison_tables(spss_file1: BytesIO, spss_file2: BytesIO):
                     ws_plantilla.cell(row=row_num, column=7).fill = blueFill
             row_num += 1
 
+    return write_temp_excel(wb_new)
+
+
+def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
+    file_xlsx1 = get_temp_file(lc_xlsx_file1, ".xlsx")
+    file_xlsx2 = get_temp_file(lc_xlsx_file2, ".xlsx")
+
+    wb_lc_1_first = load_workbook(file_xlsx1)
+    wb_lc_2_first = load_workbook(file_xlsx2)
+
+    wb_new = Workbook()
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
+
+    for caso in range(2):
+        if caso == 0:
+            wb_lc1 = wb_lc_1_first
+            wb_lc2 = wb_lc_2_first
+            name_sheet=lc_xlsx_file1.name
+            name_sheet2=lc_xlsx_file2.name
+        else:
+            wb_lc1 = wb_lc_2_first
+            wb_lc2 = wb_lc_1_first
+            name_sheet=lc_xlsx_file2.name
+            name_sheet2=lc_xlsx_file1.name
+
+        ws_lc_comparison = wb_new.create_sheet(
+            title="LC comparison -"+name_sheet[:10]+ str(caso + 1)
+        )
+
+        ws_lc_comparison.cell(row=1, column=1).value = "Sheet Name"
+        ws_lc_comparison.cell(row=1, column=2).value = "Codes duplicated"
+        ws_lc_comparison.cell(row=1, column=3).value = "Verbatims duplicated"
+        ws_lc_comparison.cell(row=1, column=4).value = "In LC 2"
+        ws_lc_comparison.cell(row=1, column=5).value = "LC equals"
+        ws_lc_comparison.cell(row=1, column=6).value = "Codes Missing in LC2"
+        ws_lc_comparison.cell(row=1, column=7).value = "Distinct labels in LC2"
+        ws_lc_comparison.cell(row=1, column=8).value = f"LC1={name_sheet}"
+        ws_lc_comparison.cell(row=1, column=9).value = f"LC2={name_sheet2}"
+        ws_lc_comparison.cell(row=1, column=10).value = " "
+
+        blueFill = PatternFill(
+            start_color="C5D9F1", end_color="C5D9F1", fill_type="solid"
+        )
+        yellowFill = PatternFill(
+            start_color="FFFF00", end_color="FFFF00", fill_type="solid"
+        )
+        medium_border = Border(
+            left=Side(style="medium"),
+            right=Side(style="medium"),
+            top=Side(style="medium"),
+            bottom=Side(style="medium"),
+        )
+
+        for col in range(1, 10):
+            ws_lc_comparison.cell(row=1, column=col).fill = blueFill
+            ws_lc_comparison.cell(row=1, column=col).border = medium_border
+
+        row_num=2
+        for sheet in wb_lc1:
+            ws_lc_comparison.cell(row=row_num, column=1).value = sheet.title
+
+            for col_dup in range(2):
+                valores = []
+                for fila in sheet.iter_rows(min_col=col_dup+1, max_col=col_dup+1, min_row=2, values_only=True):
+                    if fila[0] is not None and fila[0]!='NETO':  # Ignorar celdas vacías
+                        valores.append(fila[0])
+
+                # Buscar duplicados
+                duplicados = set([valor for valor in valores if valores.count(valor) > 1])
+
+                if duplicados:
+                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).fill=yellowFill
+                    text_dups=""
+                    for dup in duplicados:
+                        list_rows=[]
+                        list_values=[]
+                        for rowi in range(1,sheet.max_row+1):
+                            if sheet.cell(row=rowi, column=col_dup+1).value==dup:
+                                list_rows.append(rowi)
+                                list_values.append(sheet.cell(row=rowi, column=2-col_dup).value)
+                        text_dups+=f"{dup} \t |-- values: {list_values}  --|-- rows: {list_rows}\n"
+                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).value=text_dups[:-2]
+                else:
+                    ws_lc_comparison.cell(row=row_num, column=col_dup+2).value="No"
+
+            if sheet.title in wb_lc2.sheetnames:
+                ws_lc_comparison.cell(row=row_num, column=4).value = "Yes"
+                ws1=sheet
+                ws2=wb_lc2[sheet.title]
+
+                dict_code_and_values1 = defaultdict(list)
+                dict_code_and_values2 = defaultdict(list)
+                max_filas = max(ws1.max_row, ws2.max_row)
+
+                for fila in range(1, max_filas + 1):
+                    valor_ws1_col1 = ws1.cell(row=fila, column=1).value
+                    valor_ws1_col2 = ws1.cell(row=fila, column=2).value
+
+                    valor_ws2_col1 = ws2.cell(row=fila, column=1).value
+                    valor_ws2_col2 = ws2.cell(row=fila, column=2).value
+
+                    if valor_ws1_col1 != valor_ws2_col1 or valor_ws1_col2 != valor_ws2_col2:
+                        ws_lc_comparison.cell(row=row_num, column=5).value = "No"
+
+                    if valor_ws1_col1 is not None:
+                        dict_code_and_values1[valor_ws1_col1].append(valor_ws1_col2 if valor_ws1_col2 is not None else "")
+
+                    if valor_ws2_col1 is not None:
+                        dict_code_and_values2[valor_ws2_col1].append(valor_ws2_col2 if valor_ws2_col2 is not None else "")
+
+                if ws_lc_comparison.cell(row=row_num, column=5).value != "No":
+                    ws_lc_comparison.cell(row=row_num, column=5).value = "Yes"
+
+                codes_missings=[]
+                distints_labels=[]
+                dict_distint_lab1=[]
+                dict_distint_lab2=[]
+                count_sames=0
+                for key_lc1 in dict_code_and_values1.keys():
+                    if not key_lc1 in dict_code_and_values2.keys():
+                        codes_missings.append(key_lc1)
+                    elif dict_code_and_values1[key_lc1]!=dict_code_and_values2[key_lc1]:
+                        distints_labels.append(str(key_lc1)+"-"+str(dict_code_and_values1[key_lc1])+"|"+str(dict_code_and_values2[key_lc1])+"|"+"{0:.0%}".format(
+                            SequenceMatcher(
+                                None, str(dict_code_and_values1[key_lc1]).lower(), str(dict_code_and_values2[key_lc1]).lower()
+                            ).ratio()
+                        ))
+                        dict_distint_lab1.append(str(dict_code_and_values1[key_lc1]))
+                        dict_distint_lab2.append(str(dict_code_and_values2[key_lc1]))
+                    elif dict_code_and_values1[key_lc1]==dict_code_and_values2[key_lc1]:
+                        count_sames+=1
+                if codes_missings:
+                    ws_lc_comparison.cell(row=row_num, column=6).value = str(codes_missings)
+                else:
+                    ws_lc_comparison.cell(row=row_num, column=6).value = "         LC2 Contain all codes"
+                if distints_labels:
+                    text_distint_labels=""
+                    subcodes1=dict_distint_lab1.count("['']")
+                    subcodes2=dict_distint_lab2.count("['']")
+                    for val in distints_labels:
+                        if re.search("\[''\]",val):
+                            continue
+                        text_distint_labels+=val+"\n"
+                    ws_lc_comparison.cell(row=row_num, column=7).value = text_distint_labels+ f"S1={subcodes1},S2={subcodes2},Sames={count_sames}"
+                else:
+                    ws_lc_comparison.cell(row=row_num, column=7).value = "         All Labels are equal"
+                ws_lc_comparison.cell(row=row_num, column=8).value=" "
+            else:
+                ws_lc_comparison.cell(row=row_num, column=4).value = "No"
+            row_num+=1
+
+        for row in ws_lc_comparison.iter_rows():
+            max_lines = 1  # Valor mínimo de líneas por celda
+            for cell in row:
+                if cell.value and isinstance(cell.value, str):  # Si el contenido es texto
+                    max_lines = max(max_lines, cell.value.count("\n") + 1)
+                    cell.alignment = Alignment(wrap_text=True)
+
+            # Ajustar la altura de la fila (cada línea adicional suma un tamaño base)
+            ws_lc_comparison.row_dimensions[row[0].row].height = max_lines * 15  # Ajustar según necesidad
+
+        columnas_ajustar = ["B", "C", "G"]
+        for col in columnas_ajustar:
+            max_length = 0
+            for cell in ws_lc_comparison[col]:
+                if cell.value and isinstance(cell.value, str):
+                    lineas = cell.value.split("\n")  # Dividir en líneas
+                    max_line_length = max(len(linea) for linea in lineas)  # Buscar la línea más larga
+                    max_length = max(max_length, max_line_length)
+            max_length=min(max_length,100)
+            ws_lc_comparison.column_dimensions[col].width = max_length*0.9
+
+        ws_lc_comparison.column_dimensions["H"].width = 30
+        ws_lc_comparison.column_dimensions["I"].width = 30
     return write_temp_excel(wb_new)

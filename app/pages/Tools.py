@@ -4,7 +4,7 @@ import pandas as pd
 from app.modules.text_function import questionFinder, genLabels
 from app.modules.coder import transform_open_ended, generate_open_ended_db
 from app.modules.processing import get_totals_from_pretables
-from app.modules.processor import get_comparison_tables
+from app.modules.processor import get_comparison_tables, get_lc_comparison
 from app.modules.utils import (
     get_temp_file,
     write_multiple_df_bytes,
@@ -156,6 +156,22 @@ def main():
                 mime='application/sav',
                 type='primary'
             )
+        except:
+            pass
+
+    with st.expander("Compare LC Files:"):
+        col1, col2 = st.columns(2)
+        with col1:
+            comparelc1_xlsx=st.file_uploader("Upload `.xlsx` file", type=["xlsx", "xlsm"], key='comparelc1_xlsx')
+        with col2:
+            comparelc2_xlsx=st.file_uploader("Upload `.xlsx` file", type=["xlsx", "xlsm"], key='comparelc2_xlsx')
+        btn_get_comparison=st.button("Get LC Comparison")
+        if btn_get_comparison:
+            with st.spinner('Get LC Comparison...'):
+                results_comparelc = get_lc_comparison(comparelc1_xlsx,comparelc2_xlsx)
+                st.success('LC Comparison generate successfully.')
+        try:
+            try_download('Download LC Comparison tables', results_comparelc, 'lccomparison_tables-'+comparelc1_xlsx.name[:10]+'-'+comparelc2_xlsx.name[:10], 'xlsx')
         except:
             pass
 

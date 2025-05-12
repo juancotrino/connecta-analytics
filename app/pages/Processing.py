@@ -16,6 +16,7 @@ from app.modules.processor import (
     getCruces2,
     getPenaltysCode,
     getCruces,
+    getWarning
 )
 from app.modules.utils import try_download, get_temp_file, write_temp_sav
 
@@ -98,9 +99,19 @@ def main():
         st.markdown("### SPSS Tables")
 
         with st.form("processing_form"):
-            uploaded_file_process_xlsx = st.file_uploader(
-                "Upload `.xlsx` file", type=["xlsx"], key="processing_xlsx"
-            )
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("#### Plantilla")
+                uploaded_file_process_xlsx = st.file_uploader(
+                    "Upload `.xlsx` file", type=["xlsx", "xlsm"], key="processing_xlsx"
+                )
+            with col2:
+                st.markdown("#### LC")
+                uploaded_file_process_xlsx_LC = st.file_uploader(
+                    "Upload `.xlsx` file", type=["xlsx", "xlsm"], key="processing_xlsx_LC"
+                )
+
+            st.markdown("#### Base")
             uploaded_file_process_sav = st.file_uploader(
                 "Upload `.sav` file", type=["sav"], key="processing_sav"
             )
@@ -125,7 +136,7 @@ def main():
                     with col1.container(height=250):
                         st.code(
                             getPreProcessCode(
-                                uploaded_file_process_sav, uploaded_file_process_xlsx
+                                uploaded_file_process_sav, uploaded_file_process_xlsx, uploaded_file_process_xlsx_LC
                             ),
                             line_numbers=True,
                         )
@@ -142,6 +153,9 @@ def main():
                         if warning == "":
                             warning += "Run PreProcess Code only one time"
                         warning += " --- Code with Custom Scales code"
+                    warning+=getWarning(
+                                uploaded_file_process_sav, uploaded_file_process_xlsx, uploaded_file_process_xlsx_LC
+                            )
                     if warning != "":
                         st.warning(warning)
                 with col2:
@@ -166,6 +180,7 @@ def main():
                                 process_code, warning = getProcessCode2(
                                     uploaded_file_process_sav,
                                     uploaded_file_process_xlsx,
+                                    uploaded_file_process_xlsx_LC,
                                     checkinclude,
                                     rutaarchivo=ruta,
                                 )
@@ -174,6 +189,7 @@ def main():
                                     + getPreProcessCode(
                                         uploaded_file_process_sav,
                                         uploaded_file_process_xlsx,
+                                        uploaded_file_process_xlsx_LC
                                     )
                                     + "\n"
                                     + getSegmentCode(
@@ -201,6 +217,7 @@ def main():
                                         + getPreProcessCode(
                                             uploaded_file_process_sav,
                                             uploaded_file_process_xlsx,
+                                            uploaded_file_process_xlsx_LC
                                         )
                                         + "\n"
                                         + getSegmentCode(
@@ -240,6 +257,7 @@ def main():
                                         + getPreProcessCode(
                                             uploaded_file_process_sav,
                                             uploaded_file_process_xlsx,
+                                            uploaded_file_process_xlsx_LC
                                         )
                                         + "\n"
                                         + getSegmentCode(
@@ -280,7 +298,7 @@ def main():
             try_download(
                 "Download Stadistics Plantilla",
                 results_plantilla,
-                "stadistics_plantilla",
+                "stadistics_plantilla"+uploaded_file_process_sav.name,
                 "xlsx",
             )
         except Exception:
