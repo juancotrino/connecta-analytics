@@ -37,6 +37,16 @@ def main():
     # -------------- SETTINGS --------------
 
     st.markdown("""
+        ## **Migration notice!** 🚨
+    """)
+
+    st.warning("""
+        This is tool was migrated to [this new interface](https://connecta-analytics-app-384349768580.us-central1.run.app).
+        To log in, use your Connecta email and same password you use for this interface.
+    """)
+    return
+
+    st.markdown("""
         This is a study administration tool that displays study information. It also allows
         for the creation, editing, and uploading of files to the study's folder in SharePoint.
     """)
