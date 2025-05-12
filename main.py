@@ -108,7 +108,9 @@ def main():
         try:
             firebase_admin.initialize_app(options=app_options)
         except Exception as e:
-            logger.error(f"Error initializing firebase app: {str(e)}")
+            message = f"Error initializing firebase app: {str(e)}"
+            print(message)
+            logger.error(message)
 
     cookie_is_valid = authenticator.cookie_is_valid
     not_logged_in = authenticator.not_logged_in
@@ -130,7 +132,9 @@ def main():
     try:
         home()
     except Exception as e:
-        logger.error(f"Error initializing firebase app: {str(e)}")
+        message = f"Error initializing firebase app: {str(e)}"
+        print(message)
+        logger.error(message)
 
 
 main()
