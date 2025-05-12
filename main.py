@@ -26,7 +26,11 @@ from app.modules.utils import get_authorized_pages_names
 
 # test = {'Segment SPSS': importlib.import_module('app.pages.Segment_SPSS')}
 
-files = [file.split('.')[0] for file in sorted(os.listdir('app/pages')) if not file.startswith('_')]
+files = [
+    file.split(".")[0]
+    for file in sorted(os.listdir("app/pages"))
+    if not file.startswith("_")
+]
 # modules = {file.split('.')[0]: importlib.import_module(f"app.pages.{file.split('.')[0]}").main for file in files}
 
 # print(modules)
@@ -43,15 +47,14 @@ load_dotenv()
 
 # -------------- SETTINGS --------------
 page_title = "Analytics Interface"
-page_icon = Image.open('static/images/connecta-logo.png')  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
+page_icon = Image.open(
+    "static/images/connecta-logo.png"
+)  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 
-apply_default_style(
-    page_title,
-    page_icon,
-    page_type='login'
-)
+apply_default_style(page_title, page_icon, page_type="login")
 
 authenticator = get_authenticator()
+
 
 def home():
     pages_roles = get_page_roles()
@@ -62,17 +65,17 @@ def home():
     if authenticator.not_logged_in:
         st.rerun()
     _ = authenticator.hide_unauthorized_pages(pages_roles)
-    if st.session_state.get('roles'):
-        if 'connecta-admin' in st.session_state['roles']:
+    if st.session_state.get("roles"):
+        if "connecta-admin" in st.session_state["roles"]:
             with st.expander("Administrator options"):
-                tab1, tab2 = st.tabs(['New User', 'Cache'])
+                tab1, tab2 = st.tabs(["New User", "Cache"])
                 with tab1:
                     try:
                         _ = authenticator.register_user_form
                     except Exception as e:
                         st.error(e)
                 with tab2:
-                    if st.button('Clear cache', type='primary'):
+                    if st.button("Clear cache", type="primary"):
                         st.cache_data.clear()
 
     if pages_names:
@@ -93,20 +96,21 @@ def main():
     st.title(page_title)
 
     # --- DROP DOWN VALUES FOR SELECTING THE PERIOD ---
-    logo = Image.open('static/images/connecta.png')
+    logo = Image.open("static/images/connecta.png")
 
     container.image(logo, width=500)
 
     # noinspection PyProtectedMember
     if not firebase_admin._apps:
-        app_options = {'projectId': 'connecta-analytics-app'}
+        app_options = {"projectId": "connecta-app-1"}
         firebase_admin.initialize_app(options=app_options)
 
     cookie_is_valid = authenticator.cookie_is_valid
     not_logged_in = authenticator.not_logged_in
 
     if not cookie_is_valid and not_logged_in:
-        st.markdown("""
+        st.markdown(
+            """
             <style>
                 [data-testid="collapsedControl"] {
                     display: none
@@ -119,5 +123,6 @@ def main():
         return None
 
     home()
+
 
 main()
