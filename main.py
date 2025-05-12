@@ -1,8 +1,8 @@
 import os
 import importlib
+import logging
 from dotenv import load_dotenv
 
-import importlib
 from PIL import Image
 
 import streamlit as st
@@ -12,6 +12,8 @@ import firebase_admin
 from app.modules.styling import apply_default_style, footer
 from app.modules.authenticator import get_authenticator, get_page_roles
 from app.modules.utils import get_authorized_pages_names
+
+logger = logging.getLogger(__name__)
 
 # # Dictionary to map tab names to functions
 # tab_functions = {
@@ -103,7 +105,10 @@ def main():
     # noinspection PyProtectedMember
     if not firebase_admin._apps:
         app_options = {"projectId": "connecta-app-1"}
-        firebase_admin.initialize_app(options=app_options)
+        try:
+            firebase_admin.initialize_app(options=app_options)
+        except Exception as e:
+            logger.error(f"Error initializing firebase app: {str(e)}")
 
     cookie_is_valid = authenticator.cookie_is_valid
     not_logged_in = authenticator.not_logged_in
@@ -122,7 +127,10 @@ def main():
         footer()
         return None
 
-    home()
+    try:
+        home()
+    except Exception as e:
+        logger.error(f"Error initializing firebase app: {str(e)}")
 
 
 main()
