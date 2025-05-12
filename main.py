@@ -60,9 +60,7 @@ authenticator = get_authenticator()
 
 def home():
     pages_roles = get_page_roles()
-    logger.debug("pages_roles:", pages_roles)
     pages_names = get_authorized_pages_names(pages_roles)
-    logger.debug("pages_names:", pages_names)
 
     _ = authenticator.login_panel
 
