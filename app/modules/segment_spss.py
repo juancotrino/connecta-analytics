@@ -410,12 +410,12 @@ def create_zip(zip_name: str, files: dict):
 
 
 def upload_to_gcs(source_file_name: str, destination_blob_name: str):
-    gcs = CloudStorageClient("connecta-app-temp-data")
+    gcs = CloudStorageClient("connecta-app-1-temp-data")
     return gcs.upload_to_gcs(source_file_name, destination_blob_name)
 
 
 def delete_gcs(blob_name: str):
-    gcs = CloudStorageClient("connecta-app-temp-data")
+    gcs = CloudStorageClient("connecta-app-1-temp-data")
     gcs.delete_from_gcs(blob_name)
 
 
