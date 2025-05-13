@@ -10,7 +10,7 @@ from google.auth.transport.requests import Request
 class LLM:
     def __init__(
         self,
-        model: str = "meta/llama3-405b-instruct-maas",
+        model: str = "meta/llama-3.1-405b-instruct-maas",
         endpoint: str = "us-central1-aiplatform.googleapis.com",
         project_id: str = os.getenv("GCP_PROJECT_ID"),
         region: str = os.getenv("GCP_REGION"),
