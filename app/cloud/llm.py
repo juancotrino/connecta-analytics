@@ -6,17 +6,17 @@ import requests
 import google.auth
 from google.auth.transport.requests import Request
 
+
 class LLM:
     def __init__(
         self,
-        model: str = 'meta/llama3-405b-instruct-maas',
-        endpoint: str = 'us-central1-aiplatform.googleapis.com',
-        project_id: str = os.getenv('GCP_PROJECT_ID'),
-        region: str = os.getenv('GCP_REGION')
+        model: str = "meta/llama3-405b-instruct-maas",
+        endpoint: str = "us-central1-aiplatform.googleapis.com",
+        project_id: str = os.getenv("GCP_PROJECT_ID"),
+        region: str = os.getenv("GCP_REGION"),
     ) -> None:
-
         self.model = model
-        self.url = f'https://{endpoint}/v1beta1/projects/{project_id}/locations/{region}/endpoints/openapi/chat/completions'
+        self.url = f"https://{endpoint}/v1/projects/{project_id}/locations/{region}/endpoints/openapi/chat/completions"
 
         # Obtain default credentials
         self.__credentials, self.__project = google.auth.default()
@@ -27,8 +27,8 @@ class LLM:
 
         # Prepare headers and data
         self.__headers = {
-            'Authorization': f'Bearer {self.__access_token}',
-            'Content-Type': 'application/json'
+            "Authorization": f"Bearer {self.__access_token}",
+            "Content-Type": "application/json",
         }
 
     def send(
@@ -42,26 +42,19 @@ class LLM:
         max_retries: int = 5,
         backoff_factor: int = 2,
     ):
-
         data = {
-            'model': self.model,
-            'stream': False,
-            'parameters': {
-                'temperature': temperature,
-                'top_k': top_k,
-                'top_p': top_p,
+            "model": self.model,
+            "stream": False,
+            "parameters": {
+                "temperature": temperature,
+                "top_k": top_k,
+                "top_p": top_p,
                 # add other parameters as needed, e.g.'max_tokens','stop_sequences', etc.
             },
-            'messages': [
-                {
-                    'role': 'system',
-                    'content': system_prompt
-                },
-                {
-                    'role': 'user',
-                    'content': user_prompt
-                }
-            ]
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
         }
 
         retries = 0
@@ -70,7 +63,9 @@ class LLM:
         while retries < max_retries:
             try:
                 start_time = time.time()
-                response = requests.post(self.url, headers=self.__headers, json=data, timeout=timeout)
+                response = requests.post(
+                    self.url, headers=self.__headers, json=data, timeout=timeout
+                )
                 end_time = time.time()
                 elapsed_time = end_time - start_time
 
@@ -94,4 +89,6 @@ class LLM:
                 backoff *= backoff_factor
 
         # If all retries fail, raise an exception or handle it accordingly
-        raise requests.RequestException(f"Failed to get a valid response after {max_retries} retries due to service unavailability.")
+        raise requests.RequestException(
+            f"Failed to get a valid response after {max_retries} retries due to service unavailability."
+        )
