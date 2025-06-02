@@ -1,5 +1,6 @@
 import os
 from io import BytesIO
+import json
 import zipfile
 import tempfile
 import requests
@@ -109,6 +110,10 @@ def write_bytes(data: pd.DataFrame | str, metadata=None):
     bytes_io.seek(0)
 
     return bytes_io
+
+
+def read_sav_db(file_name: str, apply_value_formats: bool = False) -> pd.DataFrame:
+    return pyreadstat.read_sav(file_name, apply_value_formats=apply_value_formats)[0]
 
 
 def read_sav_metadata(file_name: str) -> pd.DataFrame:
@@ -246,3 +251,21 @@ def get_last_numeric_var(original_db_path):
         if not var_type_base[var].startswith("A"):
             last_num_var = var
     return last_num_var
+
+
+def load_json(path: str) -> dict:
+    """
+    Load a JSON file from a local path and return its contents as a dictionary.
+
+    Args:
+        path (str): The local path to the JSON file.
+
+    Returns:
+        dict: The contents of the JSON file.
+
+    Raises:
+        FileNotFoundError: If the file doesn't exist.
+        json.JSONDecodeError: If the file is not valid JSON.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)

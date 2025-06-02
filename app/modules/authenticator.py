@@ -23,7 +23,7 @@ class Authenticator:
         cookie_key: str,
         cookie_expiry_days: int = 30,
         cookie_name: str = "login_cookie",
-        preauthorized: str = "connecta.com.co"
+        preauthorized: str = "connecta.com.co",
     ) -> None:
         self.firebase_api_key = firebase_api_key
         self.cookie_key = cookie_key
@@ -40,10 +40,7 @@ class Authenticator:
         self.cookie_name = cookie_name
         self.preauthorized = preauthorized
 
-    def parse_error_message(
-        self,
-        response: requests.Response
-    ) -> str:
+    def parse_error_message(self, response: requests.Response) -> str:
         """
         Parses an error message from a requests.Response object and makes it look better.
 
@@ -64,10 +61,7 @@ class Authenticator:
         )
 
     def authenticate_user(
-        self,
-        email: str,
-        password: str,
-        require_email_verification: bool = True
+        self, email: str, password: str, require_email_verification: bool = True
     ) -> dict[str, str | bool | int] | None:
         """
         Authenticates a user with the given email and password using the Firebase Authentication
@@ -96,7 +90,9 @@ class Authenticator:
         }
         response = self.post_request(url, json=payload)
         if response.status_code != 200:
-            self.error_message(f"Authentication failed: {self.parse_error_message(response)}")
+            self.error_message(
+                f"Authentication failed: {self.parse_error_message(response)}"
+            )
             return None
         response = response.json()
         if require_email_verification and "idToken" not in response:
@@ -142,7 +138,9 @@ class Authenticator:
         response = self.post_request(url, json=payload)
         if response.status_code == 200:
             return self.success_message(f"Password reset link has been sent to {email}")
-        return self.error_message(f"Error sending password reset email: {self.parse_error_message(response)}")
+        return self.error_message(
+            f"Error sending password reset email: {self.parse_error_message(response)}"
+        )
 
     @property
     def register_user_form(self) -> None:
@@ -157,11 +155,13 @@ class Authenticator:
         """
 
         with st.form(key="register_form"):
-            email =  st.text_input("E-mail")
+            email = st.text_input("E-mail")
             name = st.text_input("Name")
             password = st.text_input("Password", type="password")
             confirm_password = st.text_input("Confirm password", type="password")
-            roles = st.multiselect("Roles", options=self.active_roles, default='connecta-viewer')
+            roles = st.multiselect(
+                "Roles", options=self.active_roles, default="connecta-viewer"
+            )
             register_button = st.form_submit_button(label="Submit")
 
         if not register_button:
@@ -199,15 +199,15 @@ class Authenticator:
 
         # Having registered the user, send them a verification e-mail
         token = self.authenticate_user(
-            email,
-            password,
-            require_email_verification=False
+            email, password, require_email_verification=False
         )["idToken"]
         url = f"{POST_REQUEST_URL_BASE}sendOobCode?key={self.firebase_api_key}"
         payload = {"requestType": "VERIFY_EMAIL", "idToken": token}
         response = self.post_request(url, json=payload)
         if response.status_code != 200:
-            return self.error_message(f"Error sending verification email: {self.parse_error_message(response)}")
+            return self.error_message(
+                f"Error sending verification email: {self.parse_error_message(response)}"
+            )
         self.success_message(
             "Your account has been created successfully. To complete the registration process, "
             "please verify your email address by clicking on the link we have sent to your inbox."
@@ -216,7 +216,7 @@ class Authenticator:
 
     def assign_user_role(self, uid: str, roles: list[str]):
         db = firestore.client()
-        db.collection("users").document(uid).set({'roles': roles})
+        db.collection("users").document(uid).set({"roles": roles})
 
     @property
     def active_roles(self) -> tuple[str]:
@@ -225,10 +225,10 @@ class Authenticator:
 
         if document.exists:
             roles_info = document.to_dict()
-            roles = tuple(roles_info['active'])
+            roles = tuple(roles_info["active"])
             return roles
         else:
-            st.warning('There are no active roles registered.')
+            st.warning("There are no active roles registered.")
 
     @property
     def update_password_form(self) -> None:
@@ -236,7 +236,9 @@ class Authenticator:
         col1, _, _ = st.columns(3)
         # Get the email and password from the user
         new_password = col1.text_input("New password", key="new_password")
-        confirm_new_password = col1.text_input("Confirm new password", key="confirm_new_password")
+        confirm_new_password = col1.text_input(
+            "Confirm new password", key="confirm_new_password"
+        )
         # Attempt to log the user in
         if not st.button("Update password"):
             return None
@@ -278,11 +280,7 @@ class Authenticator:
         )
         return self.success_message("Successfully updated user display name.")
 
-
-    def token_encode(
-        self,
-        exp_date: datetime
-    ) -> str:
+    def token_encode(self, exp_date: datetime) -> str:
         """Encodes a JSON Web Token (JWT) containing user session data for passwordless
         reauthentication.
 
@@ -307,6 +305,7 @@ class Authenticator:
                 "name": st.session_state["name"],
                 "username": st.session_state["username"],
                 "roles": st.session_state["roles"],
+                "company": st.session_state["company"],
                 "exp_date": exp_date.timestamp(),
             },
             self.cookie_key,
@@ -340,12 +339,19 @@ class Authenticator:
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
-        for key in {"name", "authentication_status", "username", "roles"}.difference(
-            set(st.session_state)
-        ):
+        for key in {
+            "name",
+            "authentication_status",
+            "username",
+            "roles",
+            "company",
+        }.difference(set(st.session_state)):
             st.session_state[key] = None
 
-        if st.session_state.get('authentication_state') and st.session_state['authentication_state'] is True:
+        if (
+            st.session_state.get("authentication_state")
+            and st.session_state["authentication_state"] is True
+        ):
             return True
 
         # time.sleep(1)
@@ -358,37 +364,36 @@ class Authenticator:
             token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
 
         if (
-            token and isinstance(token, dict)
+            token
+            and isinstance(token, dict)
             and token["exp_date"] > datetime.now(timezone.utc).timestamp()
             and {"name", "username"}.issubset(set(token))
         ):
             st.session_state["name"] = token["name"]
             st.session_state["username"] = token["username"]
-            st.session_state["roles"] = token["roles"]
+            st.session_state["roles"] = token.get("roles")
+            st.session_state["company"] = token.get("company")
             st.session_state["authentication_status"] = True
             return True
 
         return False
 
-
-    def login_user(
-        self,
-        email: str,
-        password: str
-    ):
+    def login_user(self, email: str, password: str):
         # Authenticate the user with Firebase REST API
         login_response = self.authenticate_user(email, password)
         if not login_response:
             return None
 
         try:
-            decoded_token = auth.verify_id_token(login_response["idToken"], clock_skew_seconds=10)
+            decoded_token = auth.verify_id_token(
+                login_response["idToken"], clock_skew_seconds=10
+            )
             user = auth.get_user(decoded_token["uid"])
             if not user.email_verified:
                 return self.error_message("Please verify your e-mail address.")
             return user
         except Exception as e:
-            print(f'Error: {e}')
+            print(f"Error: {e}")
 
     @property
     def login_form(self) -> None:
@@ -421,19 +426,22 @@ class Authenticator:
             st.session_state["username"] = email
             password = st.text_input("Password", type="password")
 
-            if st.form_submit_button('Login', type="primary"):
+            if st.form_submit_button("Login", type="primary"):
                 user = self.login_user(email, password)
                 if user:
                     st.session_state["name"] = user.display_name
                     st.session_state["username"] = user.email
                     st.session_state["roles"] = get_user_roles(user.uid)
+                    st.session_state["company"] = get_user_company(user.uid)
                     st.session_state["authentication_status"] = True
-                    exp_date = datetime.now(timezone.utc) + timedelta(days=self.cookie_expiry_days)
+                    exp_date = datetime.now(timezone.utc) + timedelta(
+                        days=self.cookie_expiry_days
+                    )
 
                     self.cookie_manager.set(
                         self.cookie_name,
                         self.token_encode(exp_date),
-                        expires_at=exp_date
+                        expires_at=exp_date,
                     )
 
                     time.sleep(0.12)
@@ -462,7 +470,11 @@ class Authenticator:
         """
 
         try:
-            greeting_name = st.session_state['username'].split('@')[0] if st.session_state['name'] is None else st.session_state['name']
+            greeting_name = (
+                st.session_state["username"].split("@")[0]
+                if st.session_state["name"] is None
+                else st.session_state["name"]
+            )
             st.write(f"Welcome, *{greeting_name}*!")
         except:
             pass
@@ -473,12 +485,12 @@ class Authenticator:
             st.session_state["name"] = None
             st.session_state["username"] = None
             st.session_state["roles"] = None
+            st.session_state["company"] = None
             st.session_state["authentication_status"] = None
             st.cache_data.clear()
             return None
 
         with st.expander("Account configuration"):
-
             user_tab1, user_tab2 = st.tabs(["Reset password", "Update user details"])
             with user_tab1:
                 self.update_password_form
@@ -515,9 +527,13 @@ class Authenticator:
         time.sleep(0.1)
         early_return = True
         # In case of a first run, pre-populate missing session state arguments
-        for key in {"name", "authentication_status", "username", "roles"}.difference(
-            set(st.session_state)
-        ):
+        for key in {
+            "name",
+            "authentication_status",
+            "username",
+            "roles",
+            "company",
+        }.difference(set(st.session_state)):
             st.session_state[key] = None
 
         # Check authentication status
@@ -531,12 +547,7 @@ class Authenticator:
 
         login_tabs = col2.empty()
         with login_tabs:
-            login_tab1, login_tab2 = st.tabs(
-                [
-                    "Login",
-                    "Forgot password"
-                ]
-            )
+            login_tab1, login_tab2 = st.tabs(["Login", "Forgot password"])
             with login_tab1:
                 self.login_form
             with login_tab2:
@@ -561,19 +572,28 @@ class Authenticator:
         user_roles = st.session_state.get("roles")
 
         if user_roles:
+            pages_to_hide = [
+                page
+                for page, authorized_page_roles in pages_roles.items()
+                if not any(
+                    role in authorized_page_roles["roles"] for role in user_roles
+                )
+            ]
 
-            pages_to_hide = [page for page, authorized_page_roles in pages_roles.items() if not any(role in authorized_page_roles['roles'] for role in user_roles)]
-
-            css_pages_to_hide = '\n\t'.join(
+            css_pages_to_hide = "\n\t".join(
                 [
                     (
-                        '.st-emotion-cache-j7qwjs.eczjsme12 a[data-testid="stSidebarNavLink"][href*="{page_name}"] > span.st-emotion-cache-1m6wrpk.eczjsme10 '
-                        .format(page_name=page_name)
-                    ) + '{display: none;}' for page_name in pages_to_hide
+                        '.st-emotion-cache-j7qwjs.eczjsme12 a[data-testid="stSidebarNavLink"][href*="{page_name}"] > span.st-emotion-cache-1m6wrpk.eczjsme10 '.format(
+                            page_name=page_name
+                        )
+                    )
+                    + "{display: none;}"
+                    for page_name in pages_to_hide
                 ]
             )
 
-            st.markdown(f"""
+            st.markdown(
+                f"""
                 <style>
                     {css_pages_to_hide}
                 </style>
@@ -582,20 +602,20 @@ class Authenticator:
             )
 
     def __str__(self) -> str:
-        return f'cookie is valid: {self.cookie_is_valid}, not logged in {self.not_logged_in}'
+        return f"cookie is valid: {self.cookie_is_valid}, not logged in {self.not_logged_in}"
+
 
 @st.cache_resource(experimental_allow_widgets=True)
 def get_authenticator():
-    return Authenticator(
-        os.getenv('FIREBASE_API_KEY'),
-        os.getenv('COOKIE_KEY')
-    )
+    return Authenticator(os.getenv("FIREBASE_API_KEY"), os.getenv("COOKIE_KEY"))
+
 
 @st.cache_data(show_spinner=False, ttl=600)
 def get_page_roles() -> dict[str, dict[str, list]]:
     db = firestore.client()
     documents = db.collection("pages").stream()
     return {document.id: document.to_dict() for document in documents}
+
 
 @st.cache_data(show_spinner=False, ttl=600)
 def get_user_roles(user_uid: str) -> tuple[str]:
@@ -604,16 +624,27 @@ def get_user_roles(user_uid: str) -> tuple[str]:
 
     if document.exists:
         user_info = document.to_dict()
-        roles = tuple(user_info['roles'])
+        roles = tuple(user_info["roles"])
     else:
-        roles = ('connecta-viewer', )
+        roles = ("connecta-viewer",)
 
     return roles
+
+
+@st.cache_data(show_spinner=False)
+def get_user_company(user_uid: str) -> str:
+    db = firestore.client()
+    document = db.collection("users").document(user_uid).get()
+
+    if document.exists:
+        user_info = document.to_dict()
+        return user_info.get("company")
+
 
 @st.cache_data(show_spinner=False, ttl=600)
 def get_inverted_scales_keywords():
     db = firestore.client()
-    document = db.collection("settings").document('keywords').get()
+    document = db.collection("settings").document("keywords").get()
 
     if document.exists:
-        return document.to_dict()['inverted_scales']
+        return document.to_dict()["inverted_scales"]

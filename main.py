@@ -132,9 +132,10 @@ def main():
     try:
         home()
     except Exception as e:
-        message = f"Error initializing firebase app: {str(e)}"
+        message = f"Error executing app: {str(e)}"
         print(message)
         logger.error(message)
+        raise e
 
 
 main()

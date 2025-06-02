@@ -485,10 +485,13 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
 
 
 def segment_spss(
-    jobs: pd.DataFrame, spss_file: BytesIO, transform_inverted_scales: bool
+    jobs: pd.DataFrame, spss_file: BytesIO | str, transform_inverted_scales: bool
 ):
     # print('Started execution')
-    temp_file_name = get_temp_file(spss_file)
+    if isinstance(spss_file, BytesIO):
+        temp_file_name = get_temp_file(spss_file)
+    else:
+        temp_file_name = spss_file
 
     survey_data, metadata = pyreadstat.read_sav(
         temp_file_name, apply_value_formats=False
