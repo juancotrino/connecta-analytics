@@ -246,15 +246,15 @@ def get_color(value):
         case x if 0 < x < 0.2:
             return "E2E383"  # light green
         case x if 0.2 <= x < 0.4:
-            return "C2DA81"  # green
+            return "C3DA81"  # green
         case x if 0.4 <= x < 0.7:
-            return "94CD7F"  # lime green
+            return "96CF80"  # lime green
         case x if 0.7 <= x < 0.9:
-            return "74C37C"  # green
+            return "5CB865"  # green
         case x if 0.9 <= x < 1.0:
-            return "65BE7C"  # dark green
+            return "48A651"  # dark green
         case x if x == 1:
-            return "63BE7B"  # dark green
+            return "38803F"  # dark green
         case _:
             return "FFFFFF"  # white
 
@@ -293,6 +293,41 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     # print(new_chart.series[0].data_points[0])
     worksheet.add_chart(new_chart, chart_destination)
 
+
+def create_chart_top10(worksheet, source_chart, dataframe, chart_title, chart_destination):
+    # If you have the data in a DataFrame
+    data = Reference(
+        worksheet, min_col=2, min_row=max(2,len(dataframe)-8), max_row=len(dataframe) + 1, max_col=2
+    )
+    categories = Reference(worksheet, min_col=1, min_row=max(2,len(dataframe)-8), max_row=len(dataframe) + 1)
+
+    new_chart = BarChart()
+
+    new_chart.add_data(data)
+    new_chart.set_categories(categories)
+    new_chart.title = chart_title
+
+    # Set the size of the chart
+    new_chart.width = 25  # set width to 25 units
+    new_chart.height = 20  # set height to 20 units
+
+    # Copy the style from source to target chart
+    copy_chart_style(source_chart, new_chart)
+
+    positions = [0, 74000, 83000, 100000]
+    for i, value in enumerate(
+        dataframe.iloc[max(0,len(dataframe)-10):, 1], start=0
+    ):  # assuming values are in the second column
+
+        color = get_color(value)
+        # gsLst = [GradientStop(pos=pos, srgbClr='FFFFFF') if pos == 0 else GradientStop(pos=pos, srgbClr=color) for pos in positions]
+        # spPr = GraphicalProperties(gradFill=GradientFillProperties(gsLst=gsLst))
+        spPr = GraphicalProperties(solidFill=color)
+        dp = DataPoint(idx=i, spPr=spPr)
+        new_chart.series[0].dPt.append(dp)
+
+    # print(new_chart.series[0].data_points[0])
+    worksheet.add_chart(new_chart, chart_destination)
 
 def read_sav_metadata(file_name: str) -> pd.DataFrame:
     metadata = pyreadstat.read_sav(file_name, apply_value_formats=False)[1]
@@ -616,6 +651,7 @@ def segment_spss(
 
             # Create chart in the worksheet
             create_chart(chi2_ws, source_chart, chi2_df, "Intención de compra", "E3")
+            create_chart_top10(chi2_ws, source_chart, chi2_df, "Intención de compra", "U3")
 
         if job["correlation_variables"]:
             if "," in job["variables"]:
