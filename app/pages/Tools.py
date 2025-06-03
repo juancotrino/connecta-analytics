@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 
-from app.modules.text_function import questionFinder, genLabels
+from app.modules.text_function import questionFinder, genLabels,categoryFinder2
 from app.modules.coder import transform_open_ended, generate_open_ended_db
 from app.modules.processing import get_totals_from_pretables
-from app.modules.processor import get_comparison_tables, get_lc_comparison
+from app.modules.processor import get_comparison_tables, get_lc_comparison, get_kpis_tables
 from app.modules.utils import (
     get_temp_file,
     write_multiple_df_bytes,
@@ -46,6 +46,34 @@ def main():
             with st.container(height=300):
                 st.code(genLabels(entryText,entryText2))
 
+    with st.expander("Category Finder"):
+        entryText=st.text_area("Text Entry2:",placeholder="Copy and paste the entire text of the questionnaire")
+        btnFinder=st.button("Find Categorys")
+        if btnFinder:
+            with st.container(height=300):
+                st.dataframe(categoryFinder2(entryText))
+
+    with st.expander("Get KPI's from Tables:"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("#### Tables")
+            tablas_xlsx=st.file_uploader("Upload `.xlsx` file", type=["xlsx"], key='tablas_xlsx')
+        with col2:
+            st.markdown("#### KPI's List")
+            kpis_list_xlsx=st.file_uploader("Upload `.xlsx` file", type=["xlsx"], key='kpis_list_xlsx')
+
+        btn_get_kpis=st.button("Get KPI's")
+        if btn_get_kpis:
+            with st.spinner('Get KPI''s...'):
+                results_tables_kpis = get_kpis_tables(tablas_xlsx,kpis_list_xlsx)
+                st.success('Tables with KPI''s generate successfully.')
+        try:
+            try_download('Download Tables with KPI''s', results_tables_kpis, tablas_xlsx.name+"-KPIs", 'xlsx')
+        except:
+            pass
+
+
+
     with st.expander("Get totals from Pretablas:"):
         pretabla_xlsx=st.file_uploader("Upload `.xlsx` file", type=["xlsx"], key='pretabla_xlsx')
         btn_get_totals=st.button("Get Totals")
@@ -70,7 +98,7 @@ def main():
                 results_totals2 = get_comparison_tables(comparebases1_sav,comparebases2_sav)
                 st.success('Comparison generate successfully.')
         try:
-            try_download('Download Comparison tables', results_totals2, 'comparison_tables', 'xlsx')
+            try_download('Download Comparison tables', results_totals2, 'comparison_tables-'+comparebases1_sav.name[:10]+'-'+comparebases2_sav.name[:10], 'xlsx')
         except:
             pass
 

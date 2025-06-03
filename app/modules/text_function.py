@@ -2,6 +2,7 @@ from io import BytesIO
 import re
 import pyreadstat
 import numpy as np
+import pandas as pd
 from unidecode import unidecode
 from difflib import SequenceMatcher
 
@@ -199,12 +200,12 @@ def categoryFinder(txtC):
                 numques+="."
             if lines[count-1]!="":
                 if re.search("¿.*\?",line):
-                    result+=numques+" "+lines[count-1]+ "\n"+re.search("¿.*\?",line).group()+"\n\n"
+                    result+=numques+" "+lines[count-1]+ "\n"+re.search("¿.*\?",line).group()+"\n"
                 else:
-                    result+=numques+" "+lines[count-1]+ "\n"+ re.search("\s.*",line).group()+"\n\n"
+                    result+=numques+" "+lines[count-1]+ "\n"+ re.search("\s.*",line).group()+"\n"
             else:
                 if re.search("¿.*\?",line):
-                    result+=numques+" "+ re.search("¿.*\?",line).group()+"\n\n"
+                    result+=numques+" "+ re.search("¿.*\?",line).group()+"\n"
                 else:
                     result+=numques+" "
                     for word in line.split():
@@ -215,9 +216,53 @@ def categoryFinder(txtC):
                             continue
                         else:
                             result+=word+" "
-                    result+="\n\n"
+                    result+="\n"
         count+=1
     return result
+
+def categoryFinder2(txtC):
+    category_df = pd.DataFrame(columns=["category", "n_question", "question"])
+
+    # category_df.at[line_question, "category"] = "Valor A"
+    # category_df.at[line_question, "n_question"] = 123
+    # category_df.at[line_question, "question"] = "Texto"
+    line_question=0
+    lines=txtC.splitlines()
+    for i, line in enumerate(lines):
+        if re.search("^\s*[P][1-90].*\..*",line):
+            qu=re.search("¿.*\?",line)
+            numques=line.split()[0]
+            category_df.at[line_question, "n_question"] = numques
+            while re.search("[^0-9]$",numques):
+                numques=numques[:-1]
+            if re.search("[^.]$",numques):
+                numques+="."
+            if qu:
+                qutrim=qu.group()[:-1]
+                if re.search("¿.*\?",qutrim):
+                    pregu=re.search("¿.*\?",qutrim).group().split()[0][1:]
+                    pregu2=" ".join(re.search("¿.*\?",qutrim).group().split()[1:])
+                    category_df.at[line_question, "question"] = "¿"+pregu.capitalize()+" "+pregu2+"\n"
+                else:
+                    pregu=qu.group().split()[0][1:]
+                    pregu2=" ".join(qu.group().split()[1:])
+                    category_df.at[line_question, "question"] = "¿"+pregu.capitalize()+" "+pregu2+"\n"
+            else:
+                qu2=re.search("¿.*",line)
+                if qu2:
+                    preg1nonefirst=re.search(".*[^A-Z .ÁÉÍÓÚ]",qu2.group()[1:]).group().split()[0]
+                    preg1none=" ".join(re.search(".*[^A-Z .ÁÉÍÓÚ]",qu2.group()[1:]).group().split()[1:])
+                    category_df.at[line_question, "question"] = "¿"+preg1nonefirst.capitalize()+" "+preg1none+"?\n"
+                else:
+                    questionstr=" ".join(line.split()[1:])
+                    if re.search("[^A-Z .ÁÉÍÓÚ].*[^A-Z \-.ÁÉÍÓÚ]",questionstr):
+                        category_df.at[line_question, "question"] = re.search("([A-Z][a-z]|[^A-Z .ÁÉÍÓÚ]).*[^A-Z \-.ÁÉÍÓÚ]",questionstr).group()
+                    else:
+                        category_df.at[line_question, "question"] = questionstr
+            if lines[i-1]!="":
+                category_df.at[line_question, "category"] = lines[i-1]
+            line_question+=1
+    return category_df
 
 def genRecodes2(txtC):
     result=""

@@ -3,15 +3,17 @@ from io import BytesIO
 import re
 import pandas as pd
 from unidecode import unidecode
+from itertools import combinations, permutations
 
 from openpyxl import Workbook, load_workbook
 from difflib import SequenceMatcher
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
 
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
 from app.modules.utils import write_temp_excel
+from app.modules.processing import apply_red_and_blue_color_to_letter,calculate_differences
 
 import pyreadstat
 
@@ -2164,6 +2166,19 @@ def limpiar_texto(texto):
     texto = re.sub(r'\s+', '_', texto)
     return texto
 
+def entero_a_romano(num):
+    valores = [
+        (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+        (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")
+    ]
+    resultado = ""
+    for valor, simbolo in valores:
+        while num >= valor:
+            resultado += simbolo
+            num -= valor
+    return resultado
+
 def getVarsForPlantilla(spss_file: BytesIO):
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
@@ -2885,4 +2900,448 @@ def get_lc_comparison(lc_xlsx_file1: BytesIO, lc_xlsx_file2: BytesIO):
 
         ws_lc_comparison.column_dimensions["H"].width = 30
         ws_lc_comparison.column_dimensions["I"].width = 30
+    return write_temp_excel(wb_new)
+
+
+def merge_with_border_range(ws, cell_range: str, border: Border):
+    """
+    Combina celdas según un rango estilo Excel (ej: 'A2:C2') y aplica el borde a todas las celdas del rango.
+
+    :param ws: Hoja de cálculo
+    :param cell_range: Rango tipo 'A2:C2'
+    :param border: Objeto Border a aplicar
+    """
+    # Combinar celdas
+    ws.merge_cells(cell_range)
+
+    # Obtener coordenadas numéricas del rango
+    min_col, min_row, max_col, max_row = range_boundaries(cell_range)
+
+    # Aplicar borde a cada celda del rango
+    for row in ws.iter_rows(min_row=min_row, max_row=max_row,
+                            min_col=min_col, max_col=max_col):
+        for cell in row:
+            cell.border = border
+
+def apply_medium_bottom_border(cell):
+    """
+    Applies a medium bottom border to the given cell,
+    preserving the existing top, left, and right borders.
+    """
+    # Define medium bottom border
+    medium = Side(style="medium")
+
+    # Get current borders of the cell
+    current_border = cell.border
+
+    # Create a new border, keeping other sides unchanged
+    new_border = Border(
+        left=current_border.left,
+        right=current_border.right,
+        top=current_border.top,
+        bottom=medium
+    )
+
+    # Assign the new border to the cell
+    cell.border = new_border
+
+def merge_and_style_with_wrap(ws, cell_range: str, border):
+    """
+    Combines cells in the given range, applies border, sets bold text,
+    and enables wrap text in the visible merged cell.
+    """
+    # Paso 1: merge + border
+    merge_with_border_range(ws, cell_range, border)
+
+    # Paso 2: aplicar estilo a la celda visible (superior izquierda)
+    min_col, min_row, _, _ = range_boundaries(cell_range)
+    cell = ws.cell(row=min_row, column=min_col)
+
+    # Aplicar negrita y ajuste de texto
+    cell.font = Font(bold=True)
+    cell.alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+
+def merge_identical_cells_with_border(ws, col_letter: str, start_row: int):
+    """
+    Merges consecutive identical cells in a column starting at a given row and applies a medium border to each merged group.
+
+    :param ws: Worksheet
+    :param col_letter: Column letter (e.g., "A")
+    :param start_row: Starting row for merging
+    :return: List of ending rows of each merged block
+    """
+    medium_side = Side(style="medium")
+    full_border = Border(top=medium_side, bottom=medium_side, left=medium_side, right=medium_side)
+
+    current_value = None
+    merge_start = start_row
+    end_rows = []
+
+    for row in range(start_row, ws.max_row + 2):
+        cell_value = ws[f"{col_letter}{row}"].value if row <= ws.max_row else None
+
+        if cell_value != current_value:
+            if current_value is not None:
+                if row - merge_start > 1:
+                    cell_range = f"{col_letter}{merge_start}:{col_letter}{row - 1}"
+                else:
+                    cell_range = f"{col_letter}{merge_start}"
+                merge_and_style_with_wrap(ws, cell_range, full_border)
+                end_rows.append(row - 1)
+            current_value = cell_value
+            merge_start = row
+
+    return end_rows
+
+def get_kpis_tables(xlsx_tablas: BytesIO, xlsx_kpis_list: BytesIO):
+    file_xlsx_tablas = get_temp_file(xlsx_tablas, ".xlsx")
+    file_xlsx_kpis_list = get_temp_file(xlsx_kpis_list, ".xlsx")
+
+    wb_tablas = load_workbook(file_xlsx_tablas)
+    wb_kpis_list = load_workbook(file_xlsx_kpis_list)
+    # Create a new Workbook
+    wb_new = Workbook()
+
+    # Remove the default sheet created with the new workbook
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
+
+    sheets_dfs = pd.read_excel(file_xlsx_tablas, sheet_name=None)
+
+
+    kpis_df_questions = pd.read_excel(
+        file_xlsx_kpis_list,
+        usecols="A,B,C,D",
+        names=["group_kpi","names_kpis", "number_question_kpi", "number_question2_kpi"],
+    ).dropna(subset=["names_kpis"])
+
+    visits_df_names = pd.read_excel(
+        file_xlsx_kpis_list,
+        usecols="E,F",
+        names=["visit", "name_visit"],
+    ).dropna(subset=["visit"])
+
+    kpis_df_questions[kpis_df_questions.columns[2]] = kpis_df_questions[kpis_df_questions.columns[2]].apply(
+        lambda x: f"{x}." if isinstance(x, str) and not x.endswith('.') else x
+    )
+    kpis_df_questions[kpis_df_questions.columns[3]] = kpis_df_questions[kpis_df_questions.columns[3]].apply(
+        lambda x: f"{x}." if isinstance(x, str) and not x.endswith('.') else x
+    )
+
+    grayFill = PatternFill(
+        start_color="BFBFBF", end_color="BFBFBF", fill_type="solid"
+    )
+    greenFill = PatternFill(
+    start_color="D8E4BC", end_color="D8E4BC", fill_type="solid"
+    )
+    redFill = PatternFill(
+        start_color="E6B8B7", end_color="E6B8B7", fill_type="solid"
+    )
+    centrado = Alignment(horizontal='center', vertical='center')
+
+    # Definir estilos de borde
+    medium = Side(style="medium")     # Borde grueso
+    thin = Side(style="thin")
+    complete_border = Border(left=medium, right=medium, top=medium, bottom=medium)
+    simple_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+
+    word_multis="MULTI"
+    first_row=6
+
+    for sheet_name, data in sheets_dfs.items():
+        if data.empty:
+            continue
+
+        if sheet_name.lower().startswith("grillas") and not "mom" in sheet_name.lower():
+            part2 = sheet_name.split(" ", 1)
+            namepart2=" "+part2[1] if len(part2) > 1 else ""
+            kpi_sheet_name= "KPI'S"+ namepart2
+
+            ws_kpis = wb_new.create_sheet(title=kpi_sheet_name)
+            ws_tables=wb_tablas[sheet_name]
+
+            # ws_kpis.merge_cells(f"A{first_row+2}:C{first_row+2}")
+            merge_with_border_range(ws_kpis,f"A{first_row+2}:C{first_row+2}",complete_border)
+            ws_kpis[f"A{first_row+2}"]="Base"
+            ws_kpis[f"A{first_row+2}"].border=complete_border
+
+            refs_list = [
+                cell.value
+                for cell in ws_tables[2]
+                if cell.value not in (None, "", "TOTAL")
+            ]
+
+            refs_col_indexes = [
+                cell.column
+                for cell in ws_tables[2]
+                if cell.value not in (None, "", "TOTAL")
+            ]
+
+            n = len(refs_list)
+
+            columnas = {}
+            offset = 4  # Primer columna para las refs
+
+            visits_list= visits_df_names.iloc[:, 0].tolist()
+            visits_name_list= visits_df_names.iloc[:, 1].tolist()
+
+            for i, var in enumerate(visits_list):
+                inicio = offset + i * (n + 1)
+                columnas[var] = list(range(inicio, inicio + n))
+
+            df_refs_x_visits = pd.DataFrame(columnas, index=refs_list)
+            """      V1  V2  V3  V4
+                Q2B   4   7  10  13
+                R6Z   5   8  11  14
+                df.loc["fila", "Columna"]"""
+
+            for visit in visits_list:
+                indexs=df_refs_x_visits[visit]
+
+                fila_inicio = None
+                # Paso 1: Buscar la fila donde la segunda palabra de columna A sea "V#"
+                for row in ws_tables.iter_rows(min_col=1, max_col=1):
+                    cell = row[0]
+                    if isinstance(cell.value, str):
+                        palabras = cell.value.strip().split()
+                        if len(palabras) >= 2 and palabras[1] == visit:
+                            fila_inicio = cell.row
+                            break
+                fila_total = None
+                if fila_inicio:
+                    # Paso 2: Buscar desde fila_inicio hacia abajo la primera ocurrencia de "Total" en columna B
+                    fila_total = None
+                    for row in ws_tables.iter_rows(min_row=fila_inicio, min_col=2, max_col=2):
+                        cell = row[0]
+                        if isinstance(cell.value, str) and cell.value.strip().lower() == "total":
+                            fila_total = cell.row
+                            break
+                else:
+                    df_refs_x_visits.drop(columns=[visit], inplace=True)
+
+                if fila_total:
+                    first_col=get_column_letter(min(indexs))
+                    last_col=get_column_letter(max(indexs))
+                    merge_cells_visits= f"{first_col}{first_row}:{last_col}{first_row}"
+                    merge_with_border_range(ws_kpis,merge_cells_visits,complete_border)
+                    ws_kpis[f"{first_col}{first_row}"]=visits_name_list[visits_list.index(visit)]
+                    ws_kpis[f"{first_col}{first_row}"].fill=grayFill
+                    for i, var in enumerate(indexs):
+                        ws_kpis[f"{get_column_letter(var)}{first_row+1}"]=refs_list[i]
+                        if fila_total:
+                            ws_kpis[f"{get_column_letter(var)}{first_row+2}"]=ws_tables[f"{get_column_letter(refs_col_indexes[i])}{fila_total}"].value
+
+            actual_row=first_row+3
+
+            for _, row in kpis_df_questions.iterrows():
+                kpi = row["names_kpis"]
+                question = row["number_question_kpi"]
+                question2 = row["number_question2_kpi"]
+                group_kpi = row["group_kpi"]
+
+                # Si está vacío, usar el último válido
+                if pd.isna(group_kpi) or group_kpi == "":
+                    group_kpi = last_valid_group
+                else:
+                    last_valid_group = group_kpi
+
+                if kpi != word_multis:
+                    jr_question=False
+                    # Paso 1: Buscar la fila donde empiece por "P#. V# "
+                    for row in ws_tables.iter_rows(min_col=1, max_col=1):
+                        cell = row[0]
+                        if isinstance(cell.value, str):
+                            palabras = cell.value.strip().split()
+                            if len(palabras) >= 1 and (palabras[0] == question or palabras[0] == question2):
+                                fila_inicio = cell.row
+                                visit_num=palabras[1]
+                                indexs=df_refs_x_visits[visit_num]
+                                cell_val_option3 = ws_tables.cell(row=fila_inicio + 3, column=2).value
+                                if isinstance(cell_val_option3, str) and "just" in cell_val_option3.lower():
+                                    jr_question=True
+                                    for i, var in enumerate(indexs):
+                                        ws_kpis[f"{get_column_letter(var)}{actual_row}"]=ws_tables.cell(row=fila_inicio , column=refs_col_indexes[i]).value
+                                        ws_kpis[f"{get_column_letter(var)}{actual_row+1}"]=ws_tables.cell(row=fila_inicio + 3, column=refs_col_indexes[i]).value
+                                        ws_kpis[f"{get_column_letter(var)}{actual_row+2}"]=ws_tables.cell(row=fila_inicio + 6, column=refs_col_indexes[i]).value
+                                else:
+                                    for i, var in enumerate(indexs):
+                                        ws_kpis[f"{get_column_letter(var)}{actual_row}"]=ws_tables.cell(row=fila_inicio, column=refs_col_indexes[i]).value
+                                        ws_kpis[f"{get_column_letter(var)}{actual_row+1}"]=ws_tables.cell(row=fila_inicio + 1, column=refs_col_indexes[i]).value
+
+                    if jr_question:
+                        merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+2}",simple_border)
+                        ws_kpis[f"B{actual_row}"]=kpi
+                        ws_kpis[f"C{actual_row}"]=ws_tables.cell(row=fila_inicio + 1, column=2).value
+                        ws_kpis[f"C{actual_row+1}"]="JR"
+                        ws_kpis[f"C{actual_row+2}"]=ws_tables.cell(row=fila_inicio + 5, column=2).value
+                        ws_kpis[f"C{actual_row}"].border =simple_border
+                        ws_kpis[f"C{actual_row+1}"].border =simple_border
+                        ws_kpis[f"C{actual_row+2}"].border =simple_border
+                        ws_kpis[f"A{actual_row}"]=group_kpi
+                        ws_kpis[f"A{actual_row+1}"]=group_kpi
+                        ws_kpis[f"A{actual_row+2}"]=group_kpi
+                        actual_row+=3
+                    else:
+                        merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+1}",simple_border)
+                        ws_kpis[f"B{actual_row}"]=kpi
+                        ws_kpis[f"C{actual_row}"]="T2B"
+                        ws_kpis[f"C{actual_row+1}"]="TB"
+                        ws_kpis[f"C{actual_row}"].border =simple_border
+                        ws_kpis[f"C{actual_row+1}"].border =simple_border
+                        ws_kpis[f"A{actual_row}"]=group_kpi
+                        ws_kpis[f"A{actual_row+1}"]=group_kpi
+                        actual_row+=2
+                else:
+                    list_atributes=[]
+                    for row in ws_tables.iter_rows(min_col=1, max_col=1):
+                        cell = row[0]
+                        if isinstance(cell.value, str):
+                            palabras = cell.value.strip().split()
+                            if len(palabras) >= 1 and (palabras[0] == question or palabras[0] == question2):
+                                atribute_question = " ".join(palabras[2:]) if len(palabras) > 2 else ""
+                                if not atribute_question in list_atributes:
+                                    list_atributes.append(atribute_question)
+                                    for row in ws_tables.iter_rows(min_col=1, max_col=1):
+                                        cell = row[0]
+                                        if isinstance(cell.value, str):
+                                            palabras2 = cell.value.strip().split()
+                                            if len(palabras2) >= 1 and (palabras2[0] == question or palabras2[0] == question2):
+                                                atribute_row = " ".join(palabras2[2:]) if len(palabras2) > 2 else ""
+                                                if atribute_row==atribute_question:
+                                                    fila_inicio = cell.row
+                                                    visit_num=palabras2[1]
+                                                    indexs=df_refs_x_visits[visit_num]
+                                                    for i, var in enumerate(indexs):
+                                                            ws_kpis[f"{get_column_letter(var)}{actual_row}"]=ws_tables.cell(row=fila_inicio, column=refs_col_indexes[i]).value
+                                                            ws_kpis[f"{get_column_letter(var)}{actual_row+1}"]=ws_tables.cell(row=fila_inicio + 1, column=refs_col_indexes[i]).value
+
+                                    merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+1}",simple_border)
+                                    ws_kpis[f"B{actual_row}"]=atribute_question
+                                    ws_kpis[f"C{actual_row}"]="T2B"
+                                    ws_kpis[f"C{actual_row+1}"]="TB"
+                                    ws_kpis[f"C{actual_row}"].border =simple_border
+                                    ws_kpis[f"C{actual_row+1}"].border =simple_border
+                                    ws_kpis[f"A{actual_row}"]=group_kpi
+                                    ws_kpis[f"A{actual_row+1}"]=group_kpi
+                                    actual_row+=2
+
+            for ref_name, fila_columnas in df_refs_x_visits.iterrows():
+                columnas = fila_columnas.tolist()  # Ej: [4, 7, 10, 13]
+
+                pares = list(combinations(columnas, 2))
+
+                # Iterar sobre las filas de la hoja Excel a partir de first_row + 3
+                for row in ws_kpis.iter_rows(min_row=first_row + 3, values_only=False):
+                    fila_excel = row[0].row  # Número de fila actual
+
+                    for col1, col2 in pares:
+                        x1val = ws_kpis.cell(row=fila_excel, column=col1).value
+                        x2val = ws_kpis.cell(row=fila_excel, column=col2).value
+                        n1val = ws_kpis.cell(row=first_row+2, column=col1).value
+                        n2val = ws_kpis.cell(row=first_row+2, column=col2).value
+
+
+                        # Saltar si alguno es None o no es string
+                        if x1val in (None, "") or x2val in (None, ""):
+                            continue
+
+                        # Intentar extraer el primer número entero antes del primer espacio
+                        try:
+                            px1 = int(x1val.strip().split()[0])
+                            px2 = int(x2val.strip().split()[0])
+                            n1 = int(n1val.strip().split()[0])
+                            n2 = int(n2val.strip().split()[0])
+                            x1 = round((px1 / 100) * n1)
+                            x2 = round((px2 / 100) * n2)
+                        except (IndexError, ValueError):
+                            continue  # Saltar si no se puede convertir
+
+                        # Aquí haces tu comparación
+                        if calculate_differences(x1, x2, n1, n2):
+                            if (x1 / n1) > (x2 / n2):
+                                if "I" in ws_kpis.cell(row=fila_excel, column=col1).value:
+                                    ws_kpis.cell(row=fila_excel, column=col1).value+="-"+entero_a_romano(columnas.index(col2)+1)
+                                else:
+                                    ws_kpis.cell(row=fila_excel, column=col1).value+=" "+entero_a_romano(columnas.index(col2)+1)
+                            else:
+                                if "I" in ws_kpis.cell(row=fila_excel, column=col2).value:
+                                    ws_kpis.cell(row=fila_excel, column=col2).value+="-"+entero_a_romano(columnas.index(col1)+1)
+                                else:
+                                    ws_kpis.cell(row=fila_excel, column=col2).value+=" "+entero_a_romano(columnas.index(col1)+1)
+                    for col in columnas:
+                        apply_red_and_blue_color_to_letter(ws_kpis.cell(row=fila_excel, column=col))
+
+            bottom_thick_border_list = merge_identical_cells_with_border(ws_kpis,"A",first_row+3)
+            left_thick_border_list = df_refs_x_visits.iloc[0].tolist()
+            right_thick_border_list = df_refs_x_visits.iloc[-1].tolist()
+
+
+            columns_refs_data = df_refs_x_visits.values.flatten().tolist()
+            for row in ws_kpis.iter_rows():
+                for cell in row:
+                    cell.alignment = centrado
+
+                    col_idx = cell.column  # número de columna
+                    fila = cell.row
+                    if col_idx in [2,3] and fila in bottom_thick_border_list:
+                        apply_medium_bottom_border(cell)
+                    if fila >= first_row+1 and col_idx in columns_refs_data:
+                        cell.alignment = centrado
+
+                        if cell.value in (None, ""):
+                            cell.value="-"
+
+                        # Obtener valores en la columna 3 (columna C = índice 3)
+                        val_actual = ws_kpis.cell(row=fila, column=3).value
+                        val_arriba = ws_kpis.cell(row=fila - 1, column=3).value if fila > 1 else None
+                        val_abajo = ws_kpis.cell(row=fila + 1, column=3).value
+
+                        # Verifica condiciones especiales
+                        if val_actual == "T2B" or val_abajo == "JR":
+                            cell.fill=greenFill
+                        elif val_arriba == "JR":
+                            cell.fill=redFill
+
+                        left_border = medium if col_idx in left_thick_border_list else thin
+                        right_border = medium if col_idx in right_thick_border_list else thin
+                        bottom_border = medium if fila in bottom_thick_border_list or fila == first_row + 2 else thin
+
+                        top_border=thin
+
+                        custom_border = Border(
+                            left=left_border,
+                            top=top_border,
+                            right=right_border,
+                            bottom=bottom_border
+                        )
+
+                        cell.border=custom_border
+
+            """
+            Set specific pixel-based column widths:
+            - B: 235 px
+            - C: 122 px
+            - D to last column with data:
+                - 80 px if in columns_refs_data
+                - 20 px if not
+            """
+
+            # Pixel-to-width approximations for openpyxl (1 width unit ≈ 7.001 pixels for Calibri 11)
+            px_to_width = lambda px: round(px / 7.001, 2)
+
+            # Set fixed widths for B and C
+            ws_kpis.column_dimensions["B"].width = px_to_width(235)
+            ws_kpis.column_dimensions["C"].width = px_to_width(122)
+
+            # Get last column with data
+            last_col_idx = max(cell.column for row in ws_kpis.iter_rows() for cell in row if cell.value)
+
+            for col_idx in range(4, last_col_idx + 1):
+                col_letter = get_column_letter(col_idx)
+                if col_idx in columns_refs_data:
+                    ws_kpis.column_dimensions[col_letter].width = px_to_width(80)
+                else:
+                    ws_kpis.column_dimensions[col_letter].width = px_to_width(20)
+
     return write_temp_excel(wb_new)

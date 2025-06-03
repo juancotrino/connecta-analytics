@@ -2,6 +2,7 @@ import warnings
 from io import BytesIO
 import string
 from itertools import product
+import re
 
 import numpy as np
 import pandas as pd
@@ -236,6 +237,43 @@ def apply_red_color_to_letter(cell):
         rich_text_cell = CellRichText()
         rich_text_cell.append(f"{num} ")
         rich_text_cell.append(TextBlock(red, letter))
+        cell.value = rich_text_cell
+
+# Function to apply red color to the letter in the cell
+def apply_red_and_blue_color_to_letter(cell):
+    value = cell.value
+    if isinstance(value, str) and any(char.isalpha() for char in value):
+        # Find the first non-digit character
+        index = 0
+        while index < len(value) and value[index].isdigit():
+            index += 1
+
+        # Split the string based on the index
+        num = value[:index]
+        letters = value[index:].strip()  # Remove any leading/trailing spaces
+        elements = letters.split()
+
+        # Apply formatting
+
+        red = InlineFont(color="00FF0000")
+        blue = InlineFont(color="0000B0F0")
+
+        rich_text_cell = CellRichText()
+        rich_text_cell.append(f"{num}")
+        for letter in elements:
+            if "I" in letter or "V" in letter and not "," in letter:
+                if "-" in letter:
+                    romans=letter.split("-")
+                    for roman in romans:
+                        if roman == romans[0]:
+                            rich_text_cell.append(TextBlock(blue, f" {roman}"))
+                        else:
+                            rich_text_cell.append("-")
+                            rich_text_cell.append(TextBlock(blue, f"{roman}"))
+                else:
+                    rich_text_cell.append(TextBlock(blue, f" {letter}"))
+            else:
+                rich_text_cell.append(TextBlock(red, f" {letter}"))
         cell.value = rich_text_cell
 
 
