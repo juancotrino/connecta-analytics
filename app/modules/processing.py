@@ -1050,4 +1050,4 @@ def processing(xlsx_file: BytesIO):
         for i in range(1, ws_totals.max_row + 1):
             ws_totals.cell(row=i, column=col).fill = blueFill
 
-    return write_temp_excel(wb_new)
+    return write_temp_excel(wb_new) ,wb_new

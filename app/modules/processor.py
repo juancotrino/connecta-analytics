@@ -2,6 +2,7 @@ from collections import Counter, defaultdict
 from io import BytesIO
 import re
 import pandas as pd
+from copy import copy
 from unidecode import unidecode
 from itertools import combinations, permutations
 
@@ -9,11 +10,12 @@ from openpyxl import Workbook, load_workbook
 from difflib import SequenceMatcher
 from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
+from openpyxl.cell.cell import MergedCell
 
 from app.modules.segment_spss import get_temp_file
 from app.modules.text_function import processSavMulti
 from app.modules.utils import write_temp_excel
-from app.modules.processing import apply_red_and_blue_color_to_letter,calculate_differences
+from app.modules.processing import apply_red_and_blue_color_to_letter,calculate_differences,processing
 
 import pyreadstat
 
@@ -2923,6 +2925,25 @@ def merge_with_border_range(ws, cell_range: str, border: Border):
         for cell in row:
             cell.border = border
 
+def apply_outer_border_range(ws, cell_range: str, border_style="medium"):
+    """
+    Aplica un borde exterior al rango dado, tipo 'B2:E10'
+    """
+    min_col, min_row, max_col, max_row = range_boundaries(cell_range)
+    side = Side(style=border_style)
+
+    for row in range(min_row, max_row + 1):
+        for col in range(min_col, max_col + 1):
+            cell = ws.cell(row=row, column=col)
+            current = cell.border
+
+            cell.border = Border(
+                left=side if col == min_col else current.left,
+                right=side if col == max_col else current.right,
+                top=side if row == min_row else current.top,
+                bottom=side if row == max_row else current.bottom,
+            )
+
 def apply_medium_bottom_border(cell):
     """
     Applies a medium bottom border to the given cell,
@@ -2940,6 +2961,28 @@ def apply_medium_bottom_border(cell):
         right=current_border.right,
         top=current_border.top,
         bottom=medium
+    )
+
+    # Assign the new border to the cell
+    cell.border = new_border
+
+def apply_medium_top_border(cell):
+    """
+    Applies a medium top border to the given cell,
+    preserving the existing bottom, left, and right borders.
+    """
+    # Define medium top border
+    medium = Side(style="medium")
+
+    # Get current borders of the cell
+    current_border = cell.border
+
+    # Create a new border, keeping other sides unchanged
+    new_border = Border(
+        left=current_border.left,
+        right=current_border.right,
+        bottom=current_border.bottom,
+        top=medium
     )
 
     # Assign the new border to the cell
@@ -2993,12 +3036,33 @@ def merge_identical_cells_with_border(ws, col_letter: str, start_row: int):
 
     return end_rows
 
-def get_kpis_tables(xlsx_tablas: BytesIO, xlsx_kpis_list: BytesIO):
-    file_xlsx_tablas = get_temp_file(xlsx_tablas, ".xlsx")
-    file_xlsx_kpis_list = get_temp_file(xlsx_kpis_list, ".xlsx")
+def ensure_file_and_workbook(input_data):
+        if isinstance(input_data, Workbook):
+            # Convertir a BytesIO y guardar temporalmente
+            bio = BytesIO()
+            input_data.save(bio)
+            bio.seek(0)
+            path = get_temp_file(bio, ".xlsx")
+            wb = input_data
+        elif isinstance(input_data, BytesIO):
+            input_data.seek(0)
+            path = get_temp_file(input_data, ".xlsx")
+            wb = load_workbook(path)
+        else:
+            raise TypeError("Se esperaba un Workbook o un BytesIO.")
+        return path, wb
 
-    wb_tablas = load_workbook(file_xlsx_tablas)
-    wb_kpis_list = load_workbook(file_xlsx_kpis_list)
+def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
+
+    # file_xlsx_tablas = get_temp_file(xlsx_tablas, ".xlsx")
+    # file_xlsx_kpis_list = get_temp_file(xlsx_kpis_list, ".xlsx")
+
+    # wb_tablas = load_workbook(file_xlsx_tablas)
+    # wb_kpis_list = load_workbook(file_xlsx_kpis_list)
+
+    file_xlsx_tablas, wb_tablas = ensure_file_and_workbook(xlsx_tablas)
+    file_xlsx_kpis_list, wb_kpis_list = ensure_file_and_workbook(xlsx_kpis_list)
+
     # Create a new Workbook
     wb_new = Workbook()
 
@@ -3248,10 +3312,10 @@ def get_kpis_tables(xlsx_tablas: BytesIO, xlsx_kpis_list: BytesIO):
 
                         # Intentar extraer el primer número entero antes del primer espacio
                         try:
-                            px1 = int(x1val.strip().split()[0])
-                            px2 = int(x2val.strip().split()[0])
-                            n1 = int(n1val.strip().split()[0])
-                            n2 = int(n2val.strip().split()[0])
+                            px1 = int(str(x1val).strip().split()[0])
+                            px2 = int(str(x2val).strip().split()[0])
+                            n1 = int(str(n1val).strip().split()[0])
+                            n2 = int(str(n2val).strip().split()[0])
                             x1 = round((px1 / 100) * n1)
                             x2 = round((px2 / 100) * n2)
                         except (IndexError, ValueError):
@@ -3260,12 +3324,12 @@ def get_kpis_tables(xlsx_tablas: BytesIO, xlsx_kpis_list: BytesIO):
                         # Aquí haces tu comparación
                         if calculate_differences(x1, x2, n1, n2):
                             if (x1 / n1) > (x2 / n2):
-                                if "I" in ws_kpis.cell(row=fila_excel, column=col1).value:
+                                if "I" in str(ws_kpis.cell(row=fila_excel, column=col1).value):
                                     ws_kpis.cell(row=fila_excel, column=col1).value+="-"+entero_a_romano(columnas.index(col2)+1)
                                 else:
                                     ws_kpis.cell(row=fila_excel, column=col1).value+=" "+entero_a_romano(columnas.index(col2)+1)
                             else:
-                                if "I" in ws_kpis.cell(row=fila_excel, column=col2).value:
+                                if "I" in str(ws_kpis.cell(row=fila_excel, column=col2).value):
                                     ws_kpis.cell(row=fila_excel, column=col2).value+="-"+entero_a_romano(columnas.index(col1)+1)
                                 else:
                                     ws_kpis.cell(row=fila_excel, column=col2).value+=" "+entero_a_romano(columnas.index(col1)+1)
@@ -3284,8 +3348,10 @@ def get_kpis_tables(xlsx_tablas: BytesIO, xlsx_kpis_list: BytesIO):
 
                     col_idx = cell.column  # número de columna
                     fila = cell.row
-                    if col_idx in [2,3] and fila in bottom_thick_border_list:
+                    if col_idx in [3] and fila in bottom_thick_border_list:
                         apply_medium_bottom_border(cell)
+                    if col_idx in [2] and fila-1 in bottom_thick_border_list:
+                        apply_medium_top_border(cell)
                     if fila >= first_row+1 and col_idx in columns_refs_data:
                         cell.alignment = centrado
 
@@ -3318,6 +3384,9 @@ def get_kpis_tables(xlsx_tablas: BytesIO, xlsx_kpis_list: BytesIO):
 
                         cell.border=custom_border
 
+            if ws_kpis.max_row-1 in bottom_thick_border_list:
+                apply_medium_top_border(ws_kpis.cell(row=ws_kpis.max_row, column=2))
+
             """
             Set specific pixel-based column widths:
             - B: 235 px
@@ -3344,4 +3413,218 @@ def get_kpis_tables(xlsx_tablas: BytesIO, xlsx_kpis_list: BytesIO):
                 else:
                     ws_kpis.column_dimensions[col_letter].width = px_to_width(20)
 
+    return write_temp_excel(wb_new),wb_new
+
+def correction_word_anios(texto):
+    # Definir patrones y reemplazos con mayúsculas y minúsculas
+    patrones = [
+        (r'\banos\b', 'años'),
+        (r'\bAnos\b', 'Años'),
+        (r'\bANOS\b', 'AÑOS'),
+        (r'\bano\b', 'año'),
+        (r'\bAno\b', 'Año'),
+        (r'\bANO\b', 'AÑO'),
+    ]
+    for patron, reemplazo in patrones:
+        texto = re.sub(patron, reemplazo, texto)
+    return texto
+def corregir_nombre_hojas_con_anios(wb):
+    for sheet in wb.worksheets:
+        nombre_original = sheet.title
+        nuevo_nombre = correction_word_anios(nombre_original)
+        if nuevo_nombre != nombre_original:
+            if nuevo_nombre not in wb.sheetnames:
+                sheet.title = nuevo_nombre
+
+def get_diferences_with_kpis(xlsx_pretables_file: BytesIO, xlsx_kpis_list: BytesIO):
+    _, wb_tables=processing(xlsx_pretables_file)
+    _, wb_kpis=get_kpis_tables(wb_tables,xlsx_kpis_list)
+
+    nombre_indice="indice"
+    wb_new = Workbook()
+    ws_index = wb_new.active
+    ws_index.title = nombre_indice
+
+    # Función para copiar hojas
+    def copy_sheets(source_wb, target_wb, prefix=""):
+        for ws in source_wb.worksheets:
+            new_title = f"{prefix}{ws.title}"
+            new_ws = target_wb.create_sheet(title=new_title)
+
+            # Copiar celdas
+            for row in ws.iter_rows():
+                for cell in row:
+                    if isinstance(cell, MergedCell):
+                        continue  # Ignorar celdas fusionadas intermedias
+
+                    new_cell = new_ws.cell(row=cell.row, column=cell.column, value=cell.value)
+
+                    if cell.has_style:
+                        new_cell.font = copy(cell.font)
+                        new_cell.border = copy(cell.border)
+                        new_cell.fill = copy(cell.fill)
+                        new_cell.number_format = copy(cell.number_format)
+                        new_cell.protection = copy(cell.protection)
+                        new_cell.alignment = copy(cell.alignment)
+
+            # Copiar celdas combinadas
+            for merged_range in ws.merged_cells.ranges:
+                new_ws.merge_cells(str(merged_range))
+
+            # Copiar anchos de columnas
+            for col_letter, col_dim in ws.column_dimensions.items():
+                new_ws.column_dimensions[col_letter].width = col_dim.width
+
+            # Copiar alturas de filas
+            for row_idx, row_dim in ws.row_dimensions.items():
+                new_ws.row_dimensions[row_idx].height = row_dim.height
+
+    # Copiar hojas de wb_kpis
+    copy_sheets(wb_kpis, wb_new)
+
+    # Copiar hojas de wb_tables
+    copy_sheets(wb_tables, wb_new)
+
+
+    corregir_nombre_hojas_con_anios(wb_new)
+    for sheet_name in wb_new.sheetnames:
+        if sheet_name.lower().startswith("grilla") and "mom" not in sheet_name.lower():
+            # Obtener la hoja
+            sheet = wb_new[sheet_name]
+
+            # Obtener la segunda fila (índice 2, pero openpyxl empieza en 1)
+            second_row = list(sheet.iter_rows(min_row=2, max_row=2, values_only=True))[0]
+
+            # Filtrar elementos no vacíos y que no sean 'TOTAL'
+            refs_list = [cell for cell in second_row if cell and str(cell).strip().upper() != "TOTAL"]
+            break
+
+
+    # Estilos# Definir estilos de borde
+    medium = Side(style="medium")     # Borde grueso
+    thin = Side(style="thin")
+    bold = Font(bold=True)
+    enlace = Font(color="0000EE", underline="single")
+    centrado = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    fondo_header = PatternFill("solid", fgColor="F79646")
+    fondo_sections = PatternFill("solid", fgColor="FCD5B4")
+    fondo_subsections = PatternFill("solid", fgColor="FDE9D9")
+    complete_border = Border(left=medium, right=medium, top=medium, bottom=medium)
+    simple_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    style_border_tables="medium"
+
+    # Título
+    ws_index.merge_cells("B2:H2")
+    ws_index["B2"] = "ÍNDICE"
+    ws_index["B2"].border =complete_border
+    ws_index["B2"].font = Font(bold=True, color="FFFFFF", size=14)
+    ws_index["B2"].fill = fondo_header
+
+    if "Filtros" in wb_new.sheetnames:
+        cellf = ws_index.cell(row=4, column=2, value="Filtros")   # D con hipervínculo
+        cellf.hyperlink = f"#'Filtros'!A1"
+        cellf.font = enlace
+        cellf.border=complete_border
+
+    # Obtener listas desde el wb
+    grillas_sheets = [s for s in wb_new.sheetnames if s.lower().startswith("grillas")]
+    penaltys_sheets = [s for s in wb_new.sheetnames if s.lower().startswith("penaltys")]
+    kpis_sheets = [s for s in wb_new.sheetnames if s.lower().startswith("kpi")]
+
+    # refs_list desde J3 hacia abajo
+    start_row_refs = 3
+    start_col_refs = 10  # J
+    for i, ref in enumerate(refs_list):
+        ws_index.cell(row=start_row_refs + i, column=start_col_refs, value=ref)
+    apply_outer_border_range(ws_index,f"J{start_row_refs}:L{start_row_refs+len(refs_list)-1}",style_border_tables)
+
+    start_row_tables = start_row_refs+len(refs_list)+4
+
+    # Grillas
+    ws_index[f"B{start_row_tables}"] = "Grillas"
+    ws_index[f"B{start_row_tables}"].font = bold
+    ws_index[f"B{start_row_tables}"].fill = fondo_sections
+    for i, name in enumerate(grillas_sheets, start=start_row_tables):
+        part2 = name.split(" ", 1)
+        namepart2=part2[1] if len(part2) > 1 else ""
+        if namepart2=="":
+            cell = ws_index.cell(row=i, column=3, value="Total")   # D con hipervínculo
+            cell.hyperlink = f"#'{name}'!A1"
+            cell.font = enlace
+            merge_with_border_range(ws_index,f"C{i}:D{i}",complete_border)
+        else:
+            ws_index.cell(row=i, column=3).fill = fondo_subsections  # C vacía con color
+            cell = ws_index.cell(row=i, column=4, value=namepart2)   # D con hipervínculo
+            cell.hyperlink = f"#'{name}'!A1"
+            cell.font = enlace
+            cell.border=simple_border
+    merge_with_border_range(ws_index,f"B{start_row_tables}:B{start_row_tables+len(grillas_sheets)-1}",complete_border)
+    apply_outer_border_range(ws_index,f"C{start_row_tables}:D{start_row_tables+len(grillas_sheets)-1}",style_border_tables)
+
+    # Penaltys
+    ws_index[f"F{start_row_tables}"] = "Penaltys"
+    ws_index[f"F{start_row_tables}"].font = bold
+    ws_index[f"F{start_row_tables}"].fill = fondo_sections
+    for i, name in enumerate(penaltys_sheets, start=start_row_tables):
+        part2 = name.split(" ", 1)
+        namepart2=part2[1] if len(part2) > 1 else ""
+        if namepart2=="":
+            cell = ws_index.cell(row=i, column=7, value="Total")   # D con hipervínculo
+            cell.hyperlink = f"#'{name}'!A1"
+            cell.font = enlace
+            merge_with_border_range(ws_index,f"G{i}:H{i}",complete_border)
+        else:
+            ws_index.cell(row=i, column=7).fill = fondo_subsections  # C vacía con color
+            cell = ws_index.cell(row=i, column=8, value=namepart2)   # D con hipervínculo
+            cell.hyperlink = f"#'{name}'!A1"
+            cell.font = enlace
+            cell.border=simple_border
+    merge_with_border_range(ws_index,f"F{start_row_tables}:F{start_row_tables+len(penaltys_sheets)-1}",complete_border)
+    apply_outer_border_range(ws_index,f"G{start_row_tables}:H{start_row_tables+len(penaltys_sheets)-1}",style_border_tables)
+
+
+    # KPIs
+    ws_index[f"J{start_row_tables}"] = "KPI's"
+    ws_index[f"J{start_row_tables}"].font = bold
+    ws_index[f"J{start_row_tables}"].fill = fondo_sections
+    for i, name in enumerate(kpis_sheets, start=start_row_tables):
+        part2 = name.split(" ", 1)
+        namepart2=part2[1] if len(part2) > 1 else ""
+        if namepart2=="":
+            cell = ws_index.cell(row=i, column=11, value="Total")   # D con hipervínculo
+            cell.hyperlink = f"#'{name}'!A1"
+            cell.font = enlace
+        else:
+            cell = ws_index.cell(row=i, column=11, value=namepart2)   # D con hipervínculo
+            cell.hyperlink = f"#'{name}'!A1"
+            cell.font = enlace
+            cell.border=simple_border
+    merge_with_border_range(ws_index,f"J{start_row_tables}:J{start_row_tables+len(kpis_sheets)-1}",complete_border)
+    apply_outer_border_range(ws_index,f"K{start_row_tables}:K{start_row_tables+len(kpis_sheets)-1}",style_border_tables)
+
+    for row in ws_index.iter_rows():
+        for cell in row:
+            cell.alignment = centrado
+
+    # Pixel-to-width approximations for openpyxl (1 width unit ≈ 7.001 pixels for Calibri 11)
+    px_to_width = lambda px: round(px / 7.001, 2)
+    # Get last column with data
+    last_col_idx = max(cell.column for row in ws_index.iter_rows() for cell in row if cell.value)
+
+    columns_section=[2,6,10]
+    columns_subsection=[3,7,12]
+    columns_data=[4,8,11]
+    columns_separator=[5]
+    for col_idx in range(1, last_col_idx + 1):
+        col_letter = get_column_letter(col_idx)
+        if col_idx in columns_section:
+            ws_index.column_dimensions[col_letter].width = px_to_width(76)
+        elif col_idx in columns_subsection:
+            ws_index.column_dimensions[col_letter].width = px_to_width(100)
+        elif col_idx in columns_data:
+            ws_index.column_dimensions[col_letter].width = px_to_width(150)
+        elif col_idx in columns_separator:
+            ws_index.column_dimensions[col_letter].width = px_to_width(23)
+
+    ws_index.sheet_view.zoomScale = 70
     return write_temp_excel(wb_new)

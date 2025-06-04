@@ -65,7 +65,7 @@ def main():
         btn_get_kpis=st.button("Get KPI's")
         if btn_get_kpis:
             with st.spinner('Get KPI''s...'):
-                results_tables_kpis = get_kpis_tables(tablas_xlsx,kpis_list_xlsx)
+                results_tables_kpis, _ = get_kpis_tables(tablas_xlsx,kpis_list_xlsx)
                 st.success('Tables with KPI''s generate successfully.')
         try:
             try_download('Download Tables with KPI''s', results_tables_kpis, tablas_xlsx.name+"-KPIs", 'xlsx')

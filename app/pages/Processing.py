@@ -16,7 +16,8 @@ from app.modules.processor import (
     getCruces2,
     getPenaltysCode,
     getCruces,
-    getWarning
+    getWarning,
+    get_diferences_with_kpis
 )
 from app.modules.utils import try_download, get_temp_file, write_temp_sav
 
@@ -318,8 +319,41 @@ def main():
 
             if uploaded_file_xlsx and process:
                 with st.spinner("Processing..."):
-                    results = processing(uploaded_file_xlsx)
+                    results, _ = processing(uploaded_file_xlsx)
                     st.success("Tables processed successfully.")
+
+        try:
+            try_download(
+                "Download processed tables", results, "processed_tables", "xlsx"
+            )
+        except Exception:
+            pass
+
+        st.markdown("### Statistical Significance | Penalties with KPI's")
+
+        with st.form("statistical_processing_with_kpis_form"):
+            st.write("Load excel file with the processing tables from SPSS and template of KPIs.")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("#### Pretables")
+                # Add section to upload a file
+                pretables_file_xlsx = st.file_uploader(
+                    "Upload `.xlsx` file", type=["xlsx"], key="pretabla_processing_xlsx"
+                )
+            with col2:
+                st.markdown("#### KPI's List")
+                # Add section to upload a file
+                template_kpis_file_xlsx = st.file_uploader(
+                    "Upload `.xlsx` file", type=["xlsx"], key="tamplate_kpis_processing_xlsx"
+                )
+
+            process_kpis = st.form_submit_button("Process file")
+
+            if pretables_file_xlsx and template_kpis_file_xlsx and process_kpis:
+                with st.spinner("Processing..."):
+                    results = get_diferences_with_kpis(pretables_file_xlsx,template_kpis_file_xlsx)
+                    st.success("Tables with KPI's processed successfully.")
 
         try:
             try_download(
