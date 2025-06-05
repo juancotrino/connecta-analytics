@@ -8,7 +8,7 @@ from itertools import combinations, permutations
 
 from openpyxl import Workbook, load_workbook
 from difflib import SequenceMatcher
-from openpyxl.utils import get_column_letter, range_boundaries
+from openpyxl.utils import get_column_letter, range_boundaries,quote_sheetname
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
 from openpyxl.cell.cell import MergedCell
 
@@ -3079,6 +3079,11 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
         names=["group_kpi","names_kpis", "number_question_kpi", "number_question2_kpi"],
     ).dropna(subset=["names_kpis"])
 
+    # Limpiar espacios al inicio y final de celdas tipo texto
+    kpis_df_questions = kpis_df_questions.applymap(
+        lambda x: x.strip() if isinstance(x, str) else x
+    )
+
     visits_df_names = pd.read_excel(
         file_xlsx_kpis_list,
         usecols="E,F",
@@ -3514,9 +3519,8 @@ def get_diferences_with_kpis(xlsx_pretables_file: BytesIO, xlsx_kpis_list: Bytes
     style_border_tables="medium"
 
     # Título
-    ws_index.merge_cells("B2:H2")
     ws_index["B2"] = "ÍNDICE"
-    ws_index["B2"].border =complete_border
+    merge_with_border_range(ws_index,"B2:H2",complete_border)
     ws_index["B2"].font = Font(bold=True, color="FFFFFF", size=14)
     ws_index["B2"].fill = fondo_header
 
@@ -3547,15 +3551,16 @@ def get_diferences_with_kpis(xlsx_pretables_file: BytesIO, xlsx_kpis_list: Bytes
     for i, name in enumerate(grillas_sheets, start=start_row_tables):
         part2 = name.split(" ", 1)
         namepart2=part2[1] if len(part2) > 1 else ""
+        safe_name = quote_sheetname(name)
         if namepart2=="":
             cell = ws_index.cell(row=i, column=3, value="Total")   # D con hipervínculo
-            cell.hyperlink = f"#'{name}'!A1"
+            cell.hyperlink = f"#{safe_name}!A1"
             cell.font = enlace
             merge_with_border_range(ws_index,f"C{i}:D{i}",complete_border)
         else:
             ws_index.cell(row=i, column=3).fill = fondo_subsections  # C vacía con color
             cell = ws_index.cell(row=i, column=4, value=namepart2)   # D con hipervínculo
-            cell.hyperlink = f"#'{name}'!A1"
+            cell.hyperlink = f"#{safe_name}!A1"
             cell.font = enlace
             cell.border=simple_border
     merge_with_border_range(ws_index,f"B{start_row_tables}:B{start_row_tables+len(grillas_sheets)-1}",complete_border)
@@ -3568,15 +3573,16 @@ def get_diferences_with_kpis(xlsx_pretables_file: BytesIO, xlsx_kpis_list: Bytes
     for i, name in enumerate(penaltys_sheets, start=start_row_tables):
         part2 = name.split(" ", 1)
         namepart2=part2[1] if len(part2) > 1 else ""
+        safe_name = quote_sheetname(name)
         if namepart2=="":
             cell = ws_index.cell(row=i, column=7, value="Total")   # D con hipervínculo
-            cell.hyperlink = f"#'{name}'!A1"
+            cell.hyperlink = f"#{safe_name}!A1"
             cell.font = enlace
             merge_with_border_range(ws_index,f"G{i}:H{i}",complete_border)
         else:
             ws_index.cell(row=i, column=7).fill = fondo_subsections  # C vacía con color
             cell = ws_index.cell(row=i, column=8, value=namepart2)   # D con hipervínculo
-            cell.hyperlink = f"#'{name}'!A1"
+            cell.hyperlink = f"#{safe_name}!A1"
             cell.font = enlace
             cell.border=simple_border
     merge_with_border_range(ws_index,f"F{start_row_tables}:F{start_row_tables+len(penaltys_sheets)-1}",complete_border)
@@ -3590,13 +3596,14 @@ def get_diferences_with_kpis(xlsx_pretables_file: BytesIO, xlsx_kpis_list: Bytes
     for i, name in enumerate(kpis_sheets, start=start_row_tables):
         part2 = name.split(" ", 1)
         namepart2=part2[1] if len(part2) > 1 else ""
+        safe_name = quote_sheetname(name)
         if namepart2=="":
             cell = ws_index.cell(row=i, column=11, value="Total")   # D con hipervínculo
-            cell.hyperlink = f"#'{name}'!A1"
+            cell.hyperlink = f"#{safe_name}!A1"
             cell.font = enlace
         else:
             cell = ws_index.cell(row=i, column=11, value=namepart2)   # D con hipervínculo
-            cell.hyperlink = f"#'{name}'!A1"
+            cell.hyperlink = f"#{safe_name}!A1"
             cell.font = enlace
             cell.border=simple_border
     merge_with_border_range(ws_index,f"J{start_row_tables}:J{start_row_tables+len(kpis_sheets)-1}",complete_border)
