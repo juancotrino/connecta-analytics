@@ -3090,12 +3090,21 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
         names=["visit", "name_visit"],
     ).dropna(subset=["visit"])
 
+    # Limpiar espacios al inicio y final de celdas tipo texto
+    visits_df_names = visits_df_names.applymap(
+        lambda x: x.strip() if isinstance(x, str) else x
+    )
+
+    # Para la columna 2
     kpis_df_questions[kpis_df_questions.columns[2]] = kpis_df_questions[kpis_df_questions.columns[2]].apply(
-        lambda x: f"{x}." if isinstance(x, str) and not x.endswith('.') else x
+        lambda x: f"{x}." if isinstance(x, str) and len(x.strip().split()) == 1 and not x.endswith('.') else x
     )
+
+    # Para la columna 3
     kpis_df_questions[kpis_df_questions.columns[3]] = kpis_df_questions[kpis_df_questions.columns[3]].apply(
-        lambda x: f"{x}." if isinstance(x, str) and not x.endswith('.') else x
+        lambda x: f"{x}." if isinstance(x, str) and len(x.strip().split()) == 1 and not x.endswith('.') else x
     )
+
 
     grayFill = PatternFill(
         start_color="BFBFBF", end_color="BFBFBF", fill_type="solid"
@@ -3129,6 +3138,7 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
 
             ws_kpis = wb_new.create_sheet(title=kpi_sheet_name)
             ws_tables=wb_tablas[sheet_name]
+            dict_multis={}
 
             # ws_kpis.merge_cells(f"A{first_row+2}:C{first_row+2}")
             merge_with_border_range(ws_kpis,f"A{first_row+2}:C{first_row+2}",complete_border)
@@ -3262,38 +3272,65 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                         ws_kpis[f"A{actual_row+1}"]=group_kpi
                         actual_row+=2
                 else:
-                    list_atributes=[]
-                    for row in ws_tables.iter_rows(min_col=1, max_col=1):
-                        cell = row[0]
-                        if isinstance(cell.value, str):
-                            palabras = cell.value.strip().split()
-                            if len(palabras) >= 1 and (palabras[0] == question or palabras[0] == question2):
-                                atribute_question = " ".join(palabras[2:]) if len(palabras) > 2 else ""
-                                if not atribute_question in list_atributes:
-                                    list_atributes.append(atribute_question)
-                                    for row in ws_tables.iter_rows(min_col=1, max_col=1):
-                                        cell = row[0]
-                                        if isinstance(cell.value, str):
-                                            palabras2 = cell.value.strip().split()
-                                            if len(palabras2) >= 1 and (palabras2[0] == question or palabras2[0] == question2):
-                                                atribute_row = " ".join(palabras2[2:]) if len(palabras2) > 2 else ""
-                                                if atribute_row==atribute_question:
-                                                    fila_inicio = cell.row
-                                                    visit_num=palabras2[1]
-                                                    indexs=df_refs_x_visits[visit_num]
-                                                    for i, var in enumerate(indexs):
-                                                            ws_kpis[f"{get_column_letter(var)}{actual_row}"]=ws_tables.cell(row=fila_inicio, column=refs_col_indexes[i]).value
-                                                            ws_kpis[f"{get_column_letter(var)}{actual_row+1}"]=ws_tables.cell(row=fila_inicio + 1, column=refs_col_indexes[i]).value
+                    if pd.notna(question2) and str(question2).strip() != "":
+                        for row2 in ws_tables.iter_rows(min_col=1, max_col=1):
+                            cell2 = row2[0]
+                            if isinstance(cell2.value, str):
+                                palabras2 = cell2.value.strip().split()
+                                if len(palabras2) >= 1 and (palabras2[0] == question):
+                                    atribute_row = " ".join(palabras2[2:]) if len(palabras2) > 2 else ""
+                                    if atribute_row==question2:
+                                        fila_inicio = cell2.row
+                                        visit_num=palabras2[1]
+                                        indexs=df_refs_x_visits[visit_num]
+                                        for i, var in enumerate(indexs):
+                                                ws_kpis[f"{get_column_letter(var)}{actual_row}"]=ws_tables.cell(row=fila_inicio, column=refs_col_indexes[i]).value
+                                                ws_kpis[f"{get_column_letter(var)}{actual_row+1}"]=ws_tables.cell(row=fila_inicio + 1, column=refs_col_indexes[i]).value
+                        merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+1}",simple_border)
+                        ws_kpis[f"B{actual_row}"]=question2
+                        ws_kpis[f"C{actual_row}"]="T2B"
+                        ws_kpis[f"C{actual_row+1}"]="TB"
+                        ws_kpis[f"C{actual_row}"].border =simple_border
+                        ws_kpis[f"C{actual_row+1}"].border =simple_border
+                        ws_kpis[f"A{actual_row}"]=group_kpi
+                        ws_kpis[f"A{actual_row+1}"]=group_kpi
+                        actual_row+=2
+                        if question not in dict_multis:
+                            dict_multis[question]=[]
+                        dict_multis[question].append(question2)
+                    else:
+                        list_atributes= dict_multis[question] if question in dict_multis else []
+                        for row in ws_tables.iter_rows(min_col=1, max_col=1):
+                            cell = row[0]
+                            if isinstance(cell.value, str):
+                                palabras = cell.value.strip().split()
+                                if len(palabras) >= 1 and (palabras[0] == question or palabras[0] == question2):
+                                    atribute_question = " ".join(palabras[2:]) if len(palabras) > 2 else ""
+                                    if not atribute_question in list_atributes:
+                                        list_atributes.append(atribute_question)
+                                        for row2 in ws_tables.iter_rows(min_col=1, max_col=1):
+                                            cell2 = row2[0]
+                                            if isinstance(cell2.value, str):
+                                                palabras2 = cell2.value.strip().split()
+                                                if len(palabras2) >= 1 and (palabras2[0] == question or palabras2[0] == question2):
+                                                    atribute_row = " ".join(palabras2[2:]) if len(palabras2) > 2 else ""
+                                                    if atribute_row==atribute_question:
+                                                        fila_inicio = cell2.row
+                                                        visit_num=palabras2[1]
+                                                        indexs=df_refs_x_visits[visit_num]
+                                                        for i, var in enumerate(indexs):
+                                                                ws_kpis[f"{get_column_letter(var)}{actual_row}"]=ws_tables.cell(row=fila_inicio, column=refs_col_indexes[i]).value
+                                                                ws_kpis[f"{get_column_letter(var)}{actual_row+1}"]=ws_tables.cell(row=fila_inicio + 1, column=refs_col_indexes[i]).value
 
-                                    merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+1}",simple_border)
-                                    ws_kpis[f"B{actual_row}"]=atribute_question
-                                    ws_kpis[f"C{actual_row}"]="T2B"
-                                    ws_kpis[f"C{actual_row+1}"]="TB"
-                                    ws_kpis[f"C{actual_row}"].border =simple_border
-                                    ws_kpis[f"C{actual_row+1}"].border =simple_border
-                                    ws_kpis[f"A{actual_row}"]=group_kpi
-                                    ws_kpis[f"A{actual_row+1}"]=group_kpi
-                                    actual_row+=2
+                                        merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+1}",simple_border)
+                                        ws_kpis[f"B{actual_row}"]=atribute_question
+                                        ws_kpis[f"C{actual_row}"]="T2B"
+                                        ws_kpis[f"C{actual_row+1}"]="TB"
+                                        ws_kpis[f"C{actual_row}"].border =simple_border
+                                        ws_kpis[f"C{actual_row+1}"].border =simple_border
+                                        ws_kpis[f"A{actual_row}"]=group_kpi
+                                        ws_kpis[f"A{actual_row+1}"]=group_kpi
+                                        actual_row+=2
 
             for ref_name, fila_columnas in df_refs_x_visits.iterrows():
                 columnas = fila_columnas.tolist()  # Ej: [4, 7, 10, 13]
@@ -3566,27 +3603,28 @@ def get_diferences_with_kpis(xlsx_pretables_file: BytesIO, xlsx_kpis_list: Bytes
     merge_with_border_range(ws_index,f"B{start_row_tables}:B{start_row_tables+len(grillas_sheets)-1}",complete_border)
     apply_outer_border_range(ws_index,f"C{start_row_tables}:D{start_row_tables+len(grillas_sheets)-1}",style_border_tables)
 
-    # Penaltys
-    ws_index[f"F{start_row_tables}"] = "Penaltys"
-    ws_index[f"F{start_row_tables}"].font = bold
-    ws_index[f"F{start_row_tables}"].fill = fondo_sections
-    for i, name in enumerate(penaltys_sheets, start=start_row_tables):
-        part2 = name.split(" ", 1)
-        namepart2=part2[1] if len(part2) > 1 else ""
-        safe_name = quote_sheetname(name)
-        if namepart2=="":
-            cell = ws_index.cell(row=i, column=7, value="Total")   # D con hipervínculo
-            cell.hyperlink = f"#{safe_name}!A1"
-            cell.font = enlace
-            merge_with_border_range(ws_index,f"G{i}:H{i}",complete_border)
-        else:
-            ws_index.cell(row=i, column=7).fill = fondo_subsections  # C vacía con color
-            cell = ws_index.cell(row=i, column=8, value=namepart2)   # D con hipervínculo
-            cell.hyperlink = f"#{safe_name}!A1"
-            cell.font = enlace
-            cell.border=simple_border
-    merge_with_border_range(ws_index,f"F{start_row_tables}:F{start_row_tables+len(penaltys_sheets)-1}",complete_border)
-    apply_outer_border_range(ws_index,f"G{start_row_tables}:H{start_row_tables+len(penaltys_sheets)-1}",style_border_tables)
+    if penaltys_sheets:
+        # Penaltys
+        ws_index[f"F{start_row_tables}"] = "Penaltys"
+        ws_index[f"F{start_row_tables}"].font = bold
+        ws_index[f"F{start_row_tables}"].fill = fondo_sections
+        for i, name in enumerate(penaltys_sheets, start=start_row_tables):
+            part2 = name.split(" ", 1)
+            namepart2=part2[1] if len(part2) > 1 else ""
+            safe_name = quote_sheetname(name)
+            if namepart2=="":
+                cell = ws_index.cell(row=i, column=7, value="Total")   # D con hipervínculo
+                cell.hyperlink = f"#{safe_name}!A1"
+                cell.font = enlace
+                merge_with_border_range(ws_index,f"G{i}:H{i}",complete_border)
+            else:
+                ws_index.cell(row=i, column=7).fill = fondo_subsections  # C vacía con color
+                cell = ws_index.cell(row=i, column=8, value=namepart2)   # D con hipervínculo
+                cell.hyperlink = f"#{safe_name}!A1"
+                cell.font = enlace
+                cell.border=simple_border
+        merge_with_border_range(ws_index,f"F{start_row_tables}:F{start_row_tables+len(penaltys_sheets)-1}",complete_border)
+        apply_outer_border_range(ws_index,f"G{start_row_tables}:H{start_row_tables+len(penaltys_sheets)-1}",style_border_tables)
 
 
     # KPIs

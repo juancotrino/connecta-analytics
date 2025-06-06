@@ -241,7 +241,7 @@ def apply_red_color_to_letter(cell):
 
 # Function to apply red color to the letter in the cell
 def apply_red_and_blue_color_to_letter(cell):
-    value = cell.value
+    value = str(cell.value) if cell.value not in (None, "") else None
     if isinstance(value, str) and any(char.isalpha() for char in value):
         # Find the first non-digit character
         index = 0
@@ -261,7 +261,7 @@ def apply_red_and_blue_color_to_letter(cell):
         rich_text_cell = CellRichText()
         rich_text_cell.append(f"{num}")
         for letter in elements:
-            if "I" in letter or "V" in letter and not "," in letter:
+            if ("I" in letter or "V" in letter) and not "," in letter:
                 if "-" in letter:
                     romans=letter.split("-")
                     for roman in romans:
