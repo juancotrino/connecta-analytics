@@ -3227,6 +3227,7 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
 
                 if kpi != word_multis:
                     jr_question=False
+                    unique_question=False
                     # Paso 1: Buscar la fila donde empiece por "P#. V# "
                     for row in ws_tables.iter_rows(min_col=1, max_col=1):
                         cell = row[0]
@@ -3237,7 +3238,19 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                                 visit_num=palabras[1]
                                 indexs=df_refs_x_visits[visit_num]
                                 cell_val_option3 = ws_tables.cell(row=fila_inicio + 3, column=2).value
-                                if isinstance(cell_val_option3, str) and "just" in cell_val_option3.lower():
+                                cell_val_option_NETO = ws_tables.cell(row=fila_inicio, column=2).value
+                                if isinstance(cell_val_option3, str) and "neto" not in cell_val_option_NETO.lower():
+                                    unique_question=True
+                                    fila_final = None
+                                    for fila in range(fila_inicio, ws_tables.max_row):
+                                        valor = ws_tables.cell(row=fila, column=2).value
+                                        if isinstance(valor, str) and valor.strip().lower() == "total":
+                                            fila_final = fila - 1
+                                            break
+                                    for row_offset, fila in enumerate(range(fila_inicio, fila_final + 1)):
+                                        for i, var in enumerate(indexs):
+                                            ws_kpis[f"{get_column_letter(var)}{actual_row + row_offset}"] = ws_tables.cell(row=fila_inicio + row_offset, column=refs_col_indexes[i]).value
+                                elif isinstance(cell_val_option3, str) and "just" in cell_val_option3.lower():
                                     jr_question=True
                                     for i, var in enumerate(indexs):
                                         ws_kpis[f"{get_column_letter(var)}{actual_row}"]=ws_tables.cell(row=fila_inicio , column=refs_col_indexes[i]).value
@@ -3261,6 +3274,14 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                         ws_kpis[f"A{actual_row+1}"]=group_kpi
                         ws_kpis[f"A{actual_row+2}"]=group_kpi
                         actual_row+=3
+                    elif unique_question:
+                        merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+fila_final-fila_inicio}",simple_border)
+                        ws_kpis[f"B{actual_row}"]=kpi
+                        for i in range(fila_final-fila_inicio+1):
+                            ws_kpis[f"C{actual_row+i}"]=ws_tables.cell(row=fila_inicio+i, column=2).value
+                            ws_kpis[f"C{actual_row+i}"].border =simple_border
+                            ws_kpis[f"A{actual_row+i}"]=group_kpi
+                        actual_row+=fila_final-fila_inicio+1
                     else:
                         merge_with_border_range(ws_kpis,f"B{actual_row}:B{actual_row+1}",simple_border)
                         ws_kpis[f"B{actual_row}"]=kpi
@@ -3272,7 +3293,7 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                         ws_kpis[f"A{actual_row+1}"]=group_kpi
                         actual_row+=2
                 else:
-                    if pd.notna(question2) and str(question2).strip() != "":
+                    if pd.notna(question2) and pd.notna(question) and str(question2).strip() != "":
                         for row2 in ws_tables.iter_rows(min_col=1, max_col=1):
                             cell2 = row2[0]
                             if isinstance(cell2.value, str):
