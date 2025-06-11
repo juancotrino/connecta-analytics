@@ -349,12 +349,10 @@ class Authenticator:
             st.session_state[key] = None
 
         if (
-            st.session_state.get("authentication_state")
-            and st.session_state["authentication_state"] is True
+            st.session_state.get("authentication_status")
+            and st.session_state["authentication_status"] is True
         ):
             return True
-
-        # time.sleep(1)
 
         if token is None:
             st.session_state["authentication_status"] = None
@@ -605,7 +603,6 @@ class Authenticator:
         return f"cookie is valid: {self.cookie_is_valid}, not logged in {self.not_logged_in}"
 
 
-@st.cache_resource(experimental_allow_widgets=True)
 def get_authenticator():
     return Authenticator(os.getenv("FIREBASE_API_KEY"), os.getenv("COOKIE_KEY"))
 
