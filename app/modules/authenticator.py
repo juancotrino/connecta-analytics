@@ -21,6 +21,7 @@ class Authenticator:
         self,
         firebase_api_key: str,
         cookie_key: str,
+        cookie_manager: stx.CookieManager,
         cookie_expiry_days: int = 30,
         cookie_name: str = "login_cookie",
         preauthorized: str = "connecta.com.co",
@@ -35,10 +36,12 @@ class Authenticator:
         )
         self.success_message = partial(st.success, icon="✅")
         self.error_message = partial(st.error, icon="🚨")
-        self.cookie_manager = stx.CookieManager()
+        self.cookie_manager = cookie_manager
         self.cookie_expiry_days = cookie_expiry_days
         self.cookie_name = cookie_name
         self.preauthorized = preauthorized
+        st.session_state["login_error_message"] = None
+        st.session_state["success_message"] = None
 
     def parse_error_message(self, response: requests.Response) -> str:
         """
@@ -90,13 +93,13 @@ class Authenticator:
         }
         response = self.post_request(url, json=payload)
         if response.status_code != 200:
-            self.error_message(
+            st.session_state["login_error_message"] = (
                 f"Authentication failed: {self.parse_error_message(response)}"
             )
             return None
         response = response.json()
         if require_email_verification and "idToken" not in response:
-            self.error_message("Invalid e-mail or password.")
+            st.session_state["login_error_message"] = "Invalid e-mail or password."
             return None
 
         return response
@@ -137,10 +140,16 @@ class Authenticator:
         payload = {"requestType": "PASSWORD_RESET", "email": email}
         response = self.post_request(url, json=payload)
         if response.status_code == 200:
-            return self.success_message(f"Password reset link has been sent to {email}")
-        return self.error_message(
+            st.session_state["success_message"] = (
+                f"Password reset link has been sent to {email}"
+            )
+            st.session_state["login_error_message"] = None
+            return None
+        st.session_state["login_error_message"] = (
             f"Error sending password reset email: {self.parse_error_message(response)}"
         )
+        st.session_state["success_message"] = None
+        return None
 
     @property
     def register_user_form(self) -> None:
@@ -168,17 +177,25 @@ class Authenticator:
             return None
         # Below are some checks to ensure proper and secure registration
         if password != confirm_password:
-            return self.error_message("Passwords do not match")
+            st.session_state["login_error_message"] = "Passwords do not match"
+            st.session_state["success_message"] = None
+            return None
         if not name:
-            return self.error_message("Please enter your name")
+            st.session_state["login_error_message"] = "Please enter your name"
+            st.session_state["success_message"] = None
+            return None
         if "@" not in email and isinstance(self.preauthorized, str):
             email = f"{email}@{self.preauthorized}"
         if self.preauthorized and not email.endswith(self.preauthorized):
-            return self.error_message("Domain not allowed")
+            st.session_state["login_error_message"] = "Domain not allowed"
+            st.session_state["success_message"] = None
+            return None
         try:
             validate_email(email, check_deliverability=True)
         except EmailNotValidError as e:
-            return self.error_message(e)
+            st.session_state["login_error_message"] = str(e)
+            st.session_state["success_message"] = None
+            return None
 
         # Need a password that has minimum 66 entropy bits (the power of its alphabet)
         # I multiply this number by 1.5 to display password strength with st.progress
@@ -188,9 +205,11 @@ class Authenticator:
         strength = int(len(password) * math.log2(alphabet_chars) * 1.5)
         if strength < 100:
             st.progress(strength)
-            return st.warning(
-                "Password is too weak. Please choose a stronger password.", icon="⚠️"
+            st.session_state["login_error_message"] = (
+                "Password is too weak. Please choose a stronger password."
             )
+            st.session_state["success_message"] = None
+            return None
         user = auth.create_user(
             email=email, password=password, display_name=name, email_verified=False
         )
@@ -205,13 +224,16 @@ class Authenticator:
         payload = {"requestType": "VERIFY_EMAIL", "idToken": token}
         response = self.post_request(url, json=payload)
         if response.status_code != 200:
-            return self.error_message(
+            st.session_state["login_error_message"] = (
                 f"Error sending verification email: {self.parse_error_message(response)}"
             )
-        self.success_message(
+            st.session_state["success_message"] = None
+            return None
+        st.session_state["success_message"] = (
             "Your account has been created successfully. To complete the registration process, "
             "please verify your email address by clicking on the link we have sent to your inbox."
         )
+        st.session_state["login_error_message"] = None
         return st.balloons()
 
     def assign_user_role(self, uid: str, roles: list[str]):
@@ -243,10 +265,14 @@ class Authenticator:
         if not st.button("Update password"):
             return None
         if new_password != confirm_new_password:
-            return self.error_message("The passwords do not match.")
+            st.session_state["login_error_message"] = "The passwords do not match."
+            st.session_state["success_message"] = None
+            return None
         user = auth.get_user_by_email(st.session_state["username"])
         auth.update_user(user.uid, password=new_password)
-        return self.success_message("Successfully updated user password.")
+        st.session_state["success_message"] = "Successfully updated user password."
+        st.session_state["login_error_message"] = None
+        return None
 
     @property
     def update_display_name_form(self) -> None:
@@ -278,7 +304,9 @@ class Authenticator:
             self.token_encode(exp_date),
             expires_at=exp_date,
         )
-        return self.success_message("Successfully updated user display name.")
+        st.session_state["success_message"] = "Successfully updated user display name."
+        st.session_state["login_error_message"] = None
+        return None
 
     def token_encode(self, exp_date: datetime) -> str:
         """Encodes a JSON Web Token (JWT) containing user session data for passwordless
@@ -314,28 +342,8 @@ class Authenticator:
 
     @property
     def cookie_is_valid(self) -> bool:
-        """Check if the reauthentication cookie is valid and, if it is, update the session state.
-
-        Parameters
-        ----------
-        - cookie_manager : stx.CookieManager
-            A JWT cookie manager instance for Streamlit
-        - cookie_name : str
-            The name of the reauthentication cookie.
-        - cookie_expiry_days: (optional) str
-            An integer representing the number of days until the cookie expires
-
-        Returns
-        -------
-        bool
-            True if the cookie is valid and the session state is updated successfully; False otherwise.
-
-        Notes
-        -----
-        This function checks if the specified reauthentication cookie is present in the cookies stored by
-        the cookie manager, and if it is valid. If the cookie is valid, this function updates the session
-        state of the Streamlit app and authenticates the user.
-        """
+        """Check if the reauthentication cookie is valid and, if it is, update the session state."""
+        time.sleep(0.02)
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
@@ -345,16 +353,17 @@ class Authenticator:
             "username",
             "roles",
             "company",
+            "is_logging_out",
+            "login_error_message",
+            "success_message",
         }.difference(set(st.session_state)):
             st.session_state[key] = None
 
         if (
-            st.session_state.get("authentication_state")
-            and st.session_state["authentication_state"] is True
+            st.session_state.get("authentication_status")
+            and st.session_state["authentication_status"] is True
         ):
             return True
-
-        # time.sleep(1)
 
         if token is None:
             st.session_state["authentication_status"] = None
@@ -374,6 +383,8 @@ class Authenticator:
             st.session_state["roles"] = token.get("roles")
             st.session_state["company"] = token.get("company")
             st.session_state["authentication_status"] = True
+            st.session_state["login_error_message"] = None
+            st.session_state["success_message"] = None
             return True
 
         return False
@@ -382,6 +393,7 @@ class Authenticator:
         # Authenticate the user with Firebase REST API
         login_response = self.authenticate_user(email, password)
         if not login_response:
+            st.session_state["authentication_status"] = False
             return None
 
         try:
@@ -390,10 +402,23 @@ class Authenticator:
             )
             user = auth.get_user(decoded_token["uid"])
             if not user.email_verified:
-                return self.error_message("Please verify your e-mail address.")
+                st.session_state["authentication_status"] = False
+                st.session_state["login_error_message"] = (
+                    "Please verify your e-mail address."
+                )
+                st.session_state["success_message"] = None
+                return None
+            st.session_state["login_error_message"] = None
+            st.session_state["success_message"] = None
             return user
         except Exception as e:
             print(f"Error: {e}")
+            st.session_state["authentication_status"] = False
+            st.session_state["login_error_message"] = (
+                f"An error occurred during login: {str(e)}"
+            )
+            st.session_state["success_message"] = None
+            return None
 
     @property
     def login_form(self) -> None:
@@ -420,6 +445,8 @@ class Authenticator:
         if st.session_state["authentication_status"]:
             return None
         with st.form("Login"):
+            message_placeholder = st.empty()  # Placeholder for error/success messages
+
             email = st.text_input("E-mail")
             if "@" not in email and isinstance(self.preauthorized, str):
                 email = f"{email}@{self.preauthorized}"
@@ -427,6 +454,10 @@ class Authenticator:
             password = st.text_input("Password", type="password")
 
             if st.form_submit_button("Login", type="primary"):
+                # Clear any previous messages before attempting login
+                st.session_state["login_error_message"] = None
+                st.session_state["success_message"] = None
+
                 user = self.login_user(email, password)
                 if user:
                     st.session_state["name"] = user.display_name
@@ -445,11 +476,25 @@ class Authenticator:
                     )
 
                     time.sleep(0.12)
+                    st.rerun()
+
+            # Display message if present after form submission
+            if st.session_state.get("login_error_message"):
+                message_placeholder.empty()  # Clear previous content
+                message_placeholder.error(
+                    st.session_state["login_error_message"], icon="🚨"
+                )
+            elif st.session_state.get("success_message"):
+                message_placeholder.empty()  # Clear previous content
+                message_placeholder.success(
+                    st.session_state["success_message"], icon="✅"
+                )
+            else:
+                message_placeholder.empty()  # Ensure it's empty if no message
 
     @property
     def login_panel(self) -> None:
-        """Creates a side panel for logged-in users, preventing the login menu from
-        appearing.
+        """Creates a side panel for logged-in users, preventing the login menu from appearing.
 
         Parameters
         ----------
@@ -468,7 +513,7 @@ class Authenticator:
         If the user clicks the "Logout" button, the reauthentication cookie and user-related information
         from the session state is deleted, and the user is logged out.
         """
-
+        time.sleep(0.5)
         try:
             greeting_name = (
                 st.session_state["username"].split("@")[0]
@@ -480,14 +525,31 @@ class Authenticator:
             pass
 
         if st.button("Logout", type="primary"):
-            self.cookie_manager.delete(self.cookie_name)
-            time.sleep(1)
+            st.session_state["is_logging_out"] = True
+
             st.session_state["name"] = None
             st.session_state["username"] = None
             st.session_state["roles"] = None
             st.session_state["company"] = None
             st.session_state["authentication_status"] = None
+            st.session_state["login_error_message"] = None
+            st.session_state["success_message"] = None
+
             st.cache_data.clear()
+
+            try:
+                self.cookie_manager.delete(self.cookie_name)
+                exp_date = datetime.now(timezone.utc) - timedelta(days=1)
+                self.cookie_manager.set(
+                    self.cookie_name,
+                    "",
+                    expires_at=exp_date,
+                )
+            except:
+                pass
+
+            time.sleep(2)
+            st.rerun()
             return None
 
         with st.expander("Account configuration"):
@@ -533,13 +595,24 @@ class Authenticator:
             "username",
             "roles",
             "company",
+            "is_logging_out",
+            "login_error_message",
+            "success_message",
         }.difference(set(st.session_state)):
             st.session_state[key] = None
 
-        # Check authentication status
+        # If the user has just logged out, reset the flag and prevent error message
+        if st.session_state.get("is_logging_out"):
+            st.session_state["is_logging_out"] = False
+            st.session_state["authentication_status"] = None
+            st.session_state["login_error_message"] = None
+            st.session_state["success_message"] = None
+            return early_return
+
+        # Check authentication status after handling logout explicitly
         auth_status = st.session_state["authentication_status"]
 
-        # If the user is already authenticated or the authentication status is None, return False directly
+        # If the user is already authenticated, return False directly
         if auth_status is True:
             return not early_return
 
@@ -553,18 +626,15 @@ class Authenticator:
             with login_tab2:
                 self.forgot_password_form
 
-        auth_status = st.session_state["authentication_status"]
-        if auth_status is False:
-            self.error_message("Username/password is incorrect")
-            return early_return
+        # If authentication status is None (initial state or after clean logout), keep showing login form
         if auth_status is None:
+            # No direct error display here, handled by login_form's own logic
             return early_return
-        login_tabs.empty()
-        # A workaround for a bug in Streamlit -
-        # https://playground.streamlit.app/?q=empty-doesnt-work
-        # TLDR: element.empty() doesn't actually seem to work with a multi-element container
-        # unless you add a sleep after it.
-        time.sleep(0.01)
+
+        # If we reach here, it means authentication_status must be True (successful login)
+        # Clear the login tabs and return False to proceed to the main app
+        login_tabs.empty()  # Clear login elements if authentication succeeded
+        time.sleep(0.01)  # Re-added time.sleep(0.01)
 
         return not early_return
 
@@ -605,9 +675,12 @@ class Authenticator:
         return f"cookie is valid: {self.cookie_is_valid}, not logged in {self.not_logged_in}"
 
 
-@st.cache_resource(experimental_allow_widgets=True)
+# @st.cache_resource(experimental_allow_widgets=True)
 def get_authenticator():
-    return Authenticator(os.getenv("FIREBASE_API_KEY"), os.getenv("COOKIE_KEY"))
+    cookie_manager = stx.CookieManager()
+    return Authenticator(
+        os.getenv("FIREBASE_API_KEY"), os.getenv("COOKIE_KEY"), cookie_manager
+    )
 
 
 @st.cache_data(show_spinner=False, ttl=600)

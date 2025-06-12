@@ -10,7 +10,7 @@ import streamlit as st
 import firebase_admin
 
 from app.modules.styling import apply_default_style, footer
-from app.modules.authenticator import get_authenticator, get_page_roles
+from app.modules.authenticator import Authenticator, get_authenticator, get_page_roles
 from app.modules.utils import get_authorized_pages_names
 
 logger = logging.getLogger(__name__)
@@ -55,10 +55,11 @@ page_icon = Image.open(
 
 apply_default_style(page_title, page_icon, page_type="login")
 
-authenticator = get_authenticator()
 
+def home(authenticator: Authenticator):
+    # Ensure login error message is cleared on every run, especially after logout
+    st.session_state["login_error_message"] = None
 
-def home():
     pages_roles = get_page_roles()
     pages_names = get_authorized_pages_names(pages_roles)
 
@@ -92,6 +93,8 @@ def home():
 
 def main():
     # st.sidebar.markdown("# Home")
+
+    authenticator = get_authenticator()
 
     container = st.container()
 
@@ -130,7 +133,7 @@ def main():
         return None
 
     try:
-        home()
+        home(authenticator)
     except Exception as e:
         message = f"Error executing app: {str(e)}"
         print(message)
