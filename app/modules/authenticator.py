@@ -343,8 +343,16 @@ class Authenticator:
     @property
     def cookie_is_valid(self) -> bool:
         """Check if the reauthentication cookie is valid and, if it is, update the session state."""
+        print("Starting cookie validation...")
+
+        # Initialize loading state
+        if "is_loading" not in st.session_state:
+            st.session_state["is_loading"] = True
+            print("Set loading state to True")
+
         time.sleep(0.02)
         token = self.cookie_manager.get(self.cookie_name)
+        print(f"Cookie token retrieved: {token is not None}")
 
         # In case of a first run, pre-populate missing session state arguments
         for key in {
@@ -358,24 +366,32 @@ class Authenticator:
             "success_message",
         }.difference(set(st.session_state)):
             st.session_state[key] = None
+            print(f"Initialized session state for {key}")
 
         if (
             st.session_state.get("authentication_status")
             and st.session_state["authentication_status"] is True
         ):
+            print("User already authenticated")
+            st.session_state["is_loading"] = False
             return True
 
         if token is None:
+            print("No cookie token found")
             st.session_state["authentication_status"] = None
+            st.session_state["is_loading"] = False
             return False
 
         try:
             decoded_token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
+            print("Token decoded successfully")
+
             if (
                 isinstance(decoded_token, dict)
                 and decoded_token["exp_date"] > datetime.now(timezone.utc).timestamp()
                 and {"name", "username"}.issubset(set(decoded_token))
             ):
+                print("Token is valid, updating session state")
                 st.session_state["name"] = decoded_token["name"]
                 st.session_state["username"] = decoded_token["username"]
                 st.session_state["roles"] = decoded_token.get("roles")
@@ -383,13 +399,17 @@ class Authenticator:
                 st.session_state["authentication_status"] = True
                 st.session_state["login_error_message"] = None
                 st.session_state["success_message"] = None
+                st.session_state["is_loading"] = False
                 return True
         except Exception as e:
             print(f"Error decoding token: {e}")
             st.session_state["authentication_status"] = None
+            st.session_state["is_loading"] = False
             return False
 
+        print("Token validation failed")
         st.session_state["authentication_status"] = None
+        st.session_state["is_loading"] = False
         return False
 
     def login_user(self, email: str, password: str):
@@ -498,6 +518,10 @@ class Authenticator:
     @property
     def login_panel(self) -> None:
         """Creates a side panel for logged-in users, preventing the login menu from appearing."""
+        if st.session_state.get("is_loading"):
+            st.spinner("Loading...")
+            return None
+
         time.sleep(0.5)
         try:
             greeting_name = (
@@ -510,20 +534,28 @@ class Authenticator:
             pass
 
         if st.button("Logout", type="primary"):
+            print("Logout button clicked")
             st.session_state["is_logging_out"] = True
 
             # Clear session state
-            st.session_state["name"] = None
-            st.session_state["username"] = None
-            st.session_state["roles"] = None
-            st.session_state["company"] = None
-            st.session_state["authentication_status"] = None
-            st.session_state["login_error_message"] = None
-            st.session_state["success_message"] = None
+            for key in [
+                "name",
+                "username",
+                "roles",
+                "company",
+                "authentication_status",
+                "login_error_message",
+                "success_message",
+                "is_loading",
+            ]:
+                st.session_state[key] = None
+                print(f"Cleared session state for {key}")
 
             st.cache_data.clear()
+            print("Cache cleared")
 
             try:
+                print("Attempting to delete cookie")
                 # Delete cookie
                 self.cookie_manager.delete(self.cookie_name)
                 # Set expired cookie as backup
@@ -533,10 +565,12 @@ class Authenticator:
                     "",
                     expires_at=exp_date,
                 )
+                print("Cookie deleted and expired cookie set")
             except Exception as e:
                 print(f"Error during cookie deletion: {e}")
 
             time.sleep(2)
+            print("Forcing page reload")
             st.rerun()
             return None
 
@@ -552,6 +586,10 @@ class Authenticator:
     @property
     def not_logged_in(self) -> bool:
         """Creates a tab panel for unauthenticated users."""
+        if st.session_state.get("is_loading"):
+            st.spinner("Loading...")
+            return True
+
         time.sleep(0.1)
         early_return = True
 
@@ -567,9 +605,11 @@ class Authenticator:
             "success_message",
         }.difference(set(st.session_state)):
             st.session_state[key] = None
+            print(f"Initialized session state for {key}")
 
         # If the user has just logged out, reset the flag and prevent error message
         if st.session_state.get("is_logging_out"):
+            print("Handling logout state")
             st.session_state["is_logging_out"] = False
             st.session_state["authentication_status"] = None
             st.session_state["login_error_message"] = None
@@ -578,11 +618,14 @@ class Authenticator:
 
         # Check authentication status after handling logout explicitly
         auth_status = st.session_state["authentication_status"]
+        print(f"Current authentication status: {auth_status}")
 
         # If the user is already authenticated, return False directly
         if auth_status is True:
+            print("User is authenticated")
             return not early_return
 
+        print("User is not authenticated, showing login form")
         _, col2, _ = st.columns(3)
 
         login_tabs = col2.empty()
@@ -595,7 +638,7 @@ class Authenticator:
 
         # If authentication status is None (initial state or after clean logout), keep showing login form
         if auth_status is None:
-            # No direct error display here, handled by login_form's own logic
+            print("Authentication status is None, showing login form")
             return early_return
 
         # If we reach here, it means authentication_status must be True (successful login)
