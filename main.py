@@ -126,21 +126,23 @@ class App:
             if not self.authenticator:
                 raise ValueError("Authenticator not initialized")
 
-            # Check authentication status. If None (initial state) or False (failed login),
-            # attempt to validate cookie.
-            current_auth_status = st.session_state.get("authentication_status")
+            # Add a loading state while checking authentication
+            with st.spinner("Checking authentication..."):
+                # Check authentication status. If None (initial state) or False (failed login),
+                # attempt to validate cookie.
+                current_auth_status = st.session_state.get("authentication_status")
 
-            if (
-                current_auth_status is None
-            ):  # First run or after logout, try cookie validation
-                if self.authenticator.cookie_is_valid:
-                    # If cookie is valid, it means auth status changed from None to True.
-                    # Rerun to ensure all components react to the updated session state.
-                    st.rerun()
-                # If cookie is not valid, current_auth_status remains None, proceed to login form.
-            elif current_auth_status is False:
-                # Authentication failed previously, user sees login form.
-                pass  # No specific action needed, will fall into the 'else' block below
+                if (
+                    current_auth_status is None
+                ):  # First run or after logout, try cookie validation
+                    if self.authenticator.cookie_is_valid:
+                        # If cookie is valid, it means auth status changed from None to True.
+                        # Rerun to ensure all components react to the updated session state.
+                        st.rerun()
+                    # If cookie is not valid, current_auth_status remains None, proceed to login form.
+                elif current_auth_status is False:
+                    # Authentication failed previously, user sees login form.
+                    pass  # No specific action needed, will fall into the 'else' block below
 
             # Now, based on the (potentially updated) authentication status, render the UI.
             if st.session_state.get("authentication_status"):
