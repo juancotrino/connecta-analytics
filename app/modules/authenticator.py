@@ -1,17 +1,16 @@
 import os
 import math
-import time
-from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from functools import partial
+from typing import Optional, Dict, List, Union, Tuple
 
 import extra_streamlit_components as stx
 import jwt
 import requests
 import streamlit as st
+from streamlit.delta_generator import DeltaGenerator
 from email_validator import EmailNotValidError, validate_email
 from firebase_admin import auth, firestore
-
 
 POST_REQUEST_URL_BASE = "https://identitytoolkit.googleapis.com/v1/accounts:"
 
@@ -34,101 +33,64 @@ class Authenticator:
             headers={"content-type": "application/json; charset=UTF-8"},
             timeout=10,
         )
-        self.success_message = partial(st.success, icon="✅")
-        self.error_message = partial(st.error, icon="🚨")
         self.cookie_manager = cookie_manager
         self.cookie_expiry_days = cookie_expiry_days
         self.cookie_name = cookie_name
         self.preauthorized = preauthorized
-        st.session_state["login_error_message"] = None
-        st.session_state["success_message"] = None
+        self._initialize_session_state()
 
-    def parse_error_message(self, response: requests.Response) -> str:
-        """
-        Parses an error message from a requests.Response object and makes it look better.
-
-        Parameters:
-            response (requests.Response): The response object to parse.
-
-        Returns:
-            str: Prettified error message.
-
-        Raises:
-            KeyError: If the 'error' key is not present in the response JSON.
-        """
-        return (
-            response.json()["error"]["message"]
-            .casefold()
-            .replace("_", " ")
-            .replace("email", "e-mail")
-        )
-
-    def authenticate_user(
-        self, email: str, password: str, require_email_verification: bool = True
-    ) -> dict[str, str | bool | int] | None:
-        """
-        Authenticates a user with the given email and password using the Firebase Authentication
-        REST API.
-
-        Parameters:
-            email (str): The email address of the user to authenticate.
-            password (str): The password of the user to authenticate.
-            require_email_verification (bool): Specify whether a user has to be e-mail verified to
-            be authenticated
-
-        Returns:
-            dict or None: A dictionary containing the authenticated user's ID token, refresh token,
-            and other information, if authentication was successful. Otherwise, None.
-
-        Raises:
-            requests.exceptions.RequestException: If there was an error while authenticating the user.
-        """
-
-        url = f"{self.post_request_url_base}signInWithPassword?key={self.firebase_api_key}"
-        payload = {
-            "email": email,
-            "password": password,
-            "returnSecureToken": True,
-            "emailVerified": require_email_verification,
+    def _initialize_session_state(self) -> None:
+        """Initialize all required session state variables."""
+        default_states = {
+            "login_error_message": None,
+            "success_message": None,
+            "name": None,
+            "username": None,
+            "roles": None,
+            "company": None,
+            "authentication_status": None,
+            "is_logging_out": False,
         }
-        response = self.post_request(url, json=payload)
+
+        for key, default_value in default_states.items():
+            if key not in st.session_state:
+                st.session_state[key] = default_value
+
+    def _parse_error_message(self, response: requests.Response) -> str:
+        """Parse and format error messages from Firebase responses."""
+        try:
+            return (
+                response.json()["error"]["message"]
+                .casefold()
+                .replace("_", " ")
+                .replace("email", "e-mail")
+            )
+        except (KeyError, ValueError):
+            return "An unknown error occurred"
+
+    def _validate_password_strength(self, password: str) -> Tuple[bool, str]:
+        """Validate password strength using entropy calculation."""
+        alphabet_chars = len(set(password))
+        strength = int(len(password) * math.log2(alphabet_chars) * 1.5)
+
+        if strength < 100:
+            return False, "Password is too weak. Please choose a stronger password."
+        return True, ""
+
+    def _handle_auth_response(self, response: requests.Response) -> Optional[Dict]:
+        """Handle authentication response and set appropriate session state messages."""
         if response.status_code != 200:
             st.session_state["login_error_message"] = (
-                f"Authentication failed: {self.parse_error_message(response)}"
+                f"Authentication failed: {self._parse_error_message(response)}"
             )
             return None
-        response = response.json()
-        if require_email_verification and "idToken" not in response:
-            st.session_state["login_error_message"] = "Invalid e-mail or password."
-            return None
-
-        return response
-
-    # def get_user_roles(
-    #     self,
-    #     user_uid: str
-    # ) -> tuple[str]:
-    #     db = firestore.client()
-    #     document = db.collection("users").document(user_uid).get()
-
-    #     if document.exists:
-    #         user_info = document.to_dict()
-    #         roles = tuple(user_info['roles'])
-    #     else:
-    #         roles = ('basic', )
-
-    #     return roles
+        return response.json()
 
     @property
     def forgot_password_form(self) -> None:
         """Creates a Streamlit widget to reset a user's password. Authentication uses
         the Firebase Authentication REST API.
-
-        Parameters:
-            preauthorized (Union[str, Sequence[str], None]): An optional domain or a list of
-            domains which are authorized to register.
         """
-
         with st.form("Forgot password"):
             email = st.text_input("E-mail", key="forgot_password")
             if not st.form_submit_button("Reset password"):
@@ -146,10 +108,270 @@ class Authenticator:
             st.session_state["login_error_message"] = None
             return None
         st.session_state["login_error_message"] = (
-            f"Error sending password reset email: {self.parse_error_message(response)}"
+            f"Error sending password reset email: {self._parse_error_message(response)}"
         )
         st.session_state["success_message"] = None
         return None
+
+    def authenticate_user(
+        self, email: str, password: str, require_email_verification: bool = True
+    ) -> Optional[Dict[str, Union[str, bool, int]]]:
+        """Authenticate user with Firebase Authentication REST API."""
+        url = f"{self.post_request_url_base}signInWithPassword?key={self.firebase_api_key}"
+        payload = {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True,
+            "emailVerified": require_email_verification,
+        }
+
+        response = self.post_request(url, json=payload)
+        auth_data = self._handle_auth_response(response)
+
+        if not auth_data or (require_email_verification and "idToken" not in auth_data):
+            st.session_state["login_error_message"] = "Invalid e-mail or password."
+            return None
+
+        return auth_data
+
+    def login_user(self, email: str, password: str) -> Optional[auth.UserRecord]:
+        """Handle user login process with proper error handling."""
+        login_response = self.authenticate_user(email, password)
+        if not login_response:
+            st.session_state["authentication_status"] = False
+            return None
+
+        try:
+            decoded_token = auth.verify_id_token(
+                login_response["idToken"], clock_skew_seconds=10
+            )
+            user = auth.get_user(decoded_token["uid"])
+
+            if not user.email_verified:
+                st.session_state["authentication_status"] = False
+                st.session_state["login_error_message"] = (
+                    "Please verify your e-mail address."
+                )
+                return None
+
+            self._update_session_state_after_login(user)
+            return user
+
+        except Exception as e:
+            st.session_state["authentication_status"] = False
+            st.session_state["login_error_message"] = (
+                f"An error occurred during login: {str(e)}"
+            )
+            return None
+
+    def _update_session_state_after_login(self, user: auth.UserRecord) -> None:
+        """Update session state after successful login."""
+        st.session_state.update(
+            {
+                "name": user.display_name,
+                "username": user.email,
+                "roles": get_user_roles(user.uid),
+                "company": get_user_company(user.uid),
+                "authentication_status": True,
+                "login_error_message": None,
+                "success_message": None,
+            }
+        )
+
+    def logout(self) -> None:
+        """Handle user logout process."""
+        st.session_state["is_logging_out"] = True
+
+        # Clear session state
+        for key in [
+            "name",
+            "username",
+            "roles",
+            "company",
+            "authentication_status",
+            "login_error_message",
+            "success_message",
+        ]:
+            st.session_state[key] = None
+
+        st.cache_data.clear()
+
+        # Delete cookie
+        try:
+            self.cookie_manager.delete(self.cookie_name)
+            exp_date = datetime.now(timezone.utc) - timedelta(days=1)
+            self.cookie_manager.set(
+                self.cookie_name,
+                "",
+                expires_at=exp_date,
+            )
+        except Exception as e:
+            print(f"Error during cookie deletion: {e}")
+
+    def token_encode(self, exp_date: datetime) -> str:
+        """Encode JWT token for session management."""
+        return jwt.encode(
+            {
+                "name": st.session_state["name"],
+                "username": st.session_state["username"],
+                "roles": st.session_state["roles"],
+                "company": st.session_state["company"],
+                "exp_date": exp_date.timestamp(),
+            },
+            self.cookie_key,
+            algorithm="HS256",
+        )
+
+    @property
+    def cookie_is_valid(self) -> bool:
+        """Validate session cookie and update session state accordingly."""
+        token = self.cookie_manager.get(self.cookie_name)
+
+        if token is None:
+            st.session_state["authentication_status"] = None
+            return False
+
+        try:
+            decoded_token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
+
+            if (
+                isinstance(decoded_token, dict)
+                and decoded_token["exp_date"] > datetime.now(timezone.utc).timestamp()
+                and {"name", "username"}.issubset(set(decoded_token))
+            ):
+                st.session_state.update(
+                    {
+                        "name": decoded_token["name"],
+                        "username": decoded_token["username"],
+                        "roles": decoded_token.get("roles"),
+                        "company": decoded_token.get("company"),
+                        "authentication_status": True,
+                        "login_error_message": None,
+                        "success_message": None,
+                    }
+                )
+                return True
+
+        except Exception as e:
+            print(f"Error decoding token: {e}")
+
+        st.session_state["authentication_status"] = None
+        return False
+
+    @property
+    def login_form(self) -> None:
+        """Render login form with improved error handling and UX."""
+        if st.session_state["authentication_status"]:
+            return None
+
+        with st.form("Login"):
+            message_placeholder = st.empty()
+
+            email = st.text_input("E-mail")
+            if "@" not in email and isinstance(self.preauthorized, str):
+                email = f"{email}@{self.preauthorized}"
+            st.session_state["username"] = email
+
+            password = st.text_input("Password", type="password")
+
+            if st.form_submit_button("Login", type="primary"):
+                st.session_state["login_error_message"] = None
+                st.session_state["success_message"] = None
+
+                user = self.login_user(email, password)
+                if user:
+                    exp_date = datetime.now(timezone.utc) + timedelta(
+                        days=self.cookie_expiry_days
+                    )
+                    self.cookie_manager.set(
+                        self.cookie_name,
+                        self.token_encode(exp_date),
+                        expires_at=exp_date,
+                    )
+                    st.rerun()
+
+            self._display_messages(message_placeholder)
+
+    def _display_messages(self, placeholder: DeltaGenerator) -> None:
+        """Display error or success messages in the UI."""
+        if st.session_state.get("login_error_message"):
+            placeholder.error(st.session_state["login_error_message"], icon="🚨")
+        elif st.session_state.get("success_message"):
+            placeholder.success(st.session_state["success_message"], icon="✅")
+        else:
+            placeholder.empty()
+
+    @property
+    def login_panel(self) -> None:
+        """Render login panel with user information and logout option."""
+        try:
+            greeting_name = (
+                st.session_state["username"].split("@")[0]
+                if st.session_state["name"] is None
+                else st.session_state["name"]
+            )
+            st.write(f"Welcome, *{greeting_name}*!")
+        except Exception:
+            pass
+
+        if st.button("Logout", type="primary"):
+            self.logout()
+            st.rerun()
+
+        with st.expander("Account configuration"):
+            user_tab1, user_tab2 = st.tabs(["Reset password", "Update user details"])
+            with user_tab1:
+                self.update_password_form
+            with user_tab2:
+                self.update_display_name_form
+
+    @property
+    def not_logged_in(self) -> bool:
+        """Handle unauthenticated user state."""
+        if st.session_state.get("is_logging_out"):
+            st.session_state["is_logging_out"] = False
+            st.session_state["authentication_status"] = None
+            st.session_state["login_error_message"] = None
+            st.session_state["success_message"] = None
+            return True
+
+        if st.session_state["authentication_status"] is True:
+            return False
+
+        # If authentication status is None, it means the user is not authenticated.
+        # Return True to indicate that the user is not logged in.
+        if st.session_state["authentication_status"] is None:
+            return True
+
+        return False
+
+    def hide_unauthorized_pages(self, pages_roles: Dict) -> None:
+        """Hide pages based on user roles."""
+        user_roles = st.session_state.get("roles")
+        if not user_roles:
+            return
+
+        pages_to_hide = [
+            page
+            for page, authorized_page_roles in pages_roles.items()
+            if not any(role in authorized_page_roles["roles"] for role in user_roles)
+        ]
+
+        css_pages_to_hide = "\n\t".join(
+            [
+                f'.st-emotion-cache-j7qwjs.eczjsme12 a[data-testid="stSidebarNavLink"][href*="{page_name}"] > span.st-emotion-cache-1m6wrpk.eczjsme10 {{display: none;}}'
+                for page_name in pages_to_hide
+            ]
+        )
+
+        st.markdown(
+            f"""
+            <style>
+                {css_pages_to_hide}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
     @property
     def register_user_form(self) -> None:
@@ -157,10 +379,6 @@ class Authenticator:
 
         Password strength is validated using entropy bits (the power of the password alphabet).
         Upon registration, a validation link is sent to the user's email address.
-
-        Parameters:
-            preauthorized (Union[str, Sequence[str], None]): An optional domain or a list of
-            domains which are authorized to register.
         """
 
         with st.form(key="register_form"):
@@ -225,7 +443,7 @@ class Authenticator:
         response = self.post_request(url, json=payload)
         if response.status_code != 200:
             st.session_state["login_error_message"] = (
-                f"Error sending verification email: {self.parse_error_message(response)}"
+                f"Error sending verification email: {self._parse_error_message(response)}"
             )
             st.session_state["success_message"] = None
             return None
@@ -276,17 +494,7 @@ class Authenticator:
 
     @property
     def update_display_name_form(self) -> None:
-        """Creates a Streamlit widget to update a user's display name.
-
-        Parameters
-        ----------
-        - cookie_manager : stx.CookieManager
-            A JWT cookie manager instance for Streamlit
-        - cookie_name : str
-            The name of the reauthentication cookie.
-        - cookie_expiry_days: (optional) str
-            An integer representing the number of days until the cookie expires
-        """
+        """Creates a Streamlit widget to update a user's display name."""
         col1, _, _ = st.columns(3)
 
         # Get the email and password from the user
@@ -308,385 +516,10 @@ class Authenticator:
         st.session_state["login_error_message"] = None
         return None
 
-    def token_encode(self, exp_date: datetime) -> str:
-        """Encodes a JSON Web Token (JWT) containing user session data for passwordless
-        reauthentication.
 
-        Parameters
-        ----------
-        exp_date : datetime
-            The expiration date of the JWT.
-
-        Returns
-        -------
-        str
-            The encoded JWT cookie string for reauthentication.
-
-        Notes
-        -----
-        The JWT contains the user's name, username, and the expiration date of the JWT in
-        timestamp format. The `os.getenv("COOKIE_KEY")` value is used to sign the JWT with
-        the HS256 algorithm.
-        """
-        return jwt.encode(
-            {
-                "name": st.session_state["name"],
-                "username": st.session_state["username"],
-                "roles": st.session_state["roles"],
-                "company": st.session_state["company"],
-                "exp_date": exp_date.timestamp(),
-            },
-            self.cookie_key,
-            algorithm="HS256",
-        )
-
-    @property
-    def cookie_is_valid(self) -> bool:
-        """Check if the reauthentication cookie is valid and, if it is, update the session state."""
-        print("Starting cookie validation...")
-
-        # Initialize loading state
-        if "is_loading" not in st.session_state:
-            st.session_state["is_loading"] = True
-            print("Set loading state to True")
-
-        time.sleep(0.02)
-        token = self.cookie_manager.get(self.cookie_name)
-        print(f"Cookie token retrieved: {token is not None}")
-
-        # In case of a first run, pre-populate missing session state arguments
-        for key in {
-            "name",
-            "authentication_status",
-            "username",
-            "roles",
-            "company",
-            "is_logging_out",
-            "login_error_message",
-            "success_message",
-        }.difference(set(st.session_state)):
-            st.session_state[key] = None
-            print(f"Initialized session state for {key}")
-
-        if (
-            st.session_state.get("authentication_status")
-            and st.session_state["authentication_status"] is True
-        ):
-            print("User already authenticated")
-            st.session_state["is_loading"] = False
-            return True
-
-        if token is None:
-            print("No cookie token found")
-            st.session_state["authentication_status"] = None
-            st.session_state["is_loading"] = False
-            return False
-
-        try:
-            decoded_token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
-            print("Token decoded successfully")
-
-            if (
-                isinstance(decoded_token, dict)
-                and decoded_token["exp_date"] > datetime.now(timezone.utc).timestamp()
-                and {"name", "username"}.issubset(set(decoded_token))
-            ):
-                print("Token is valid, updating session state")
-                st.session_state["name"] = decoded_token["name"]
-                st.session_state["username"] = decoded_token["username"]
-                st.session_state["roles"] = decoded_token.get("roles")
-                st.session_state["company"] = decoded_token.get("company")
-                st.session_state["authentication_status"] = True
-                st.session_state["login_error_message"] = None
-                st.session_state["success_message"] = None
-                st.session_state["is_loading"] = False
-                return True
-        except Exception as e:
-            print(f"Error decoding token: {e}")
-            st.session_state["authentication_status"] = None
-            st.session_state["is_loading"] = False
-            return False
-
-        print("Token validation failed")
-        st.session_state["authentication_status"] = None
-        st.session_state["is_loading"] = False
-        return False
-
-    def login_user(self, email: str, password: str):
-        # Authenticate the user with Firebase REST API
-        login_response = self.authenticate_user(email, password)
-        if not login_response:
-            st.session_state["authentication_status"] = False
-            return None
-
-        try:
-            decoded_token = auth.verify_id_token(
-                login_response["idToken"], clock_skew_seconds=10
-            )
-            user = auth.get_user(decoded_token["uid"])
-            if not user.email_verified:
-                st.session_state["authentication_status"] = False
-                st.session_state["login_error_message"] = (
-                    "Please verify your e-mail address."
-                )
-                st.session_state["success_message"] = None
-                return None
-            st.session_state["login_error_message"] = None
-            st.session_state["success_message"] = None
-            return user
-        except Exception as e:
-            print(f"Error: {e}")
-            st.session_state["authentication_status"] = False
-            st.session_state["login_error_message"] = (
-                f"An error occurred during login: {str(e)}"
-            )
-            st.session_state["success_message"] = None
-            return None
-
-    @property
-    def login_form(self) -> None:
-        """Creates a login widget using Firebase REST API and a cookie manager.
-
-        Parameters
-        ----------
-        - cookie_manager : stx.CookieManager
-            A JWT cookie manager instance for Streamlit
-        - cookie_name : str
-            The name of the reauthentication cookie.
-        - cookie_expiry_days: (optional) str
-            An integer representing the number of days until the cookie expires
-
-        Notes
-        -----
-
-        If the user has already been authenticated, this function does nothing. Otherwise, it displays
-        a login form which prompts the user to enter their email and password. If the login credentials
-        are valid and the user's email address has been verified, the user is authenticated and a
-        reauthentication cookie is created with the specified expiration date.
-        """
-
-        if st.session_state["authentication_status"]:
-            return None
-        with st.form("Login"):
-            message_placeholder = st.empty()  # Placeholder for error/success messages
-
-            email = st.text_input("E-mail")
-            if "@" not in email and isinstance(self.preauthorized, str):
-                email = f"{email}@{self.preauthorized}"
-            st.session_state["username"] = email
-            password = st.text_input("Password", type="password")
-
-            if st.form_submit_button("Login", type="primary"):
-                # Clear any previous messages before attempting login
-                st.session_state["login_error_message"] = None
-                st.session_state["success_message"] = None
-
-                user = self.login_user(email, password)
-                if user:
-                    st.session_state["name"] = user.display_name
-                    st.session_state["username"] = user.email
-                    st.session_state["roles"] = get_user_roles(user.uid)
-                    st.session_state["company"] = get_user_company(user.uid)
-                    st.session_state["authentication_status"] = True
-                    exp_date = datetime.now(timezone.utc) + timedelta(
-                        days=self.cookie_expiry_days
-                    )
-
-                    self.cookie_manager.set(
-                        self.cookie_name,
-                        self.token_encode(exp_date),
-                        expires_at=exp_date,
-                    )
-
-                    time.sleep(0.12)
-                    st.rerun()
-
-            # Display message if present after form submission
-            if st.session_state.get("login_error_message"):
-                message_placeholder.empty()  # Clear previous content
-                message_placeholder.error(
-                    st.session_state["login_error_message"], icon="🚨"
-                )
-            elif st.session_state.get("success_message"):
-                message_placeholder.empty()  # Clear previous content
-                message_placeholder.success(
-                    st.session_state["success_message"], icon="✅"
-                )
-            else:
-                message_placeholder.empty()  # Ensure it's empty if no message
-
-    @property
-    def login_panel(self) -> None:
-        """Creates a side panel for logged-in users, preventing the login menu from appearing."""
-        if st.session_state.get("is_loading"):
-            st.spinner("Loading...")
-            return None
-
-        time.sleep(0.5)
-        try:
-            greeting_name = (
-                st.session_state["username"].split("@")[0]
-                if st.session_state["name"] is None
-                else st.session_state["name"]
-            )
-            st.write(f"Welcome, *{greeting_name}*!")
-        except:
-            pass
-
-        if st.button("Logout", type="primary"):
-            print("Logout button clicked")
-            st.session_state["is_logging_out"] = True
-
-            # Clear session state
-            for key in [
-                "name",
-                "username",
-                "roles",
-                "company",
-                "authentication_status",
-                "login_error_message",
-                "success_message",
-                "is_loading",
-            ]:
-                st.session_state[key] = None
-                print(f"Cleared session state for {key}")
-
-            st.cache_data.clear()
-            print("Cache cleared")
-
-            try:
-                print("Attempting to delete cookie")
-                # Delete cookie
-                self.cookie_manager.delete(self.cookie_name)
-                # Set expired cookie as backup
-                exp_date = datetime.now(timezone.utc) - timedelta(days=1)
-                self.cookie_manager.set(
-                    self.cookie_name,
-                    "",
-                    expires_at=exp_date,
-                )
-                print("Cookie deleted and expired cookie set")
-            except Exception as e:
-                print(f"Error during cookie deletion: {e}")
-
-            time.sleep(2)
-            print("Forcing page reload")
-            st.rerun()
-            return None
-
-        with st.expander("Account configuration"):
-            user_tab1, user_tab2 = st.tabs(["Reset password", "Update user details"])
-            with user_tab1:
-                self.update_password_form
-            with user_tab2:
-                self.update_display_name_form
-
-        return None
-
-    @property
-    def not_logged_in(self) -> bool:
-        """Creates a tab panel for unauthenticated users."""
-        if st.session_state.get("is_loading"):
-            st.spinner("Loading...")
-            return True
-
-        time.sleep(0.1)
-        early_return = True
-
-        # In case of a first run, pre-populate missing session state arguments
-        for key in {
-            "name",
-            "authentication_status",
-            "username",
-            "roles",
-            "company",
-            "is_logging_out",
-            "login_error_message",
-            "success_message",
-        }.difference(set(st.session_state)):
-            st.session_state[key] = None
-            print(f"Initialized session state for {key}")
-
-        # If the user has just logged out, reset the flag and prevent error message
-        if st.session_state.get("is_logging_out"):
-            print("Handling logout state")
-            st.session_state["is_logging_out"] = False
-            st.session_state["authentication_status"] = None
-            st.session_state["login_error_message"] = None
-            st.session_state["success_message"] = None
-            return early_return
-
-        # Check authentication status after handling logout explicitly
-        auth_status = st.session_state["authentication_status"]
-        print(f"Current authentication status: {auth_status}")
-
-        # If the user is already authenticated, return False directly
-        if auth_status is True:
-            print("User is authenticated")
-            return not early_return
-
-        print("User is not authenticated, showing login form")
-        _, col2, _ = st.columns(3)
-
-        login_tabs = col2.empty()
-        with login_tabs:
-            login_tab1, login_tab2 = st.tabs(["Login", "Forgot password"])
-            with login_tab1:
-                self.login_form
-            with login_tab2:
-                self.forgot_password_form
-
-        # If authentication status is None (initial state or after clean logout), keep showing login form
-        if auth_status is None:
-            print("Authentication status is None, showing login form")
-            return early_return
-
-        # If we reach here, it means authentication_status must be True (successful login)
-        # Clear the login tabs and return False to proceed to the main app
-        login_tabs.empty()
-        time.sleep(0.01)
-
-        return not early_return
-
-    def hide_unauthorized_pages(self, pages_roles: dict):
-        user_roles = st.session_state.get("roles")
-
-        if user_roles:
-            pages_to_hide = [
-                page
-                for page, authorized_page_roles in pages_roles.items()
-                if not any(
-                    role in authorized_page_roles["roles"] for role in user_roles
-                )
-            ]
-
-            css_pages_to_hide = "\n\t".join(
-                [
-                    (
-                        '.st-emotion-cache-j7qwjs.eczjsme12 a[data-testid="stSidebarNavLink"][href*="{page_name}"] > span.st-emotion-cache-1m6wrpk.eczjsme10 '.format(
-                            page_name=page_name
-                        )
-                    )
-                    + "{display: none;}"
-                    for page_name in pages_to_hide
-                ]
-            )
-
-            st.markdown(
-                f"""
-                <style>
-                    {css_pages_to_hide}
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    def __str__(self) -> str:
-        return f"cookie is valid: {self.cookie_is_valid}, not logged in {self.not_logged_in}"
-
-
-# @st.cache_resource(experimental_allow_widgets=True)
+@st.cache_resource(experimental_allow_widgets=True)
 def get_authenticator():
+    """Get or create an instance of AuthenticatorV2."""
     cookie_manager = stx.CookieManager()
     return Authenticator(
         os.getenv("FIREBASE_API_KEY"), os.getenv("COOKIE_KEY"), cookie_manager
@@ -694,40 +527,32 @@ def get_authenticator():
 
 
 @st.cache_data(show_spinner=False, ttl=600)
-def get_page_roles() -> dict[str, dict[str, list]]:
+def get_page_roles() -> Dict[str, Dict[str, List]]:
+    """Get page roles from Firestore."""
     db = firestore.client()
     documents = db.collection("pages").stream()
     return {document.id: document.to_dict() for document in documents}
 
 
 @st.cache_data(show_spinner=False, ttl=600)
-def get_user_roles(user_uid: str) -> tuple[str]:
+def get_user_roles(user_uid: str) -> Tuple[str, ...]:
+    """Get user roles from Firestore."""
     db = firestore.client()
     document = db.collection("users").document(user_uid).get()
 
     if document.exists:
         user_info = document.to_dict()
-        roles = tuple(user_info["roles"])
-    else:
-        roles = ("connecta-viewer",)
-
-    return roles
+        return tuple(user_info["roles"])
+    return ("connecta-viewer",)
 
 
 @st.cache_data(show_spinner=False)
-def get_user_company(user_uid: str) -> str:
+def get_user_company(user_uid: str) -> Optional[str]:
+    """Get user company from Firestore."""
     db = firestore.client()
     document = db.collection("users").document(user_uid).get()
 
     if document.exists:
         user_info = document.to_dict()
         return user_info.get("company")
-
-
-@st.cache_data(show_spinner=False, ttl=600)
-def get_inverted_scales_keywords():
-    db = firestore.client()
-    document = db.collection("settings").document("keywords").get()
-
-    if document.exists:
-        return document.to_dict()["inverted_scales"]
+    return None

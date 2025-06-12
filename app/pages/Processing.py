@@ -17,9 +17,14 @@ from app.modules.processor import (
     getPenaltysCode,
     getCruces,
     getWarning,
-    get_diferences_with_kpis
+    get_diferences_with_kpis,
 )
-from app.modules.utils import try_download, get_temp_file, write_temp_sav
+from app.modules.utils import (
+    try_download,
+    get_temp_file,
+    write_temp_sav,
+    get_inverted_scales_keywords,
+)
 
 
 def main():
@@ -109,7 +114,9 @@ def main():
             with col2:
                 st.markdown("#### LC")
                 uploaded_file_process_xlsx_LC = st.file_uploader(
-                    "Upload `.xlsx` file", type=["xlsx", "xlsm"], key="processing_xlsx_LC"
+                    "Upload `.xlsx` file",
+                    type=["xlsx", "xlsm"],
+                    key="processing_xlsx_LC",
                 )
 
             st.markdown("#### Base")
@@ -137,7 +144,9 @@ def main():
                     with col1.container(height=250):
                         st.code(
                             getPreProcessCode(
-                                uploaded_file_process_sav, uploaded_file_process_xlsx, uploaded_file_process_xlsx_LC
+                                uploaded_file_process_sav,
+                                uploaded_file_process_xlsx,
+                                uploaded_file_process_xlsx_LC,
                             ),
                             line_numbers=True,
                         )
@@ -154,9 +163,11 @@ def main():
                         if warning == "":
                             warning += "Run PreProcess Code only one time"
                         warning += " --- Code with Custom Scales code"
-                    warning+=getWarning(
-                                uploaded_file_process_sav, uploaded_file_process_xlsx, uploaded_file_process_xlsx_LC
-                            )
+                    warning += getWarning(
+                        uploaded_file_process_sav,
+                        uploaded_file_process_xlsx,
+                        uploaded_file_process_xlsx_LC,
+                    )
                     if warning != "":
                         st.warning(warning)
                 with col2:
@@ -190,7 +201,7 @@ def main():
                                     + getPreProcessCode(
                                         uploaded_file_process_sav,
                                         uploaded_file_process_xlsx,
-                                        uploaded_file_process_xlsx_LC
+                                        uploaded_file_process_xlsx_LC,
                                     )
                                     + "\n"
                                     + getSegmentCode(
@@ -218,7 +229,7 @@ def main():
                                         + getPreProcessCode(
                                             uploaded_file_process_sav,
                                             uploaded_file_process_xlsx,
-                                            uploaded_file_process_xlsx_LC
+                                            uploaded_file_process_xlsx_LC,
                                         )
                                         + "\n"
                                         + getSegmentCode(
@@ -258,7 +269,7 @@ def main():
                                         + getPreProcessCode(
                                             uploaded_file_process_sav,
                                             uploaded_file_process_xlsx,
-                                            uploaded_file_process_xlsx_LC
+                                            uploaded_file_process_xlsx_LC,
                                         )
                                         + "\n"
                                         + getSegmentCode(
@@ -299,7 +310,7 @@ def main():
             try_download(
                 "Download Stadistics Plantilla",
                 results_plantilla,
-                "stadistics_plantilla"+uploaded_file_process_sav.name,
+                "stadistics_plantilla" + uploaded_file_process_sav.name,
                 "xlsx",
             )
         except Exception:
@@ -332,7 +343,9 @@ def main():
         st.markdown("### Statistical Significance | Penalties with KPI's")
 
         with st.form("statistical_processing_with_kpis_form"):
-            st.write("Load excel file with the processing tables from SPSS and template of KPIs.")
+            st.write(
+                "Load excel file with the processing tables from SPSS and template of KPIs."
+            )
 
             col1, col2 = st.columns(2)
             with col1:
@@ -345,14 +358,18 @@ def main():
                 st.markdown("#### KPI's List")
                 # Add section to upload a file
                 template_kpis_file_xlsx = st.file_uploader(
-                    "Upload `.xlsx` file", type=["xlsx"], key="tamplate_kpis_processing_xlsx"
+                    "Upload `.xlsx` file",
+                    type=["xlsx"],
+                    key="tamplate_kpis_processing_xlsx",
                 )
 
             process_kpis = st.form_submit_button("Process file")
 
             if pretables_file_xlsx and template_kpis_file_xlsx and process_kpis:
                 with st.spinner("Processing..."):
-                    results = get_diferences_with_kpis(pretables_file_xlsx,template_kpis_file_xlsx)
+                    results = get_diferences_with_kpis(
+                        pretables_file_xlsx, template_kpis_file_xlsx
+                    )
                     st.success("Tables with KPI's processed successfully.")
 
         try:

@@ -10,6 +10,7 @@ import pyreadstat
 from openpyxl import Workbook
 
 import streamlit as st
+from firebase_admin import firestore
 
 from app.modules.preprocessing import reorder_columns
 
@@ -46,6 +47,7 @@ def get_authorized_pages_names(pages_roles: dict):
     pages_names = [" ".join(file_name.split("_")) for file_name in files_names]
 
     user_roles = st.session_state.get("roles")
+    pages_to_show = []
 
     if user_roles:
         pages_to_show = [
@@ -269,3 +271,15 @@ def load_json(path: str) -> dict:
     """
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_inverted_scales_keywords():
+    """Get inverted scales keywords from Firestore."""
+    db = firestore.client()
+    document = db.collection("settings").document("inverted_scales_keywords").get()
+
+    if document.exists:
+        return document.to_dict()
+    else:
+        return {"keywords": []}

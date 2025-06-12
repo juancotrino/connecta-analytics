@@ -31,8 +31,7 @@ from scipy.stats import chi2_contingency, pearsonr
 # import seaborn as sns
 
 from app.cloud import CloudStorageClient
-from app.modules.authenticator import get_inverted_scales_keywords
-from app.modules.utils import get_temp_file
+from app.modules.utils import get_inverted_scales_keywords, get_temp_file
 
 time_zone = timezone("America/Bogota")
 
@@ -294,12 +293,23 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     worksheet.add_chart(new_chart, chart_destination)
 
 
-def create_chart_top10(worksheet, source_chart, dataframe, chart_title, chart_destination):
+def create_chart_top10(
+    worksheet, source_chart, dataframe, chart_title, chart_destination
+):
     # If you have the data in a DataFrame
     data = Reference(
-        worksheet, min_col=2, min_row=max(2,len(dataframe)-8), max_row=len(dataframe) + 1, max_col=2
+        worksheet,
+        min_col=2,
+        min_row=max(2, len(dataframe) - 8),
+        max_row=len(dataframe) + 1,
+        max_col=2,
     )
-    categories = Reference(worksheet, min_col=1, min_row=max(2,len(dataframe)-8), max_row=len(dataframe) + 1)
+    categories = Reference(
+        worksheet,
+        min_col=1,
+        min_row=max(2, len(dataframe) - 8),
+        max_row=len(dataframe) + 1,
+    )
 
     new_chart = BarChart()
 
@@ -316,9 +326,8 @@ def create_chart_top10(worksheet, source_chart, dataframe, chart_title, chart_de
 
     positions = [0, 74000, 83000, 100000]
     for i, value in enumerate(
-        dataframe.iloc[max(0,len(dataframe)-10):, 1], start=0
+        dataframe.iloc[max(0, len(dataframe) - 10) :, 1], start=0
     ):  # assuming values are in the second column
-
         color = get_color(value)
         # gsLst = [GradientStop(pos=pos, srgbClr='FFFFFF') if pos == 0 else GradientStop(pos=pos, srgbClr=color) for pos in positions]
         # spPr = GraphicalProperties(gradFill=GradientFillProperties(gsLst=gsLst))
@@ -328,6 +337,7 @@ def create_chart_top10(worksheet, source_chart, dataframe, chart_title, chart_de
 
     # print(new_chart.series[0].data_points[0])
     worksheet.add_chart(new_chart, chart_destination)
+
 
 def read_sav_metadata(file_name: str) -> pd.DataFrame:
     metadata = pyreadstat.read_sav(file_name, apply_value_formats=False)[1]
@@ -651,7 +661,9 @@ def segment_spss(
 
             # Create chart in the worksheet
             create_chart(chi2_ws, source_chart, chi2_df, "Intención de compra", "E3")
-            create_chart_top10(chi2_ws, source_chart, chi2_df, "Intención de compra", "U3")
+            create_chart_top10(
+                chi2_ws, source_chart, chi2_df, "Intención de compra", "U3"
+            )
 
         if job["correlation_variables"]:
             if "," in job["variables"]:
