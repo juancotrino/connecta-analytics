@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.preprocessing import preprocessing, generate_open_ended_db
-from app.modules.processing import processing
+from app.modules.processing import processing, get_question_types
 from app.modules.database_transformation import transform_database
 from app.modules.processor import (
     getPreProcessCode,
@@ -22,8 +22,8 @@ from app.modules.processor import (
 from app.modules.utils import (
     try_download,
     get_temp_file,
+    read_sav_metadata,
     write_temp_sav,
-    get_inverted_scales_keywords,
 )
 
 
@@ -429,3 +429,53 @@ def main():
         )
     except Exception:
         pass
+
+    st.markdown("# Final Processing")
+
+    with st.container(border=True):
+        st.write("Load `.sav` database file to be formatted.")
+
+        # Add section to upload a file
+        uploaded_file_sav = st.file_uploader(
+            "Upload `.sav` file", type=["sav"], key="final_processing_sav"
+        )
+
+        question_types_dicts = get_question_types()
+        question_types = [
+            question_type["code"] for question_type in question_types_dicts
+        ]
+
+        if uploaded_file_sav:
+            temp_file_name = get_temp_file(uploaded_file_sav)
+            metadata_df = read_sav_metadata(temp_file_name)
+
+            metadata_df = metadata_df.drop(columns=["label", "values"])
+            # Add new columns to metadata_df
+            metadata_df["question_type"] = None
+            metadata_df["open_ended"] = None
+            metadata_df["scales"] = None
+            metadata_df["inverted"] = None
+            metadata_df.index.name = "Variable"
+
+            # Initialize session state for the dataframe if it doesn't exist
+            if "process_config_df" not in st.session_state:
+                st.session_state.process_config_df = metadata_df
+
+            # Use the session state dataframe in the editor
+            st.session_state.process_config_df = st.data_editor(
+                st.session_state.process_config_df,
+                num_rows="dynamic",
+                use_container_width=True,
+                column_config={
+                    "question_type": st.column_config.SelectboxColumn(
+                        "Question Type",
+                        options=question_types,
+                        required=True,
+                    ),
+                    "open_ended": st.column_config.TextColumn("Open Ended"),
+                    "scales": st.column_config.TextColumn("Scales"),
+                    "inverted": st.column_config.TextColumn("Inverted"),
+                },
+            )
+
+            st.write(st.session_state.process_config_df.to_dict())

@@ -2,7 +2,9 @@ import warnings
 from io import BytesIO
 import string
 from itertools import product
-import re
+
+import streamlit as st
+from firebase_admin import firestore
 
 import numpy as np
 import pandas as pd
@@ -19,6 +21,16 @@ from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Fo
 from app.modules.utils import get_temp_file, write_temp_excel
 
 letters_list = list(string.ascii_uppercase)
+
+
+@st.cache_data(show_spinner=False)
+def get_question_types():
+    db = firestore.client()
+    document = db.collection("settings").document("survey_config").get()
+
+    if document.exists:
+        question_types = document.to_dict()["question_types"]
+        return question_types
 
 
 def extract_digits(cell):
@@ -239,6 +251,7 @@ def apply_red_color_to_letter(cell):
         rich_text_cell.append(TextBlock(red, letter))
         cell.value = rich_text_cell
 
+
 # Function to apply red color to the letter in the cell
 def apply_red_and_blue_color_to_letter(cell):
     value = str(cell.value) if cell.value not in (None, "") else None
@@ -263,7 +276,7 @@ def apply_red_and_blue_color_to_letter(cell):
         for letter in elements:
             if ("I" in letter or "V" in letter) and not "," in letter:
                 if "-" in letter:
-                    romans=letter.split("-")
+                    romans = letter.split("-")
                     for roman in romans:
                         if roman == romans[0]:
                             rich_text_cell.append(TextBlock(blue, f" {roman}"))
@@ -1050,4 +1063,4 @@ def processing(xlsx_file: BytesIO):
         for i in range(1, ws_totals.max_row + 1):
             ws_totals.cell(row=i, column=col).fill = blueFill
 
-    return write_temp_excel(wb_new) ,wb_new
+    return write_temp_excel(wb_new), wb_new

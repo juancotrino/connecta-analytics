@@ -1,3 +1,5 @@
+from typing import Literal
+
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
@@ -79,37 +81,42 @@ def get_subcategory_id(
 
 
 @st.cache_data(show_spinner=False)
-def get_group_id(
-    group_name: str | None, category_id: str | None, subcategory_id: str | None
-) -> str | None:
+def get_group_ids(
+    group_name: list[str] | None, category_id: str | None, subcategory_id: str | None
+) -> list[str] | None:
     if not group_name or not subcategory_id:
         return None
 
-    group_query = (
-        db.collection("settings")
-        .document("survey_config")
-        .collection("groups")
-        .where(filter=FieldFilter("name", "==", group_name))
-        .where(filter=FieldFilter("category_id", "==", category_id))
-        .where(filter=FieldFilter("subcategory_id", "==", subcategory_id))
-        .limit(1)
-        .stream()
-    )
-    for group_doc in group_query:
-        return group_doc.id
-    print(f"No group found with name: {group_name}")
-    return None
+    group_ids = []
+    for name in group_name:
+        group_query = (
+            db.collection("settings")
+            .document("survey_config")
+            .collection("groups")
+            .where(filter=FieldFilter("name", "==", name))
+            .where(filter=FieldFilter("category_id", "==", category_id))
+            .where(filter=FieldFilter("subcategory_id", "==", subcategory_id))
+            .limit(1)
+            .stream()
+        )
+        for group_doc in group_query:
+            group_ids.append(group_doc.id)
+            break
+        else:
+            print(f"No group found with name: {name}")
+
+    return group_ids if group_ids else None
 
 
 @st.cache_data(show_spinner=False)
 def get_questions(
     category_name: str | None = None,
     subcategory_name: str | None = None,
-    group_name: str | None = None,
-) -> list[dict[str, str]]:
+    group_name: list[str] | None = None,
+    by: Literal["label", "code"] = "label",
+) -> dict[str, list[str]]:
     category_id = get_category_id(category_name)
     subcategory_id = get_subcategory_id(subcategory_name, category_id)
-    group_id = get_group_id(group_name, category_id, subcategory_id)
 
     questions_ref = (
         db.collection("settings").document("survey_config").collection("questions")
@@ -122,14 +129,90 @@ def get_questions(
         questions_ref = questions_ref.where(
             filter=FieldFilter("subcategory_id", "==", subcategory_id)
         )
-    if group_id:
+
+    # If no groups are selected, get all groups for this category/subcategory
+    if not group_name:
+        groups_ref = (
+            db.collection("settings").document("survey_config").collection("groups")
+        )
+        if category_id:
+            groups_ref = groups_ref.where(
+                filter=FieldFilter("category_id", "==", category_id)
+            )
+        if subcategory_id:
+            groups_ref = groups_ref.where(
+                filter=FieldFilter("subcategory_id", "==", subcategory_id)
+            )
+        group_docs = groups_ref.stream()
+        group_ids = [doc.id for doc in group_docs]
+    else:
+        group_ids = get_group_ids(group_name, category_id, subcategory_id)
+
+    if group_ids:
         questions_ref = questions_ref.where(
-            filter=FieldFilter("group_id", "==", group_id)
+            filter=FieldFilter("group_id", "in", group_ids)
         )
 
     questions_query = questions_ref.stream()
     questions = [question_doc.to_dict() for question_doc in questions_query]
-    return questions
+
+    # Get all groups to maintain consistent ordering
+    all_groups_ref = (
+        db.collection("settings").document("survey_config").collection("groups")
+    )
+    if category_id:
+        all_groups_ref = all_groups_ref.where(
+            filter=FieldFilter("category_id", "==", category_id)
+        )
+    if subcategory_id:
+        all_groups_ref = all_groups_ref.where(
+            filter=FieldFilter("subcategory_id", "==", subcategory_id)
+        )
+
+    all_groups = {doc.id: doc.to_dict()["name"] for doc in all_groups_ref.stream()}
+
+    # Create a mapping of group_id to its index in the sorted groups
+    group_order = {
+        group_id: idx
+        for idx, group_id in enumerate(
+            sorted(all_groups.keys(), key=lambda x: all_groups[x], reverse=True)
+        )
+    }
+
+    # Sort questions by group order first, then by question order
+    sorted_questions = sorted(
+        questions,
+        key=lambda q: (
+            group_order.get(q.get("group_id", ""), float("inf")),  # Sort by group order
+            q.get("order", float("inf")),  # Then by question order
+        ),
+    )
+
+    # Group questions by their group name
+    grouped_questions = {}
+    for question in sorted_questions:
+        group_id = question.get("group_id", "")
+        group_name = all_groups.get(group_id, "Unknown")
+        if group_name not in grouped_questions:
+            grouped_questions[group_name] = []
+        grouped_questions[group_name].append(
+            # question.get("label", "")
+            {"label": question.get("label", ""), "code": question.get("code", "")}
+        )
+
+    return grouped_questions
+
+
+def get_cross_questions(config: dict) -> list[str]:
+    return [question["label"] for question in config["cross_variables"]]
+
+
+def get_cross_questions_codes(cross_questions: list[str], config: dict) -> list[str]:
+    # Create a dictionary mapping labels to codes for efficient lookup
+    label_to_code = {item["label"]: item["code"] for item in config["cross_variables"]}
+
+    # Get codes for each target label
+    return [label_to_code[label] for label in cross_questions if label in label_to_code]
 
 
 @st.cache_data(show_spinner=False)
@@ -339,8 +422,17 @@ def filter_df(
 
 
 def create_temp_df(
-    selected_questions: list[str], data_option: int, view_type: str
+    selected_questions: list[str],
+    questions_by_group: dict[str, str],
+    data_option: int,
+    view_type: str,
 ) -> pd.DataFrame:
+    # Create a mapping of questions to their groups
+    question_to_group = {}
+    for group, questions in questions_by_group.items():
+        for question in questions:
+            question_to_group[question] = group
+
     if view_type == "Detailed":
         subindex = [
             "NETO TOP TWO BOX",
@@ -358,8 +450,28 @@ def create_temp_df(
             "%",
         ]
 
-        # Create MultiIndex for rows
-        multi_index = pd.MultiIndex.from_product([selected_questions, subindex])
+        # Group questions by their group
+        questions_by_group = {}
+        for question in selected_questions:
+            if question in question_to_group:
+                group = question_to_group[question]
+                if group not in questions_by_group:
+                    questions_by_group[group] = []
+                questions_by_group[group].append(question)
+
+        # Create MultiIndex for rows with group as first level
+        index_tuples = []
+        for group in sorted(questions_by_group.keys(), reverse=True):
+            for question in questions_by_group[group]:
+                for metric in subindex:
+                    index_tuples.append((group, question, metric))
+
+        multi_index = pd.MultiIndex.from_tuples(
+            index_tuples, names=["Group", "Question", "Metric"]
+        )
+
+        # Calculate the number of rows needed for each column
+        rows_per_column = len(multi_index)
 
         if data_option == 1:
             # Table 1
@@ -379,7 +491,7 @@ def create_temp_df(
                     4783,
                     100,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 13),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "Si",
@@ -399,7 +511,7 @@ def create_temp_df(
                     4189,
                     100,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 13),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "No",
@@ -419,7 +531,7 @@ def create_temp_df(
                     594,
                     100,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 13),  # Multiply by number of questions
             }
         else:
             # Table 2 (example with different numbers and letters)
@@ -439,7 +551,7 @@ def create_temp_df(
                     5000,
                     100,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 13),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "Si",
@@ -459,7 +571,7 @@ def create_temp_df(
                     4500,
                     100,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 13),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "No",
@@ -479,13 +591,34 @@ def create_temp_df(
                     600,
                     100,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 13),  # Multiply by number of questions
             }
     else:
         subindex = ["TOP TWO BOX", "TOP BOX"]
 
-        # Create MultiIndex for rows
-        multi_index = pd.MultiIndex.from_product([selected_questions, subindex])
+        # Group questions by their group
+        questions_by_group = {}
+        for question in selected_questions:
+            if question in question_to_group:
+                group = question_to_group[question]
+                if group not in questions_by_group:
+                    questions_by_group[group] = []
+                questions_by_group[group].append(question)
+
+        # Create MultiIndex for rows with group as first level
+        index_tuples = []
+        for group in sorted(questions_by_group.keys(), reverse=True):
+            for question in questions_by_group[group]:
+                for metric in subindex:
+                    index_tuples.append((group, question, metric))
+
+        multi_index = pd.MultiIndex.from_tuples(
+            index_tuples, names=["Group", "Question", "Metric"]
+        )
+
+        # Calculate the number of rows needed for each column
+        rows_per_column = len(multi_index)
+
         if data_option == 1:
             # Table 1
             data = {
@@ -493,7 +626,7 @@ def create_temp_df(
                     42,
                     19,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 2),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "Si",
@@ -502,7 +635,7 @@ def create_temp_df(
                     '42 <span style="color: red; font-weight: bold;">B</span>',  # 42 B
                     12,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 2),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "No",
@@ -511,7 +644,7 @@ def create_temp_df(
                     '35 <span style="color: red; font-weight: bold;">A</span>',  # 35 A
                     '27 <span style="color: red; font-weight: bold;">A</span>',  # 27 A
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 2),  # Multiply by number of questions
             }
         else:
             # Table 2 (example with different numbers and letters)
@@ -520,7 +653,7 @@ def create_temp_df(
                     50,
                     22,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 2),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "Si",
@@ -529,7 +662,7 @@ def create_temp_df(
                     '50 <span style="color: blue; font-weight: bold;">C</span>',  # 50 C
                     15,
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 2),  # Multiply by number of questions
                 (
                     "P23. ¿Te agrada el DULZOR de la fragancia que probaste?",
                     "No",
@@ -538,7 +671,150 @@ def create_temp_df(
                     '40 <span style="color: green; font-weight: bold;">D</span>',  # 40 D
                     '20 <span style="color: green; font-weight: bold;">D</span>',  # 20 D
                 ]
-                * len(selected_questions),
+                * (rows_per_column // 2),  # Multiply by number of questions
             }
 
     return pd.DataFrame(data, index=multi_index)
+
+
+def get_question_codes(
+    selected_questions: list[str],
+    questions_by_group: dict[str, list[str]],
+):
+    selected_questions_labels = [q.split(" | ")[1] for q in selected_questions]
+
+    question_codes = []
+    for _, questions in questions_by_group.items():
+        for question in questions:
+            if question["label"] in selected_questions_labels:
+                question_codes.append(question["code"])
+
+    return question_codes
+
+
+def transform_variable(
+    question_code: str, question_label: str, db: pd.DataFrame, metadata_df: pd.DataFrame
+) -> pd.Series:
+    mapping: dict = eval(metadata_df.loc[question_code]["values"])
+    if len(mapping) == 1 and not next(iter(mapping.values())):
+        return db[db.columns[db.columns.str.contains(question_code)][0]].astype(
+            int
+        )  # .rename()
+    else:
+        return db[db.columns[db.columns.str.contains(question_code)][0]].map(mapping)
+
+
+def transform_cross_variable(
+    cross_question_code: str,
+    cross_question_label: str,
+    db: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+) -> pd.Series:
+    mapping: dict = eval(metadata_df.loc[cross_question_code]["values"])
+    return db[cross_question_code].map(mapping).rename(cross_question_label)
+
+
+def reorder_contingency_table(
+    question_code: str,
+    cross_question_code: str,
+    df: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+) -> pd.DataFrame:
+    column_mapping: dict = eval(metadata_df.loc[cross_question_code]["values"])
+    new_columns = [
+        column_name
+        for column_name in column_mapping.values()
+        if column_name in df.columns
+    ]
+
+    reordered_df = df[new_columns]
+
+    index_mapping: dict = eval(metadata_df.loc[question_code]["values"])
+
+    if len(index_mapping) == 1 and not next(iter(index_mapping.values())):
+        return reordered_df
+
+    reordered_df = reordered_df.reindex(index_mapping.values())
+
+    return reordered_df
+
+
+@st.cache_data
+def build_statistical_significance_df(
+    db: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    cross_variables: list[str],
+    selected_questions: list[str],
+    config: dict,
+    questions_by_group: dict[str, list[str]],
+    decimal_precision: int = 0,
+) -> pd.DataFrame:
+    cross_questions_codes = get_cross_questions_codes(cross_variables, config)
+    selected_questions_codes = get_question_codes(
+        selected_questions, questions_by_group
+    )
+
+    selected_questions_codes = ["F2", "F15", "F17"]
+
+    question_tables = []
+
+    for question_code, question_label in zip(
+        selected_questions_codes, selected_questions
+    ):
+        contingency_tables = []
+        for i, (cross_question_code, cross_question_label) in enumerate(
+            zip(cross_questions_codes, cross_variables)
+        ):
+            transformed_variable = transform_variable(
+                question_code, question_label, db, metadata_df
+            )
+            transformed_cross_variable = transform_cross_variable(
+                cross_question_code, cross_question_label, db, metadata_df
+            )
+            contingency_table = round(
+                pd.crosstab(
+                    transformed_variable,
+                    transformed_cross_variable,
+                    margins=True if i == 0 else False,
+                    normalize="columns",
+                )
+                * 100,
+                decimal_precision,
+            )
+            contingency_table = reorder_contingency_table(
+                question_code, cross_question_code, contingency_table, metadata_df
+            )
+
+            # Generate the third level (A, B, C...)
+            letters = [chr(65 + i) for i in range(len(contingency_table.columns))]
+
+            # Create new column tuples
+            new_column_tuples = []
+            for j, col_name in enumerate(contingency_table.columns):
+                new_column_tuples.append(
+                    (cross_question_label, col_name, f"({letters[j]})")
+                )
+
+            contingency_table.columns = pd.MultiIndex.from_tuples(new_column_tuples)
+            contingency_tables.append(contingency_table)
+        question_composed_df = pd.concat(contingency_tables, axis=1)
+        # Add question label as the first level of the index
+        question_composed_df.index = pd.MultiIndex.from_product(
+            [[question_label], question_composed_df.index]
+        )
+        question_tables.append(question_composed_df)
+
+    final_table = pd.concat(question_tables)
+
+    # Create three-level multiindex
+    new_index = []
+    for first_level, second_level in zip(
+        final_table.index.get_level_values(0), final_table.index.get_level_values(1)
+    ):
+        group, question = first_level.split(" | ")
+        new_index.append((group, question, second_level))
+
+    final_table.index = pd.MultiIndex.from_tuples(new_index)
+    final_table.index.names = ["Group", "Question", "Options"]
+
+    return final_table

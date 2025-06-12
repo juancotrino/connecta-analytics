@@ -13,9 +13,10 @@ from app.modules.processing_viewer import (
     get_study_countries,
     get_studies_names,
     download_studies_data,
-    df_to_html,
     filter_df,
     create_temp_df,
+    get_cross_questions,
+    build_statistical_significance_df,
 )
 from app.modules.utils import read_sav_db, read_sav_metadata, load_json
 
@@ -23,7 +24,7 @@ from app.modules.utils import read_sav_db, read_sav_metadata, load_json
 table_styles = [
     dict(selector="th", props="font-size: 1.0em; "),
     dict(selector="td", props="font-size: 1.0em; text-align: right"),
-    dict(selector="tr:hover", props="background-color: lightgray"),
+    dict(selector="tr:hover", props="background-color: #666666"),
 ]
 
 
@@ -111,38 +112,54 @@ def main():
 
     question_groups = get_question_groups(product_category, product_subcategory)
 
-    question_group = st.selectbox(
-        "Question group", sorted(question_groups, reverse=True), index=None
+    question_groups = st.multiselect(
+        "Question group", sorted(question_groups, reverse=True)
     )
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns([0.3, 0.45, 0.1, 0.15])
 
     with col1:
-        group_questions = get_questions(
-            product_category, product_subcategory, question_group
+        questions_by_group = get_questions(
+            product_category, product_subcategory, question_groups
         )
-        questions_names = [
-            question["label"]
-            for question in sorted(group_questions, key=lambda x: x["order"])
+        # Flatten the questions list for the multiselect
+        all_questions = [
+            f"{group} | {q['label']}"
+            for group, questions in questions_by_group.items()
+            for q in questions
         ]
         selected_questions = st.multiselect(
             "Attribute",
-            questions_names,
+            all_questions,
         )
         if not selected_questions:
-            selected_questions = questions_names
+            selected_questions = all_questions
 
     with col2:
-        crossed_questions = st.multiselect(
-            "Crossed questions", ["Question 1", "Question 2"]
-        )
+        cross_questions = get_cross_questions(config)
+        selected_cross_questions = st.multiselect("Crossed questions", cross_questions)
     with col3:
         view_type = st.radio("View type", ["Groupped", "Detailed"], horizontal=True)
 
-    if not question_group:
+    with col4:
+        decimal_precision = st.number_input(
+            "Decimal precision", min_value=0, max_value=4, step=1
+        )
+
+    if not question_groups or not selected_cross_questions:
         return
 
-    df = create_temp_df(selected_questions, 1, view_type)
+    df = build_statistical_significance_df(
+        db,
+        metadata_df,
+        selected_cross_questions,
+        selected_questions,
+        config,
+        questions_by_group,
+        decimal_precision,
+    )
+
+    # df = create_temp_df(selected_questions, questions_by_group, 1, view_type)
 
     if not selected_questions:
         return
@@ -155,7 +172,7 @@ def main():
         # Format numbers to 2 decimal places, leave strings as is
         .format(
             lambda x: (
-                f"{x:.2f}"
+                f"{x:.{decimal_precision}f}"
                 if isinstance(x, (float, int)) and x % 1 != 0
                 else f"{int(x)}"
                 if isinstance(x, (float, int))
