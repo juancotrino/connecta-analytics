@@ -344,11 +344,6 @@ class Authenticator:
     def cookie_is_valid(self) -> bool:
         """Check if the reauthentication cookie is valid and, if it is, update the session state."""
         time.sleep(0.02)
-
-        # Add a loading state while validating
-        if "is_validating_cookie" not in st.session_state:
-            st.session_state["is_validating_cookie"] = True
-
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
@@ -368,34 +363,33 @@ class Authenticator:
             st.session_state.get("authentication_status")
             and st.session_state["authentication_status"] is True
         ):
-            st.session_state["is_validating_cookie"] = False
             return True
 
         if token is None:
             st.session_state["authentication_status"] = None
-            st.session_state["is_validating_cookie"] = False
             return False
 
-        with suppress(Exception):
-            token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
+        try:
+            decoded_token = jwt.decode(token, self.cookie_key, algorithms=["HS256"])
+            if (
+                isinstance(decoded_token, dict)
+                and decoded_token["exp_date"] > datetime.now(timezone.utc).timestamp()
+                and {"name", "username"}.issubset(set(decoded_token))
+            ):
+                st.session_state["name"] = decoded_token["name"]
+                st.session_state["username"] = decoded_token["username"]
+                st.session_state["roles"] = decoded_token.get("roles")
+                st.session_state["company"] = decoded_token.get("company")
+                st.session_state["authentication_status"] = True
+                st.session_state["login_error_message"] = None
+                st.session_state["success_message"] = None
+                return True
+        except Exception as e:
+            print(f"Error decoding token: {e}")
+            st.session_state["authentication_status"] = None
+            return False
 
-        if (
-            token
-            and isinstance(token, dict)
-            and token["exp_date"] > datetime.now(timezone.utc).timestamp()
-            and {"name", "username"}.issubset(set(token))
-        ):
-            st.session_state["name"] = token["name"]
-            st.session_state["username"] = token["username"]
-            st.session_state["roles"] = token.get("roles")
-            st.session_state["company"] = token.get("company")
-            st.session_state["authentication_status"] = True
-            st.session_state["login_error_message"] = None
-            st.session_state["success_message"] = None
-            st.session_state["is_validating_cookie"] = False
-            return True
-
-        st.session_state["is_validating_cookie"] = False
+        st.session_state["authentication_status"] = None
         return False
 
     def login_user(self, email: str, password: str):
@@ -503,25 +497,7 @@ class Authenticator:
 
     @property
     def login_panel(self) -> None:
-        """Creates a side panel for logged-in users, preventing the login menu from appearing.
-
-        Parameters
-        ----------
-        - cookie_manager : stx.CookieManager
-            A JWT cookie manager instance for Streamlit
-        - cookie_name : str
-            The name of the reauthentication cookie.
-        - cookie_expiry_days: (optional) str
-            An integer representing the number of days until the cookie expires
-
-        Notes
-        -----
-        If the user is logged in, this function displays two tabs for resetting the user's password
-        and updating their display name.
-
-        If the user clicks the "Logout" button, the reauthentication cookie and user-related information
-        from the session state is deleted, and the user is logged out.
-        """
+        """Creates a side panel for logged-in users, preventing the login menu from appearing."""
         time.sleep(0.5)
         try:
             greeting_name = (
@@ -536,6 +512,7 @@ class Authenticator:
         if st.button("Logout", type="primary"):
             st.session_state["is_logging_out"] = True
 
+            # Clear session state
             st.session_state["name"] = None
             st.session_state["username"] = None
             st.session_state["roles"] = None
@@ -547,15 +524,17 @@ class Authenticator:
             st.cache_data.clear()
 
             try:
+                # Delete cookie
                 self.cookie_manager.delete(self.cookie_name)
+                # Set expired cookie as backup
                 exp_date = datetime.now(timezone.utc) - timedelta(days=1)
                 self.cookie_manager.set(
                     self.cookie_name,
                     "",
                     expires_at=exp_date,
                 )
-            except:
-                pass
+            except Exception as e:
+                print(f"Error during cookie deletion: {e}")
 
             time.sleep(2)
             st.rerun()
@@ -572,36 +551,9 @@ class Authenticator:
 
     @property
     def not_logged_in(self) -> bool:
-        """Creates a tab panel for unauthenticated, preventing the user control sidebar and
-        the rest of the script from appearing until the user logs in.
-
-        Parameters
-        ----------
-        - cookie_manager : stx.CookieManager
-            A JWT cookie manager instance for Streamlit
-        - cookie_name : str
-            The name of the reauthentication cookie.
-        - cookie_expiry_days: (optional) str
-            An integer representing the number of days until the cookie expires
-
-        Returns
-        -------
-        Authentication status boolean.
-
-        Notes
-        -----
-        If the user is already authenticated, the login panel function is called to create a side
-        panel for logged-in users. If the function call does not update the authentication status
-        because the username/password does not exist in the Firebase database, the rest of the script
-        does not get executed until the user logs in.
-        """
+        """Creates a tab panel for unauthenticated users."""
         time.sleep(0.1)
         early_return = True
-
-        # Show loading state while validating cookie
-        if st.session_state.get("is_validating_cookie"):
-            st.spinner("Validating session...")
-            return early_return
 
         # In case of a first run, pre-populate missing session state arguments
         for key in {
@@ -648,8 +600,8 @@ class Authenticator:
 
         # If we reach here, it means authentication_status must be True (successful login)
         # Clear the login tabs and return False to proceed to the main app
-        login_tabs.empty()  # Clear login elements if authentication succeeded
-        time.sleep(0.01)  # Re-added time.sleep(0.01)
+        login_tabs.empty()
+        time.sleep(0.01)
 
         return not early_return
 
