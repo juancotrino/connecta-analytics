@@ -344,6 +344,11 @@ class Authenticator:
     def cookie_is_valid(self) -> bool:
         """Check if the reauthentication cookie is valid and, if it is, update the session state."""
         time.sleep(0.02)
+
+        # Add a loading state while validating
+        if "is_validating_cookie" not in st.session_state:
+            st.session_state["is_validating_cookie"] = True
+
         token = self.cookie_manager.get(self.cookie_name)
 
         # In case of a first run, pre-populate missing session state arguments
@@ -363,10 +368,12 @@ class Authenticator:
             st.session_state.get("authentication_status")
             and st.session_state["authentication_status"] is True
         ):
+            st.session_state["is_validating_cookie"] = False
             return True
 
         if token is None:
             st.session_state["authentication_status"] = None
+            st.session_state["is_validating_cookie"] = False
             return False
 
         with suppress(Exception):
@@ -385,8 +392,10 @@ class Authenticator:
             st.session_state["authentication_status"] = True
             st.session_state["login_error_message"] = None
             st.session_state["success_message"] = None
+            st.session_state["is_validating_cookie"] = False
             return True
 
+        st.session_state["is_validating_cookie"] = False
         return False
 
     def login_user(self, email: str, password: str):
@@ -588,6 +597,12 @@ class Authenticator:
         """
         time.sleep(0.1)
         early_return = True
+
+        # Show loading state while validating cookie
+        if st.session_state.get("is_validating_cookie"):
+            st.spinner("Validating session...")
+            return early_return
+
         # In case of a first run, pre-populate missing session state arguments
         for key in {
             "name",
