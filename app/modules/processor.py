@@ -3312,7 +3312,7 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                         ws_kpis[f"A{actual_row+1}"]=group_kpi
                         actual_row+=2
                 else:
-                    if pd.notna(question2) and pd.notna(question) and str(question2).strip() != "":
+                    if pd.notna(question2) and pd.notna(question) and str(question2).strip() != "" and len(question2.strip().split()) >= 2:
                         for row2 in ws_tables.iter_rows(min_col=1, max_col=1):
                             cell2 = row2[0]
                             if isinstance(cell2.value, str):

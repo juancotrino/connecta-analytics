@@ -7,11 +7,12 @@ import pandas as pd
 
 
 def prepare_variable_mapping(file_name_xlsx: str, file_name_sav: str):
-
     metadata_db = pyreadstat.read_sav(file_name_sav)[1]
-    variable_mapping = pd.read_excel(file_name_xlsx, sheet_name='MAPEO')
+    variable_mapping = pd.read_excel(file_name_xlsx, sheet_name="MAPEO")
 
-    inverted_gender = variable_mapping[variable_mapping['belcorp'] == 'GENERO INV.']['time_0'].values[0]
+    inverted_gender = variable_mapping[variable_mapping["belcorp"] == "GENERO INV."][
+        "time_0"
+    ].values[0]
 
     # connecta_study_value: belcorp_norma_values
     if inverted_gender:
@@ -20,116 +21,209 @@ def prepare_variable_mapping(file_name_xlsx: str, file_name_sav: str):
         gender_equivalences = {1: 1, 2: 2}
 
     nse_equivalences = {
-        'colombia': {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: ''},
-        'mexico': {1: 15, 2: 16, 3: 17, 4: 18, 5: 19, 6: 20, 7: 21}
+        "colombia": {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: ""},
+        "mexico": {1: 15, 2: 16, 3: 17, 4: 18, 5: 19, 6: 20, 7: 21},
     }
 
-    variable_mapping = variable_mapping.drop(variable_mapping[variable_mapping['belcorp'] == 'GENERO INV.'].index).reset_index(drop=True)
+    variable_mapping = variable_mapping.drop(
+        variable_mapping[variable_mapping["belcorp"] == "GENERO INV."].index
+    ).reset_index(drop=True)
 
-    variable_mapping['values'] = np.where(
-        variable_mapping['belcorp'].isin(['IDCUEST', 'EDAD']),
+    variable_mapping["values"] = np.where(
+        variable_mapping["belcorp"].isin(["IDCUEST", "EDAD"]),
         None,
         np.where(
-            variable_mapping['belcorp'] == 'GENERO',
+            variable_mapping["belcorp"] == "GENERO",
             gender_equivalences,
             np.where(
-                variable_mapping['belcorp'] == 'NSE',
+                variable_mapping["belcorp"] == "NSE",
                 nse_equivalences,
                 np.where(
-                    variable_mapping['belcorp'] == 'ALTERNATIVA',
-                    metadata_db.variable_value_labels[variable_mapping[variable_mapping['belcorp'] == 'ALTERNATIVA'].reset_index(drop=True).iloc[0, 1]],
-                    None
-                )
-            )
-        )
+                    variable_mapping["belcorp"] == "ALTERNATIVA",
+                    metadata_db.variable_value_labels[
+                        variable_mapping[variable_mapping["belcorp"] == "ALTERNATIVA"]
+                        .reset_index(drop=True)
+                        .iloc[0, 1]
+                    ],
+                    None,
+                ),
+            ),
+        ),
     )
 
     return variable_mapping
+
 
 def separate_moments(variable_mapping: pd.DataFrame, df_db: pd.DataFrame):
     df_list = []
 
     for moment in variable_mapping.columns[1:-1]:
-        indexes = variable_mapping[variable_mapping['belcorp'].isin(variable_mapping['belcorp'].tail(5).values[:-1])][moment].values.tolist()
-        df_moment = df_db[variable_mapping[moment].dropna().values[:-1]].set_index(indexes)
-        df_moment['MOMENTO'] = int(variable_mapping[variable_mapping['belcorp'] == 'MOMENT'][moment].values[0])
+        indexes = variable_mapping[
+            variable_mapping["belcorp"].isin(
+                variable_mapping["belcorp"].tail(5).values[:-1]
+            )
+        ][moment].values.tolist()
+        df_moment = df_db[
+            variable_mapping[moment].drop_duplicates().dropna().values[:-1]
+        ].set_index(indexes)
+        df_moment["MOMENTO"] = int(
+            variable_mapping[variable_mapping["belcorp"] == "MOMENT"][moment].values[0]
+        )
         df_list.append(df_moment.reset_index())
 
     return df_list
 
+
 def get_sav_db(file_name_sav: str):
     df_db: pd.DataFrame = pyreadstat.read_sav(file_name_sav)[0]
-    df_db = df_db.dropna(axis=1, how='all')
+    df_db = df_db.dropna(axis=1, how="all")
     for column in df_db:
-        df_db[column] = df_db[column].astype(int, errors='ignore')
+        df_db[column] = df_db[column].astype(int, errors="ignore")
     return df_db
 
+
 def get_specifications(file_name_xlsx: str):
-    specifications = pd.read_excel(file_name_xlsx, sheet_name='ESPECIFICACIONES', header=None)
+    specifications = pd.read_excel(
+        file_name_xlsx, sheet_name="ESPECIFICACIONES", header=None
+    )
     specifications[0] = specifications[0].apply(unidecode)
     return specifications
+
 
 def transform(
     country: str,
     df_list: list[pd.DataFrame],
     variable_mapping: pd.DataFrame,
     specifications: pd.DataFrame,
-    metadata_norma
+    metadata_norma,
 ):
-
     transformed_df_list = []
-    moment_list = variable_mapping.columns[variable_mapping.columns.str.startswith('time')].to_list()
+    moment_list = variable_mapping.columns[
+        variable_mapping.columns.str.startswith("time")
+    ].to_list()
 
     for moment, moment_df in zip(moment_list, df_list):
-        column_equivalences = {variable[moment]: variable['belcorp'] for i, variable in variable_mapping.iterrows() if variable[moment] is not np.nan}
+        column_equivalences = {
+            variable[moment]: variable["belcorp"]
+            for i, variable in variable_mapping.iterrows()
+            if variable[moment] is not np.nan
+        }
         moment_df.rename(columns=column_equivalences, inplace=True)
         transformed_df_list.append(moment_df)
 
     transformed_df = pd.concat(transformed_df_list).reset_index(drop=True)
 
     for column in transformed_df:
-        if column == 'MOMENTO':
+        if column == "MOMENTO":
             continue
 
-        values_equivalences = variable_mapping[variable_mapping['belcorp'] == column]['values'].values[0]
+        values_equivalences = variable_mapping[variable_mapping["belcorp"] == column][
+            "values"
+        ].values[0]
 
         if values_equivalences:
-            if column == 'NSE':
+            if column == "NSE":
                 values_equivalences = values_equivalences[country]
             transformed_df[column] = transformed_df[column].map(values_equivalences)
 
     columns = metadata_norma.column_names
 
-    transformed_df['TIPO_NORMA'] = specifications[specifications[0] == 'TIPO DE NORMA'][1].values[0]
-    transformed_df['ID_ESTUDIO'] = specifications[specifications[0] == 'ID ESTUDIO'][1].values[0]
-    transformed_df['COD_CUC'] = specifications[specifications[0] == 'Codigo CUC del producto'][1].values[0]
-    transformed_df['NOMBRE_ESTUDIO'] = specifications[specifications[0] == 'NOMBRE DEL ESTUDIO'][1].values[0]
-    transformed_df['PAIS'] = next((key for key, value in metadata_norma.variable_value_labels['PAIS'].items() if unidecode(value.lower()) == country), None)
-    transformed_df['ANO'] = specifications[specifications[0] == unidecode('AÑO')][1].values[0]
-    transformed_df['MARCA'] = next((key for key, value in metadata_norma.variable_value_labels['MARCA'].items() if value == specifications[specifications[0] == 'MARCA'][1].values[0]), None)
-    transformed_df['CATEGORIA'] = next((key for key, value in metadata_norma.variable_value_labels['CATEGORIA'].items() if value == specifications[specifications[0] == unidecode('CATEGORÍA DE PRODUCTO')][1].values[0]), None)
-    transformed_df['TIPO'] = next((key for key, value in metadata_norma.variable_value_labels['TIPO'].items() if value == specifications[specifications[0] == 'TIPO DE PRODUCTO'][1].values[0]), None)
-    transformed_df['RUTA'] = next((key for key, value in metadata_norma.variable_value_labels['RUTA'].items() if value == specifications[specifications[0] == 'RUTA CUESTIONARIO'][1].values[0]), None)
+    transformed_df["TIPO_NORMA"] = specifications[specifications[0] == "TIPO DE NORMA"][
+        1
+    ].values[0]
+    transformed_df["ID_ESTUDIO"] = specifications[specifications[0] == "ID ESTUDIO"][
+        1
+    ].values[0]
+    transformed_df["COD_CUC"] = specifications[
+        specifications[0] == "Codigo CUC del producto"
+    ][1].values[0]
+    transformed_df["NOMBRE_ESTUDIO"] = specifications[
+        specifications[0] == "NOMBRE DEL ESTUDIO"
+    ][1].values[0]
+    transformed_df["PAIS"] = next(
+        (
+            key
+            for key, value in metadata_norma.variable_value_labels["PAIS"].items()
+            if unidecode(value.lower()) == country
+        ),
+        None,
+    )
+    transformed_df["ANO"] = specifications[specifications[0] == unidecode("AÑO")][
+        1
+    ].values[0]
+    transformed_df["MARCA"] = next(
+        (
+            key
+            for key, value in metadata_norma.variable_value_labels["MARCA"].items()
+            if value == specifications[specifications[0] == "MARCA"][1].values[0]
+        ),
+        None,
+    )
+    transformed_df["CATEGORIA"] = next(
+        (
+            key
+            for key, value in metadata_norma.variable_value_labels["CATEGORIA"].items()
+            if value
+            == specifications[specifications[0] == unidecode("CATEGORÍA DE PRODUCTO")][
+                1
+            ].values[0]
+        ),
+        None,
+    )
+    transformed_df["TIPO"] = next(
+        (
+            key
+            for key, value in metadata_norma.variable_value_labels["TIPO"].items()
+            if value
+            == specifications[specifications[0] == "TIPO DE PRODUCTO"][1].values[0]
+        ),
+        None,
+    )
+    transformed_df["RUTA"] = next(
+        (
+            key
+            for key, value in metadata_norma.variable_value_labels["RUTA"].items()
+            if value
+            == specifications[specifications[0] == "RUTA CUESTIONARIO"][1].values[0]
+        ),
+        None,
+    )
 
-    brands = {unidecode(brand[1]).strip(): brand[3].strip() for _, brand in specifications[specifications[0].str.contains('ALTERNATIVA')].iterrows()}
+    brands = {
+        unidecode(brand[1]).strip(): brand[3].strip()
+        for _, brand in specifications[
+            specifications[0].str.contains("ALTERNATIVA")
+        ].iterrows()
+    }
 
-    transformed_df['MARCA_ALT'] = transformed_df['ALTERNATIVA'].apply(lambda x: x.split('-')[0]).map(brands)
-    alternative_brand = {y: x for x, y in metadata_norma.variable_value_labels['MARCA_ALT'].items()}
+    transformed_df["MARCA_ALT"] = (
+        transformed_df["ALTERNATIVA"].apply(lambda x: x.split("-")[0]).map(brands)
+    )
+    alternative_brand = {
+        y: x for x, y in metadata_norma.variable_value_labels["MARCA_ALT"].items()
+    }
 
-    transformed_df['MARCA_ALT'] = transformed_df['MARCA_ALT'].map(alternative_brand)
-    transformed_df = transformed_df.dropna(subset=['MARCA_ALT']).reset_index(drop=True)
-    transformed_df['MARCA_ALT'] = transformed_df['MARCA_ALT'].astype(int)
-    transformed_df['NSE'] = transformed_df['NSE'].astype(int)
-    transformed_df['IDCUEST'] = transformed_df['IDCUEST'].astype(int)
-    transformed_df['ID_ESTUDIO'] = transformed_df['ID_ESTUDIO'].astype(int)
-    transformed_df = transformed_df.reindex(columns=list(set([*transformed_df.columns, *columns])))
+    transformed_df["MARCA_ALT"] = transformed_df["MARCA_ALT"].map(alternative_brand)
+    transformed_df = transformed_df.dropna(subset=["MARCA_ALT"]).reset_index(drop=True)
+    transformed_df["MARCA_ALT"] = transformed_df["MARCA_ALT"].astype(int)
+    transformed_df["NSE"] = transformed_df["NSE"].astype(int)
+    transformed_df["IDCUEST"] = transformed_df["IDCUEST"].astype(int)
+    transformed_df["ID_ESTUDIO"] = transformed_df["ID_ESTUDIO"].astype(int)
+    transformed_df = transformed_df.reindex(
+        columns=list(set([*transformed_df.columns, *columns]))
+    )
     transformed_df = transformed_df[columns]
-    numeric_columns = [column for column in metadata_norma.variable_value_labels.keys() if column in metadata_norma.column_names]
+    numeric_columns = [
+        column
+        for column in metadata_norma.variable_value_labels.keys()
+        if column in metadata_norma.column_names
+    ]
 
     for column in numeric_columns:
-        transformed_df[column] = transformed_df[column].astype(int, errors='ignore')
+        transformed_df[column] = transformed_df[column].astype(int, errors="ignore")
 
     return transformed_df
+
 
 def get_temp_file(spss_file: BytesIO):
     # Save BytesIO object to a temporary file
@@ -139,6 +233,7 @@ def get_temp_file(spss_file: BytesIO):
 
     return temp_file_name
 
+
 def write_temp_sav(df: pd.DataFrame, metadata):
     with tempfile.NamedTemporaryFile() as tmpfile:
         # Write the DataFrame to the temporary SPSS file
@@ -146,14 +241,15 @@ def write_temp_sav(df: pd.DataFrame, metadata):
             df,
             tmpfile.name,
             column_labels=metadata.column_names_to_labels,
-            variable_value_labels=metadata.variable_value_labels
+            variable_value_labels=metadata.variable_value_labels,
         )
 
-        with open(tmpfile.name, 'rb') as f:
+        with open(tmpfile.name, "rb") as f:
             return BytesIO(f.read())
 
+
 def transform_to_belcorp(xlsx_file: BytesIO, sav_file: BytesIO):
-    print('Started execution')
+    print("Started execution")
 
     temp_file_name_xlsx = get_temp_file(xlsx_file)
     temp_file_name_sav = get_temp_file(sav_file)
@@ -161,13 +257,19 @@ def transform_to_belcorp(xlsx_file: BytesIO, sav_file: BytesIO):
     variable_mapping = prepare_variable_mapping(temp_file_name_xlsx, temp_file_name_sav)
     df_db = get_sav_db(temp_file_name_sav)
 
-    _, metadata_norma = pyreadstat.read_sav('static/templates/BBDD NORMAS - Plantilla.sav')
+    _, metadata_norma = pyreadstat.read_sav(
+        "static/templates/BBDD NORMAS - Plantilla.sav"
+    )
 
     df_list = separate_moments(variable_mapping, df_db)
 
     specifications = get_specifications(temp_file_name_xlsx)
-    country = unidecode(specifications[specifications[0] == 'PAIS'][1].values[0].lower())
+    country = unidecode(
+        specifications[specifications[0] == "PAIS"][1].values[0].lower()
+    )
 
-    df_final = transform(country, df_list, variable_mapping, specifications, metadata_norma)
+    df_final = transform(
+        country, df_list, variable_mapping, specifications, metadata_norma
+    )
 
     return write_temp_sav(df_final, metadata_norma)

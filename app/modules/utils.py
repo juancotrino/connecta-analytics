@@ -277,9 +277,9 @@ def load_json(path: str) -> dict:
 def get_inverted_scales_keywords():
     """Get inverted scales keywords from Firestore."""
     db = firestore.client()
-    document = db.collection("settings").document("inverted_scales_keywords").get()
+    document = db.collection("settings").document("keywords").get()
 
     if document.exists:
-        return document.to_dict()
+        return document.to_dict()["inverted_scales"]
     else:
         return {"keywords": []}
