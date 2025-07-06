@@ -502,6 +502,7 @@ def transform_variable(
             db[db.columns[db.columns.str.contains(question_code)][0]]
             .map(mapping)
             .fillna(0)
+            .astype(str)
             .str.strip()
         )
 
@@ -1061,7 +1062,7 @@ def create_detailed_df(
     return question_table
 
 
-@st.cache_data(show_spinner=False)
+# @st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
