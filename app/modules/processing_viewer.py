@@ -1,11 +1,12 @@
 from typing import Literal
 import traceback
+import ast
 
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+import numpy as np
 import pandas as pd
-import ast
 
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
@@ -89,6 +90,20 @@ def get_subcategory_id(
     for subcategory_doc in subcategory_query:
         return subcategory_doc.id
     print(f"No subcategory found with name: {subcategory_name}")
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def get_question_type(question_type_id: int) -> dict[str, str] | None:
+    question_type_query = (
+        db.collection("settings")
+        .document("survey_config")
+        .collection("question_types")
+        .document(question_type_id)
+        .get()
+    )
+    if question_type_query.exists:
+        return question_type_query.to_dict()
     return None
 
 
@@ -208,8 +223,9 @@ def get_questions(
         if group_name not in grouped_questions:
             grouped_questions[group_name] = []
         grouped_questions[group_name].append(
+            question
             # question.get("label", "")
-            {"label": question.get("label", ""), "code": question.get("code", "")}
+            # {"label": question.get("label", ""), "code": question.get("code", "")}
         )
 
     return grouped_questions
@@ -486,6 +502,7 @@ def transform_variable(
             db[db.columns[db.columns.str.contains(question_code)][0]]
             .map(mapping)
             .fillna(0)
+            .str.strip()
         )
 
 
@@ -507,7 +524,7 @@ def reorder_contingency_table(
 ) -> pd.DataFrame:
     column_mapping: dict = eval(metadata_df.loc[cross_question_code]["values"])
     new_columns = [
-        column_name
+        column_name.strip()
         for column_name in column_mapping.values()
         if column_name in df.columns
     ]
@@ -517,6 +534,7 @@ def reorder_contingency_table(
     reordered_df = df[new_columns]
 
     index_mapping: dict = eval(metadata_df.loc[question_code]["values"])
+    index_mapping = {key: value.strip() for key, value in index_mapping.items()}
 
     if len(index_mapping) == 1 and not next(iter(index_mapping.values())):
         return reordered_df
@@ -766,7 +784,9 @@ def build_cross_contingency_table(
     cross_questions_codes: list[str],
     cross_variables: list[str],
     question_code: str,
-    decimal_precision: int = 0,
+    selected_question: str,
+    view_type: Literal["Groupped", "Detailed"] = "Detailed",
+    questions_by_group: dict[str, list[str]] | None = None,
 ) -> list[pd.DataFrame]:
     contingency_tables = []
 
@@ -780,15 +800,14 @@ def build_cross_contingency_table(
                 sub_cross_question_code, cross_question_label, db, metadata_df
             )
 
-            contingency_table = round(
+            contingency_table = (
                 pd.crosstab(
                     transformed_variable,
                     transformed_cross_variable,
                     margins=True if i == 0 and j == 0 else False,
                     normalize="columns",
                 )
-                * 100,
-                decimal_precision,
+                * 100
             )
 
             contingency_table = reorder_contingency_table(
@@ -797,6 +816,23 @@ def build_cross_contingency_table(
                 contingency_table,
                 metadata_df,
             )
+
+            if view_type == "Groupped":
+                contingency_table = create_grouped_df(
+                    contingency_table,
+                    questions_by_group,
+                    selected_question,
+                )
+            else:
+                contingency_table = create_detailed_df(
+                    selected_question,
+                    db,
+                    metadata_df,
+                    question_code,
+                    sub_cross_question_code,
+                    contingency_table,
+                    questions_by_group,
+                )
 
             sub_contingency_tables.append(contingency_table)
 
@@ -826,43 +862,201 @@ def build_cross_contingency_table(
     return contingency_tables
 
 
-def create_view_type_df(
-    question_table: pd.DataFrame,
-    view_type: Literal["Groupped", "Detailed"] = "Detailed",
+def create_scale_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
+    # Collapse the "Options" level
+    options_level = -1
+
+    options_values = (
+        question_table.index.get_level_values(options_level).astype(str).str.strip()
+    )
+
+    # T2B: sum all options starting with "4." or "5."
+    t2b_mask = options_values.str.startswith("4.") | options_values.str.startswith("5.")
+    t2b_df = question_table[t2b_mask].copy()
+    t2b_df["Options"] = "T2B"
+    t2b_df = t2b_df.set_index("Options", append=True)
+    t2b_df = t2b_df.groupby(level=options_level).sum(numeric_only=True)
+
+    # TB: only options starting with "5."
+    tb_mask = options_values.str.startswith("5.")
+    tb_df = question_table[tb_mask].copy()
+    tb_df["Options"] = "TB"
+    # Rename all matching to "TB"
+    tb_df = tb_df.set_index("Options", append=True)
+    tb_df = tb_df.groupby(level=options_level).sum(numeric_only=True)
+
+    # Concatenate
+    return pd.concat([t2b_df, tb_df]).sort_index()
+
+
+def create_jr_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
+    old_label = question_table.index[2]
+    question_table = question_table.rename(index={old_label: "JR"})
+    question_table.iloc[0] = question_table.iloc[0] + question_table.iloc[1]
+    question_table.iloc[4] = question_table.iloc[3] + question_table.iloc[4]
+    question_table = question_table.drop(question_table.index[[1, 3]])
+    return question_table
+
+
+def create_grouped_df(
+    question_table: pd.DataFrame, questions_by_group: dict, selected_question: str
 ) -> pd.DataFrame:
-    if view_type == "Groupped":
-        # Collapse the "Options" level
-        options_level = -1
+    if questions_by_group:
+        group, label = selected_question.split(" | ")
+        group_questions = questions_by_group[group]
 
-        options_values = question_table.index.get_level_values(options_level).astype(
-            str
+        question_config = list(
+            filter(lambda d: d.get("label") == label, group_questions)
         )
 
-        # T2B: sum all options starting with "4." or "5."
-        t2b_mask = options_values.str.startswith("4.") | options_values.str.startswith(
-            "5."
-        )
-        group_levels = list(range(question_table.index.nlevels - 1))
-        t2b_df = (
-            question_table[t2b_mask].groupby(level=group_levels).sum(numeric_only=True)
-        )
-        t2b_df["Options"] = "T2B"
-        t2b_df = t2b_df.set_index("Options", append=True)
-        if len(t2b_df.index.names) == len(question_table.index.names):
-            t2b_df.index.names = question_table.index.names
+        if question_config:
+            question_config = question_config[0]
+            question_type_config = get_question_type(
+                question_config["question_type_id"]
+            )
 
-        # TB: only options starting with "5."
-        tb_mask = options_values.str.startswith("5.")
-        tb_df = question_table[tb_mask].copy()
-        # Rename all matching to "TB"
-        tb_df = tb_df.rename(
-            index={idx: "TB" for idx in tb_df.index.get_level_values(options_level)},
-            level=options_level,
+            match question_type_config["code"]:
+                case "E":
+                    collapsed_table = create_scale_question_df(question_table)
+                case "N":
+                    collapsed_table = question_table
+                case "J":
+                    collapsed_table = create_jr_question_df(question_table)
+                case "U":
+                    collapsed_table = question_table
+                case "M":
+                    collapsed_table = question_table
+                case "A":
+                    collapsed_table = question_table
+                case _:
+                    collapsed_table = question_table
+
+    else:
+        collapsed_table = question_table
+
+    return collapsed_table
+
+
+def append_summary_rows(
+    db: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    question_code: str,
+    sub_cross_question_code: str,
+    df: pd.DataFrame,
+    question_type_config: dict[str, str],
+) -> pd.DataFrame:
+    # Only operate on numeric columns for calculations
+    numeric_df = df.select_dtypes(include=[np.number])
+    value_mapping = eval(metadata_df.loc[sub_cross_question_code, "values"])
+    value_mapping = {int(k): v for k, v in value_mapping.items()}
+
+    # Prepare row labels (adapt for index type)
+    stats_labels = question_type_config["properties"]
+
+    stats_df = pd.DataFrame(
+        index=stats_labels,
+        columns=df.columns,
+    )
+
+    for value in numeric_df.columns:
+        if value == "All":
+            filtered_db = db.copy()
+        else:
+            value_code = [
+                code for code, label in value_mapping.items() if label == value
+            ][0]
+            filtered_db = db[db[sub_cross_question_code] == value_code].reset_index(
+                drop=True
+            )
+        question_responses = (
+            filtered_db[question_code]
+            .fillna("0")
+            .astype(str)
+            .str.strip()
+            .str[0]
+            .astype(int)
+        )
+        # Calculate summary statistics
+        stats_values = {
+            "Mean": question_responses.mean(),
+            "Standard Deviation": question_responses.std(),
+            "Standard Error": question_responses.std()
+            / np.sqrt(question_responses.count()),
+            "Total": question_responses.count(),
+            "Total Answers": question_responses.count(),
+            "%": (question_responses.count() / question_responses.count()) * 100,
+        }
+
+        for stat_label in stats_labels:
+            stats_df.loc[stat_label, value] = stats_values[stat_label]
+
+    combined_df = pd.concat([df, stats_df])
+
+    return combined_df
+
+
+def sort_question_table(
+    question_table: pd.DataFrame, question_config: dict
+) -> pd.DataFrame:
+    match question_config["sorted_by"]:
+        case "options":
+            match question_config["sort_order"]:
+                case "desc":
+                    return question_table.sort_index(level=-1, ascending=False)
+                case "asc":
+                    return question_table.sort_index(level=-1, ascending=True)
+                case "original":
+                    return question_table
+                case _:
+                    return question_table
+        case "values":
+            match question_config["sort_order"]:
+                case "desc":
+                    return question_table.sort_values(
+                        by=("TOTAL", "TOTAL", "(A)"), ascending=False
+                    )
+                case "asc":
+                    return question_table.sort_values(
+                        by=("TOTAL", "TOTAL", "(A)"), ascending=True
+                    )
+                case "original":
+                    return question_table
+                case _:
+                    return question_table
+
+
+def create_detailed_df(
+    selected_question: str,
+    db: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    question_code: str,
+    sub_cross_question_code: str,
+    question_table: pd.DataFrame,
+    questions_by_group: dict[str, list[str]] | None = None,
+) -> pd.DataFrame:
+    if questions_by_group:
+        group, label = selected_question.split(" | ")
+        group_questions = questions_by_group[group]
+
+        question_config = list(
+            filter(lambda d: d.get("label") == label, group_questions)
         )
 
-        # Concatenate
-        collapsed_table = pd.concat([t2b_df, tb_df]).sort_index()
-        question_table = collapsed_table
+        if question_config:
+            question_config = question_config[0]
+            question_type_config = get_question_type(
+                question_config["question_type_id"]
+            )
+
+            question_table = sort_question_table(question_table, question_config)
+            question_table = append_summary_rows(
+                db,
+                metadata_df,
+                question_code,
+                sub_cross_question_code,
+                question_table,
+                question_type_config,
+            )
 
     return question_table
 
@@ -875,7 +1069,6 @@ def build_statistical_significance_df(
     selected_questions: list[str],
     config: dict,
     questions_by_group: dict[str, list[str]] | None = None,
-    decimal_precision: int = 0,
     by_moment: bool = False,
     view_type: Literal["Groupped", "Detailed"] = "Detailed",
     show_question_text: bool = False,
@@ -905,7 +1098,9 @@ def build_statistical_significance_df(
 
     question_tables = []
 
-    for question_label, question_codes in selected_questions_codes.items():
+    for selected_question, (question_label, question_codes) in zip(
+        selected_questions, selected_questions_codes.items()
+    ):
         question_composed_dfs = []
         for question_code in question_codes:
             try:
@@ -915,7 +1110,9 @@ def build_statistical_significance_df(
                     cross_questions_codes,
                     cross_variables,
                     question_code,
-                    decimal_precision,
+                    selected_question,
+                    view_type,
+                    questions_by_group,
                 )
 
                 question_composed_df = pd.concat(contingency_tables_cross, axis=1)
@@ -956,19 +1153,6 @@ def build_statistical_significance_df(
             else:
                 question_table = pd.concat(question_composed_dfs)
 
-            # TODO: Uncomment this to get from the config JSON for each question
-            # the properties for sorting.
-            # This should be a function where all config are applied to the table
-            # like for example, adding the needed additional rows like total, average,
-            # percentage, std, st error, T2B, TB, B2B, BB, etc
-            # if ("TOTAL", "TOTAL", "(A)") in question_table.columns:
-            #     question_table = question_table.sort_values(
-            #         by=("TOTAL", "TOTAL", "(A)"), ascending=False
-            #     )
-            # Inside the next function should be handle that passing an additional
-            # parameter with the question options or config
-            question_table = create_view_type_df(question_table, view_type)
-
         else:
             continue
 
@@ -1006,7 +1190,7 @@ def build_statistical_significance_df(
         final_table = pd.concat(question_tables).dropna()
         final_table.index.names = ["Question", "Options"]
 
-    return final_table
+    return final_table  # .sort_index(level=0, axis=1)
 
 
 def create_html_table(df: pd.DataFrame, decimal_precision: int) -> str:

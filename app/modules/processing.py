@@ -26,11 +26,15 @@ letters_list = list(string.ascii_uppercase)
 @st.cache_data(show_spinner=False)
 def get_question_types():
     db = firestore.client()
-    document = db.collection("settings").document("survey_config").get()
+    question_types_ref = (
+        db.collection("settings").document("survey_config").collection("question_types")
+    )
 
-    if document.exists:
-        question_types = document.to_dict()["question_types"]
+    docs = question_types_ref.stream()
+    if docs:
+        question_types = [doc.to_dict() for doc in docs]
         return question_types
+    return []
 
 
 def extract_digits(cell):

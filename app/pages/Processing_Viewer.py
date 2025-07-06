@@ -147,7 +147,6 @@ def main():
                     selected_cross_questions,
                     selected_questions,
                     config,
-                    decimal_precision=decimal_precision,
                 )
 
                 html_table = create_html_table(df, decimal_precision)
@@ -172,10 +171,14 @@ def main():
             for group, questions in questions_by_group.items()
             for q in questions
         ]
+
         selected_questions = st.multiselect(
             "Attribute",
             all_questions,
         )
+        selected_questions = [
+            question for question in all_questions if question in selected_questions
+        ]
 
         # Initialize by_reference before columns so it can be used within column logic
         if "by_reference_checkbox" not in st.session_state:
@@ -251,7 +254,6 @@ def main():
                     selected_questions,
                     config,
                     questions_by_group=questions_by_group,
-                    decimal_precision=decimal_precision,
                     by_moment=True,
                     view_type=view_type,
                     show_question_text=show_question_text,
