@@ -1,6 +1,7 @@
 from typing import Literal
 import traceback
 import ast
+import re
 
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
@@ -12,6 +13,11 @@ import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
 from app.cloud import CloudStorageClient
+from app.modules.processing import (
+    letters_list,
+    significant_differences,
+    composite_columns,
+)
 from app.modules.utils import (
     get_countries,
     get_temp_file,
@@ -779,6 +785,27 @@ def get_related_question_codes(
     return result
 
 
+def concat_update(df1, df2):
+    """
+    Concatenate values from df1 and df2 at each cell (as strings), similar to update but concatenating.
+    """
+
+    def concat(x, y):
+        if x == "":
+            x = np.nan
+        if y == "":
+            y = np.nan
+        if pd.isna(x) and pd.isna(y):
+            return np.nan
+        return " ".join([str(val) for val in [x, y] if pd.notna(val)])
+
+    # Apply combine on each column
+    result = df1.copy()
+    for col in df1.columns.intersection(df2.columns):
+        result[col] = df1[col].combine(df2[col], concat)
+    return result
+
+
 def build_cross_contingency_table(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
@@ -786,7 +813,7 @@ def build_cross_contingency_table(
     cross_variables: list[str],
     question_code: str,
     selected_question: str,
-    view_type: Literal["Groupped", "Detailed"] = "Detailed",
+    view_type: Literal["Grouped", "Detailed"] = "Detailed",
     questions_by_group: dict[str, list[str]] | None = None,
 ) -> list[pd.DataFrame]:
     contingency_tables = []
@@ -796,6 +823,7 @@ def build_cross_contingency_table(
     ):
         transformed_variable = transform_variable(question_code, db, metadata_df)
         sub_contingency_tables = []
+        sub_contingency_tables_ss = []
         for j, sub_cross_question_code in enumerate(cross_question_code):
             transformed_cross_variable = transform_cross_variable(
                 sub_cross_question_code, cross_question_label, db, metadata_df
@@ -811,6 +839,12 @@ def build_cross_contingency_table(
                 * 100
             )
 
+            contingency_table_ss = pd.crosstab(
+                transformed_variable,
+                transformed_cross_variable,
+                margins=True if i == 0 and j == 0 else False,
+            )
+
             contingency_table = reorder_contingency_table(
                 question_code,
                 sub_cross_question_code,
@@ -818,12 +852,25 @@ def build_cross_contingency_table(
                 metadata_df,
             )
 
-            if view_type == "Groupped":
+            contingency_table_ss = reorder_contingency_table(
+                question_code,
+                sub_cross_question_code,
+                contingency_table_ss,
+                metadata_df,
+            )
+
+            if view_type == "Grouped":
                 contingency_table = create_grouped_df(
                     contingency_table,
                     questions_by_group,
                     selected_question,
                 )
+                contingency_table_ss = create_grouped_df(
+                    contingency_table_ss,
+                    questions_by_group,
+                    selected_question,
+                )
+
             else:
                 contingency_table = create_detailed_df(
                     selected_question,
@@ -834,10 +881,66 @@ def build_cross_contingency_table(
                     contingency_table,
                     questions_by_group,
                 )
+                contingency_table_ss = create_detailed_df(
+                    selected_question,
+                    db,
+                    metadata_df,
+                    question_code,
+                    sub_cross_question_code,
+                    contingency_table_ss,
+                    questions_by_group,
+                )
 
             sub_contingency_tables.append(contingency_table)
+            sub_contingency_tables_ss.append(contingency_table_ss)
 
-            contingency_table = pd.concat(sub_contingency_tables, axis=1)
+        contingency_table = pd.concat(sub_contingency_tables, axis=1)
+        contingency_table_ss = pd.concat(sub_contingency_tables_ss, axis=1)
+
+        index_mapping: dict = eval(metadata_df.loc[question_code]["values"])
+        index_mapping = {key: value.strip() for key, value in index_mapping.items()}
+
+        inner_df = (
+            contingency_table_ss.loc[
+                [
+                    index
+                    for index in contingency_table_ss.index
+                    if index in index_mapping.values()
+                ]
+            ].drop(columns="All")
+            if "All" in contingency_table_ss.columns
+            else contingency_table_ss
+        )
+
+        if questions_by_group:
+            if len(inner_df.columns) > len(letters_list):
+                letters_inner_dict = {
+                    column: letter
+                    for column, letter in zip(
+                        inner_df.columns,
+                        composite_columns(len(inner_df.columns)),
+                    )
+                }
+            else:
+                letters_inner_dict = {
+                    column: letter
+                    for column, letter in zip(
+                        inner_df.columns,
+                        letters_list[: len(inner_df.columns)],
+                    )
+                }
+
+            statistical_significance = significant_differences(
+                inner_df,
+                contingency_table_ss,
+                "Total",
+                letters_inner_dict,
+            )
+
+            contingency_table = concat_update(
+                contingency_table,
+                statistical_significance,
+            )
 
         # Generate the third level (A, B, C...)
         # Separate "All" column and assign letters to remaining columns
@@ -1062,7 +1165,7 @@ def create_detailed_df(
     return question_table
 
 
-@st.cache_data(show_spinner=False)
+# @st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
@@ -1071,7 +1174,7 @@ def build_statistical_significance_df(
     config: dict,
     questions_by_group: dict[str, list[str]] | None = None,
     by_moment: bool = False,
-    view_type: Literal["Groupped", "Detailed"] = "Detailed",
+    view_type: Literal["Grouped", "Detailed"] = "Detailed",
     show_question_text: bool = False,
 ) -> pd.DataFrame:
     parsed_questions = parse_question_codes(db.columns, metadata_df)
@@ -1191,20 +1294,69 @@ def build_statistical_significance_df(
         final_table = pd.concat(question_tables).dropna()
         final_table.index.names = ["Question", "Options"]
 
-    return final_table  # .sort_index(level=0, axis=1)
+    return final_table
+
+
+def format_mixed_cell(x, decimal_precision: int):
+    # Only try to match if x is a string
+    if isinstance(x, str):
+        match = re.match(r"^\s*([+-]?\d+(?:\.\d+)?)\s+(.+)$", x)
+        if match:
+            num, s = match.groups()
+            num = round(float(num), decimal_precision)
+            if decimal_precision == 0 or num % 1 == 0:
+                num_str = "{:d}".format(int(num))
+            else:
+                num_str = f"{num:,.{decimal_precision}f}"
+            s = f"<span style='color: #ff4d4d; background: #fff0f0; border-radius: 3px; padding: 1px 3px'>{s}</span>"
+            return f"{num_str} {s}"
+        else:
+            try:
+                num = float(x)
+            except Exception:
+                return x
+            num = round(num, decimal_precision)
+            if decimal_precision == 0 or num % 1 == 0:
+                return "{:d}".format(int(num))
+            else:
+                return f"{num:,.{decimal_precision}f}"
+    elif isinstance(x, (int, float)):
+        num = round(float(x), decimal_precision)
+        if decimal_precision == 0 or num % 1 == 0:
+            return "{:d}".format(int(num))
+        else:
+            return f"{num:,.{decimal_precision}f}"
+    else:
+        return x
 
 
 def create_html_table(df: pd.DataFrame, decimal_precision: int) -> str:
-    return (
-        df.style.format(
-            lambda x: (
-                "{:,.{}f}".format(x, decimal_precision)
-                if isinstance(x, (float, int)) and x % 1 != 0
-                else "{:d}".format(int(x))
-                if isinstance(x, (float, int))
-                else x
-            )
+    nlevels = df.columns.nlevels
+    row_height = 38  # px
+    sticky_css = ""
+    # Sticky column header CSS (as before)
+    for i in range(nlevels + 3):
+        top = i * row_height
+        # Increase z-index with each header row to avoid overlap
+        z_index = 10 + nlevels - i
+        sticky_css += (
+            f"thead tr:nth-child({i + 1}) th {{"
+            f"position: sticky; top: {top}px; background: #222; color: #fff; z-index: {z_index}; border-bottom: 1px solid #888; border-top: 1px solid #888;"
+            f"}}"
         )
+
+    css = (
+        "<style>"
+        ".sticky-table-container {max-height: 600px; overflow-y: auto; width: 100%; border: 1px solid #ccc;}"
+        "table {border-collapse: separate; border-spacing: 0; width: 100%;}"
+        "th { height: 38px; min-height: 38px; max-height: 38px; padding: 8px 4px; background: #222; color: #fff; box-sizing: border-box; margin: 0; }"
+        "tr { margin: 0; }"
+        f"{sticky_css}"
+        "</style>"
+    )
+    html_table = (
+        df.style.format(lambda x: format_mixed_cell(x, decimal_precision))
         .set_table_styles(table_styles)
         .to_html(escape=False, border=5)
     )
+    return f"{css}<div class='sticky-table-container'>{html_table}</div>"

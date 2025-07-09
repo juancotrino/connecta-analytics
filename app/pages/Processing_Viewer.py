@@ -236,9 +236,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col3:
-            view_type = st.radio(
-                "View type", ["Groupped", "Detailed"], horizontal=False
-            )
+            view_type = st.radio("View type", ["Grouped", "Detailed"], horizontal=False)
 
         with col4:
             decimal_precision = st.number_input(
