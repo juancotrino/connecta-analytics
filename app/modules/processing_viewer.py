@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Callable
 import traceback
 import ast
 import re
@@ -14,14 +14,9 @@ from streamlit.delta_generator import DeltaGenerator
 
 from app.cloud import CloudStorageClient
 from app.modules.processing import (
-    letters_list,
     significant_differences,
-    composite_columns,
 )
-from app.modules.utils import (
-    get_countries,
-    get_temp_file,
-)
+from app.modules.utils import get_countries, get_temp_file, column_letters, roman
 
 cs_client = CloudStorageClient("connecta-app-1-service-processing")
 
@@ -33,6 +28,15 @@ table_styles = [
     dict(selector="td", props="font-size: 1.0em; text-align: right"),
     dict(selector="tr:hover", props="background-color: #666666"),
 ]
+
+stats_template = {
+    "Mean": None,
+    "Standard Deviation": None,
+    "Standard Error": None,
+    "Total": None,
+    "Total Answers": None,
+    "%": None,
+}
 
 
 @st.cache_data(show_spinner=False)
@@ -785,7 +789,7 @@ def get_related_question_codes(
     return result
 
 
-def concat_update(df1, df2):
+def concat_update(base_df: pd.DataFrame, appended_df: pd.DataFrame) -> pd.DataFrame:
     """
     Concatenate values from df1 and df2 at each cell (as strings), similar to update but concatenating.
     """
@@ -800,9 +804,11 @@ def concat_update(df1, df2):
         return " ".join([str(val) for val in [x, y] if pd.notna(val)])
 
     # Apply combine on each column
-    result = df1.copy()
-    for col in df1.columns.intersection(df2.columns):
-        result[col] = df1[col].combine(df2[col], concat)
+    result = base_df.copy()
+
+    for col in result.columns.intersection(appended_df.columns):
+        result[col] = result[col].combine(appended_df[col], concat)
+
     return result
 
 
@@ -815,155 +821,73 @@ def build_cross_contingency_table(
     selected_question: str,
     view_type: Literal["Grouped", "Detailed"] = "Detailed",
     questions_by_group: dict[str, list[str]] | None = None,
-) -> list[pd.DataFrame]:
-    contingency_tables = []
+) -> pd.DataFrame:
+    contingency_tables_count = []
 
     for i, (cross_question_code, cross_question_label) in enumerate(
         zip(cross_questions_codes, cross_variables)
     ):
         transformed_variable = transform_variable(question_code, db, metadata_df)
-        sub_contingency_tables = []
-        sub_contingency_tables_ss = []
+        sub_contingency_tables_count = []
         for j, sub_cross_question_code in enumerate(cross_question_code):
             transformed_cross_variable = transform_cross_variable(
                 sub_cross_question_code, cross_question_label, db, metadata_df
             )
 
-            contingency_table = (
-                pd.crosstab(
-                    transformed_variable,
-                    transformed_cross_variable,
-                    margins=True if i == 0 and j == 0 else False,
-                    normalize="columns",
-                )
-                * 100
-            )
-
-            contingency_table_ss = pd.crosstab(
+            contingency_table_count = pd.crosstab(
                 transformed_variable,
                 transformed_cross_variable,
                 margins=True if i == 0 and j == 0 else False,
             )
 
-            contingency_table = reorder_contingency_table(
+            contingency_table_count = reorder_contingency_table(
                 question_code,
                 sub_cross_question_code,
-                contingency_table,
-                metadata_df,
-            )
-
-            contingency_table_ss = reorder_contingency_table(
-                question_code,
-                sub_cross_question_code,
-                contingency_table_ss,
+                contingency_table_count,
                 metadata_df,
             )
 
             if view_type == "Grouped":
-                contingency_table = create_grouped_df(
-                    contingency_table,
+                contingency_table_count = create_grouped_df(
+                    contingency_table_count,
                     questions_by_group,
                     selected_question,
+                    db,
+                    metadata_df,
+                    question_code,
+                    sub_cross_question_code,
                 )
-                contingency_table_ss = create_grouped_df(
-                    contingency_table_ss,
-                    questions_by_group,
-                    selected_question,
-                )
-
             else:
-                contingency_table = create_detailed_df(
+                contingency_table_count = create_detailed_df(
                     selected_question,
                     db,
                     metadata_df,
                     question_code,
                     sub_cross_question_code,
-                    contingency_table,
-                    questions_by_group,
-                )
-                contingency_table_ss = create_detailed_df(
-                    selected_question,
-                    db,
-                    metadata_df,
-                    question_code,
-                    sub_cross_question_code,
-                    contingency_table_ss,
+                    contingency_table_count,
                     questions_by_group,
                 )
 
-            sub_contingency_tables.append(contingency_table)
-            sub_contingency_tables_ss.append(contingency_table_ss)
+            sub_contingency_tables_count.append(contingency_table_count)
 
-        contingency_table = pd.concat(sub_contingency_tables, axis=1)
-        contingency_table_ss = pd.concat(sub_contingency_tables_ss, axis=1)
+        contingency_table_count = pd.concat(sub_contingency_tables_count, axis=1)
 
         index_mapping: dict = eval(metadata_df.loc[question_code]["values"])
         index_mapping = {key: value.strip() for key, value in index_mapping.items()}
 
-        inner_df = (
-            contingency_table_ss.loc[
-                [
-                    index
-                    for index in contingency_table_ss.index
-                    if index in index_mapping.values()
-                ]
-            ].drop(columns="All")
-            if "All" in contingency_table_ss.columns
-            else contingency_table_ss
-        )
-
-        if questions_by_group:
-            if len(inner_df.columns) > len(letters_list):
-                letters_inner_dict = {
-                    column: letter
-                    for column, letter in zip(
-                        inner_df.columns,
-                        composite_columns(len(inner_df.columns)),
-                    )
-                }
-            else:
-                letters_inner_dict = {
-                    column: letter
-                    for column, letter in zip(
-                        inner_df.columns,
-                        letters_list[: len(inner_df.columns)],
-                    )
-                }
-
-            statistical_significance = significant_differences(
-                inner_df,
-                contingency_table_ss,
-                "Total",
-                letters_inner_dict,
-            )
-
-            contingency_table = concat_update(
-                contingency_table,
-                statistical_significance,
-            )
-
-        # Generate the third level (A, B, C...)
-        # Separate "All" column and assign letters to remaining columns
         new_column_tuples = []
 
-        # Count non-"All" columns to generate appropriate letters
-        non_all_columns = [col for col in contingency_table.columns if col != "All"]
-        letters = [chr(65 + i) for i in range(len(non_all_columns))]
-
-        for j, col_name in enumerate(contingency_table.columns):
+        for j, col_name in enumerate(contingency_table_count.columns):
             if col_name == "All":
-                new_column_tuples.append(("TOTAL", "TOTAL", "(A)"))
+                new_column_tuples.append(("TOTAL", "TOTAL"))
             else:
-                # Find the index of this column in the non-"All" columns list
-                non_all_index = non_all_columns.index(col_name)
-                new_column_tuples.append(
-                    (cross_question_label, col_name, f"({letters[non_all_index]})")
-                )
+                new_column_tuples.append((cross_question_label, col_name))
 
-        contingency_table.columns = pd.MultiIndex.from_tuples(new_column_tuples)
-        contingency_tables.append(contingency_table)
+        contingency_table_count.columns = pd.MultiIndex.from_tuples(new_column_tuples)
 
-    return contingency_tables
+        contingency_tables_count.append(contingency_table_count)
+
+    return contingency_tables_count
 
 
 def create_scale_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
@@ -1003,7 +927,13 @@ def create_jr_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
 
 
 def create_grouped_df(
-    question_table: pd.DataFrame, questions_by_group: dict, selected_question: str
+    question_table: pd.DataFrame,
+    questions_by_group: dict,
+    selected_question: str,
+    db: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    question_code: str,
+    sub_cross_question_code: str,
 ) -> pd.DataFrame:
     if questions_by_group:
         group, label = selected_question.split(" | ")
@@ -1034,6 +964,15 @@ def create_grouped_df(
                     collapsed_table = question_table
                 case _:
                     collapsed_table = question_table
+
+            collapsed_table = append_summary_rows(
+                db,
+                metadata_df,
+                question_code,
+                sub_cross_question_code,
+                collapsed_table,
+                question_type_config,
+            )
 
     else:
         collapsed_table = question_table
@@ -1072,6 +1011,7 @@ def append_summary_rows(
             filtered_db = db[db[sub_cross_question_code] == value_code].reset_index(
                 drop=True
             )
+
         question_responses = (
             filtered_db[question_code]
             .fillna("0")
@@ -1080,16 +1020,19 @@ def append_summary_rows(
             .str[0]
             .astype(int)
         )
-        # Calculate summary statistics
-        stats_values = {
-            "Mean": question_responses.mean(),
-            "Standard Deviation": question_responses.std(),
-            "Standard Error": question_responses.std()
-            / np.sqrt(question_responses.count()),
-            "Total": question_responses.count(),
-            "Total Answers": question_responses.count(),
-            "%": (question_responses.count() / question_responses.count()) * 100,
-        }
+
+        stats_values = stats_template.copy()
+        stats_values.update(
+            {
+                "Mean": question_responses.mean(),
+                "Standard Deviation": question_responses.std(),
+                "Standard Error": question_responses.std()
+                / np.sqrt(question_responses.count()),
+                "Total": question_responses.count(),
+                "Total Answers": question_responses.count(),
+                "%": (question_responses.count() / question_responses.count()) * 100,
+            }
+        )
 
         for stat_label in stats_labels:
             stats_df.loc[stat_label, value] = stats_values[stat_label]
@@ -1165,7 +1108,211 @@ def create_detailed_df(
     return question_table
 
 
-@st.cache_data(show_spinner=False)
+def reorder_header_levels(df: pd.DataFrame, levels_order: list[int]):
+    df = df.copy()
+    # Move visit to last level
+    df.columns = df.columns.reorder_levels(levels_order)
+
+    # Extract original order of first two levels from the reordered columns
+    first_two_levels = [col[:2] for col in df.columns]
+    seen = set()
+    ordered_pairs = []
+    for pair in first_two_levels:
+        if pair not in seen:
+            ordered_pairs.append(pair)
+            seen.add(pair)
+
+    # Build new column order
+    new_column_order = []
+    for pair in ordered_pairs:
+        visits = [col for col in df.columns if col[:2] == pair]
+        new_column_order.extend(visits)
+    df = df.loc[:, new_column_order]
+
+    return df
+
+
+def get_percentage_df(df: pd.DataFrame):
+    df = df.copy()
+    is_stat = df.index.get_level_values(-1).isin(stats_template.keys())
+    non_stat_rows = ~is_stat
+
+    # Get the "Total" row for each column
+    total_answers = df.xs("Total", level=-1)
+
+    # Ensure non-stat rows are float before division
+    df.loc[non_stat_rows, :] = df.loc[non_stat_rows, :].astype(float)
+
+    # Divide all non-stat rows at once
+    df.loc[non_stat_rows, :] = (df.loc[non_stat_rows, :] / total_answers) * 100
+
+    # Round and fill NaNs with 0 for display
+    df.loc[non_stat_rows, :] = df.loc[non_stat_rows, :].fillna(0)
+
+    return df
+
+
+def remove_stats(df: pd.DataFrame):
+    stat_labels = list(stats_template.keys())
+    idx = df.index
+    if isinstance(idx, pd.MultiIndex) and idx.nlevels > 1:
+        # MultiIndex: drop from last level
+        return df.drop(index=stat_labels, level=-1)
+    else:
+        # Single-level Index: drop by label
+        return df.drop(index=[label for label in stat_labels if label in idx])
+
+
+def iterate_statistical_groups(df: pd.DataFrame):
+    col_idx = df.columns
+    group_keys = col_idx.droplevel(-1).unique()
+    for group_key in group_keys:
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+        columns_for_group = df.loc[:, pd.IndexSlice[group_key + (slice(None),)]]
+        yield group_key, columns_for_group
+
+
+def iterate_index_groups(df: pd.DataFrame):
+    idx = df.index
+    if idx.nlevels < 2:
+        yield None, df
+        return
+    group_keys = idx.droplevel(-1).unique()
+    for group_key in group_keys:
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+        idxer = pd.IndexSlice[group_key + (slice(None),)]
+        group_df = df.loc[idxer, :]
+        yield group_key, group_df  # No droplevel here!
+
+
+def add_letter_level(group_df: pd.DataFrame) -> pd.DataFrame:
+    n_cols = group_df.shape[1]
+    # Generate Excel-style letters
+    excel_letters = [f"({column_letters(i + 1)})" for i in range(n_cols)]
+    # Add as a new last column level
+    new_columns = pd.MultiIndex.from_tuples(
+        [col + (letter,) for col, letter in zip(group_df.columns, excel_letters)],
+        names=list(group_df.columns.names) + [None],
+    )
+    group_df.columns = new_columns
+    return group_df
+
+
+def add_letter_level_per_group(df: pd.DataFrame, group_levels=None):
+    if not isinstance(df.columns, pd.MultiIndex):
+        return add_letter_level(df)
+    if group_levels is None:
+        group_levels = df.columns.names[:-1]  # all except last
+
+    # Build new columns with letters per group
+    new_columns = []
+    for group_key in df.columns.droplevel(-1).unique():
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+        cols = df.loc[:, pd.IndexSlice[group_key + (slice(None),)]].columns
+        n_cols = len(cols)
+        letters = [f"({column_letters(i + 1)})" for i in range(n_cols)]
+        for col, letter in zip(cols, letters):
+            new_columns.append(col + (letter,))
+    # Set new MultiIndex
+    df.columns = pd.MultiIndex.from_tuples(
+        new_columns, names=list(df.columns.names) + [None]
+    )
+    return df
+
+
+def drop_column_levels(df: pd.DataFrame) -> pd.DataFrame:
+    # drop levels of the columns
+    if isinstance(df.columns, pd.MultiIndex) and df.columns.nlevels > 1:
+        # Keep only the last level
+        levels_to_drop = list(range(df.columns.nlevels - 1))
+        df.columns = df.columns.droplevel(levels_to_drop)
+    return df
+
+
+def compose_statistical_significance_df(
+    col_group_df: pd.DataFrame,
+    inner_df: pd.DataFrame,
+    idx_group_key: tuple,
+    col_identifier_func: Callable,
+):
+    # create a letters_inner_dict where the key is the value of the last level of the header and the letter is the value
+    col_identifiers = [
+        col_identifier_func(i + 1) for i in range(len(col_group_df.columns))
+    ]
+
+    # dictionary where the keys should be the every multiindex column name and the value should be the letter
+    col_identifiers_inner_dict = {
+        col_group_df.columns.to_list()[i]: col_identifiers[i]
+        for i in range(len(col_group_df.columns))
+    }
+
+    statistical_significance = significant_differences(
+        inner_df,
+        col_group_df,
+        tuple(list(idx_group_key) + ["Total"]),
+        col_identifiers_inner_dict,
+    )
+
+    return statistical_significance
+
+
+def get_inner_statistical_significance(
+    df_percentage: pd.DataFrame,
+    idx_group_df: pd.DataFrame,
+    idx_group_key: tuple,
+    col_identifier_func: Callable,
+    levels_order: list[int] = None,
+):
+    # df_percentage_updated = df_percentage.copy()
+    for col_group_key, col_group_df in iterate_statistical_groups(idx_group_df):
+        inner_df = remove_stats(col_group_df)
+        statistical_significance = compose_statistical_significance_df(
+            col_group_df, inner_df, idx_group_key, col_identifier_func
+        )
+        if levels_order:
+            statistical_significance = reorder_header_levels(
+                statistical_significance, levels_order
+            )
+        percentage_inner_df = df_percentage.loc[inner_df.index]
+
+        contingency_table_percentage = concat_update(
+            percentage_inner_df,
+            statistical_significance,
+        )
+
+        df_percentage.update(contingency_table_percentage)
+
+    return df_percentage
+
+
+def concatenate_statistical_significance(
+    df_count: pd.DataFrame,
+    df_percentage: pd.DataFrame,
+) -> pd.DataFrame:
+    df_count_moment = reorder_header_levels(df_count, [1, 2, 0])
+
+    for (idx_group_key, idx_group_df), (
+        idx_group_key_moment,
+        idx_group_df_moment,
+    ) in zip(iterate_index_groups(df_count), iterate_index_groups(df_count_moment)):
+        df_percentage = get_inner_statistical_significance(
+            df_percentage,
+            idx_group_df,
+            idx_group_key,
+            column_letters,
+        )
+
+        df_percentage = get_inner_statistical_significance(
+            df_percentage, idx_group_df_moment, idx_group_key_moment, roman, [2, 0, 1]
+        )
+
+    return df_percentage
+
+
+# @st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
@@ -1200,15 +1347,18 @@ def build_statistical_significance_df(
             selected_questions, parsed_questions
         )
 
-    question_tables = []
+    question_tables_count = []
 
     for selected_question, (question_label, question_codes) in zip(
         selected_questions, selected_questions_codes.items()
     ):
-        question_composed_dfs = []
+        question_composed_count_dfs = []
+
+        question_count_with_visit = []
+
         for question_code in question_codes:
             try:
-                contingency_tables_cross = build_cross_contingency_table(
+                contingency_tables_count = build_cross_contingency_table(
                     db,
                     metadata_df,
                     cross_questions_codes,
@@ -1219,51 +1369,54 @@ def build_statistical_significance_df(
                     questions_by_group,
                 )
 
-                question_composed_df = pd.concat(contingency_tables_cross, axis=1)
+                question_composed_count_df = pd.concat(contingency_tables_count, axis=1)
 
                 # Add question label as the first level of the index
-                question_composed_df.index = pd.MultiIndex.from_product(
-                    [[question_label], question_composed_df.index]
+                question_composed_count_df.index = pd.MultiIndex.from_product(
+                    [[question_label], question_composed_count_df.index]
                 )
 
-                question_composed_dfs.append(question_composed_df)
+                question_composed_count_dfs.append(question_composed_count_df)
 
             except Exception:
                 st.error(f"An error occurred processing question `{question_label}`")
                 st.error(f"```\n{traceback.format_exc()}\n```")
                 continue
 
-        if question_composed_dfs:
+        if question_composed_count_dfs:
             if by_moment:
                 # Before concatenation, add the visit as a new level to each DataFrame's columns
-                dfs_with_visit = []
-                for question_code, df in zip(question_codes, question_composed_dfs):
+                question_count_with_visit = []
+                for question_code, df_count in zip(
+                    question_codes,
+                    question_composed_count_dfs,
+                ):
                     visit = question_code.split("_")[1]  # e.g., 'V1'
-                    if isinstance(df.columns, pd.MultiIndex):
+                    if isinstance(df_count.columns, pd.MultiIndex):
                         new_columns = pd.MultiIndex.from_tuples(
-                            [(visit, *col) for col in df.columns]
+                            [(visit, *col) for col in df_count.columns]
                         )
                     else:
                         new_columns = pd.MultiIndex.from_tuples(
-                            [(visit, col) for col in df.columns]
+                            [(visit, col) for col in df_count.columns]
                         )
-                    df.columns = new_columns
-                    df = df.drop(columns=[(visit, "TOTAL", "TOTAL", "(A)")])
+                    df_count.columns = new_columns
+                    df_count = df_count.drop(columns=[(visit, "TOTAL", "TOTAL")])
 
-                    dfs_with_visit.append(df)
+                    question_count_with_visit.append(df_count)
 
-                question_table = pd.concat(dfs_with_visit, axis=1)
+                question_table_count = pd.concat(question_count_with_visit, axis=1)
 
             else:
-                question_table = pd.concat(question_composed_dfs)
+                question_table_count = pd.concat(question_composed_count_dfs)
 
         else:
             continue
 
-        question_tables.append(question_table)
+        question_tables_count.append(question_table_count)
 
     if questions_by_group:
-        final_table = pd.concat(question_tables).fillna(0)
+        final_table_count = pd.concat(question_tables_count).fillna(0)
         # Create three-level multiindex
         new_index = []
         current = 0
@@ -1271,13 +1424,13 @@ def build_statistical_significance_df(
             # Count how many rows this question has
             count = sum(
                 1
-                for i in range(current, len(final_table.index))
-                if final_table.index[current][0] == final_table.index[i][0]
+                for i in range(current, len(final_table_count.index))
+                if final_table_count.index[current][0] == final_table_count.index[i][0]
             )
 
             for i in range(count):
-                first_level = final_table.index[current + i][0]
-                second_level = final_table.index[current + i][1]
+                first_level = final_table_count.index[current + i][0]
+                second_level = final_table_count.index[current + i][1]
                 group, question = selected_question.split(" | ")
 
                 composed_label = (
@@ -1287,14 +1440,28 @@ def build_statistical_significance_df(
                 new_index.append((group, composed_label, second_level))
             current += count
 
-        final_table.index = pd.MultiIndex.from_tuples(new_index)
+        final_table_count.index = pd.MultiIndex.from_tuples(new_index)
 
-        final_table.index.names = ["Group", "Question", "Options"]
+        final_table_count.index.names = ["Group", "Question", "Options"]
+
     else:
-        final_table = pd.concat(question_tables).dropna()
-        final_table.index.names = ["Question", "Options"]
+        final_table_count = pd.concat(question_tables_count).dropna()
+        final_table_count.index.names = ["Question", "Options"]
 
-    return final_table
+    final_table_percentage = get_percentage_df(final_table_count)
+
+    concatenate_statistical_significance(
+        final_table_count,
+        final_table_percentage,
+    )
+
+    if view_type == "Grouped":
+        # Drop all rows that are stats in the last level of the index
+        final_table_percentage = remove_stats(final_table_percentage)
+
+    final_table_percentage = add_letter_level_per_group(final_table_percentage)
+
+    return final_table_percentage
 
 
 def format_mixed_cell(x, decimal_precision: int):
@@ -1308,7 +1475,31 @@ def format_mixed_cell(x, decimal_precision: int):
                 num_str = "{:d}".format(int(num))
             else:
                 num_str = f"{num:,.{decimal_precision}f}"
-            s = f"<span style='color: #ff4d4d; background: #fff0f0; border-radius: 3px; padding: 1px 3px'>{s}</span>"
+
+            # Tokenize by spaces and classify
+            tokens = s.split()
+            letters = []
+            romans = []
+            for token in tokens:
+                # Remove commas for classification, but keep for display
+                token_clean = token.replace(",", "")
+                if re.fullmatch(r"[IVXLCDM]+", token_clean):
+                    romans.append(token)
+                elif re.fullmatch(r"[A-Za-z,]+", token):
+                    letters.append(token)
+                else:
+                    letters.append(token)  # fallback
+
+            out = []
+            if letters:
+                out.append(
+                    f"<span style='color: #ff4d4d; background: #fff0f0; border-radius: 3px; padding: 1px 3px'>{' '.join(letters)}</span>"
+                )
+            if romans:
+                out.append(
+                    f"<span style='color: #2563eb; background: #e0f2ff; border-radius: 3px; padding: 1px 3px'>{' '.join(romans)}</span>"
+                )
+            s = " ".join(out)
             return f"{num_str} {s}"
         else:
             try:
