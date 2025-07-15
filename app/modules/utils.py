@@ -283,3 +283,37 @@ def get_inverted_scales_keywords():
         return document.to_dict()["inverted_scales"]
     else:
         return {"keywords": []}
+
+
+def column_letters(n):
+    letters = []
+    while n > 0:
+        n, remainder = divmod(n - 1, 26)
+        letters.append(chr(65 + remainder))
+    return "".join(reversed(letters))
+
+
+L = [
+    (1000, "M"),
+    (900, "CM"),
+    (500, "D"),
+    (400, "CD"),
+    (100, "C"),
+    (90, "XC"),
+    (50, "L"),
+    (40, "XL"),
+    (10, "X"),
+    (9, "IX"),
+    (5, "V"),
+    (4, "IV"),
+    (1, "I"),
+]
+
+
+def roman(num):
+    if num == 0:  # Base case: when we reach zero, return empty string
+        return ""
+    # Recursive step: iterate over values and their characters
+    for v, n in L:
+        if num >= v:  # If their difference is positive, we recurse
+            return n + roman(num - v)  # We append the result to the numeral
