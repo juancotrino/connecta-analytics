@@ -7,6 +7,10 @@ import streamlit as st
 from app.modules.help import help_segment_spss
 from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata, create_zip, upload_to_gcs, delete_gcs
 from app.modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
+from app.modules.processor import getVarsForPlantilla
+from app.modules.utils import try_download
+
+
 
 
 def main():
@@ -45,6 +49,7 @@ def main():
 
             with st.expander("Help"):
                 st.markdown(help_segment_spss)
+                get_data_button=st.form_submit_button("Get Data from SAV file")
 
             config = {
                 'scenario_name': st.column_config.TextColumn('Scenario Name', width='small', required=True),
@@ -95,6 +100,19 @@ def main():
                             st.error(e)
             elif not uploaded_file and process:
                 st.error('Missing SAV file')
+        if(get_data_button and uploaded_file):
+            results_plantilla = getVarsForPlantilla(
+                                uploaded_file
+                            )[1]
+        try:
+            try_download(
+                "Download Stadistics Plantilla",
+                results_plantilla,
+                "stadistics_plantilla" + uploaded_file.name,
+                "xlsx",
+            )
+        except Exception:
+            pass
 
     if st.session_state['gcs_path']:
 
