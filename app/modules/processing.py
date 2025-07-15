@@ -261,7 +261,7 @@ def apply_red_and_blue_color_to_letter(cell):
         rich_text_cell = CellRichText()
         rich_text_cell.append(f"{num}")
         for letter in elements:
-            if ("I" in letter or "V" in letter) and not "," in letter:
+            if ("l" in letter or "V" in letter) and ("," not in letter):
                 if "-" in letter:
                     romans=letter.split("-")
                     for roman in romans:
@@ -752,10 +752,19 @@ def processing(xlsx_file: BytesIO):
             for question, (start, end) in zip(questions, tables_range_indexes):
                 question_df = data.loc[start:end, :]
 
-                # Finding the index of the first occurrence
-                first_occurrence_index = question_df[
+                # # Finding the index of the first occurrence
+                # first_occurrence_index = question_df[
+                #     question_df["grouped_variable"].str.contains("Total", na=False)
+                # ].index[0]
+
+                total_rows = question_df[
                     question_df["grouped_variable"].str.contains("Total", na=False)
-                ].index[0]
+                ]
+
+                if total_rows.empty:
+                    continue
+
+                first_occurrence_index = total_rows.index[0]
 
                 grouped_variables = (
                     question_df.loc[: first_occurrence_index - 1]

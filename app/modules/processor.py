@@ -2172,7 +2172,7 @@ def entero_a_romano(num):
     valores = [
         (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
         (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
-        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")
+        (10, "X"), (9, "lX"), (5, "V"), (4, "lV"), (1, "l")
     ]
     resultado = ""
     for valor, simbolo in valores:
@@ -3406,12 +3406,18 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                         # Aquí haces tu comparación
                         if calculate_differences(x1, x2, n1, n2):
                             if (x1 / n1) > (x2 / n2):
-                                if "I" in str(ws_kpis.cell(row=fila_excel, column=col1).value):
+                                cell_val = str(ws_kpis.cell(row=fila_excel, column=col1).value).strip()
+                                last_word = cell_val.replace("\n", " ").split()[-1]
+
+                                if "l" in last_word:
                                     ws_kpis.cell(row=fila_excel, column=col1).value+="-"+entero_a_romano(columnas.index(col2)+1)
                                 else:
                                     ws_kpis.cell(row=fila_excel, column=col1).value+=" "+entero_a_romano(columnas.index(col2)+1)
                             else:
-                                if "I" in str(ws_kpis.cell(row=fila_excel, column=col2).value):
+                                cell_val = str(ws_kpis.cell(row=fila_excel, column=col2).value).strip()
+                                last_word = cell_val.replace("\n", " ").split()[-1]
+
+                                if "l" in last_word:
                                     ws_kpis.cell(row=fila_excel, column=col2).value+="-"+entero_a_romano(columnas.index(col1)+1)
                                 else:
                                     ws_kpis.cell(row=fila_excel, column=col2).value+=" "+entero_a_romano(columnas.index(col1)+1)
