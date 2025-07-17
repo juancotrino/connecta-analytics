@@ -160,25 +160,34 @@ def main():
                 st.error(f"Error rendering table: {str(e)}")
 
     with st.expander("Grids"):
-        questions_by_group = get_questions(
-            product_category,
-            product_subcategory,
-            sorted(question_groups, reverse=True),
-        )
-        # Flatten the questions list for the multiselect
-        all_questions = [
-            f"{group} | {q['label']}"
-            for group, questions in questions_by_group.items()
-            for q in questions
-        ]
+        col1, col2 = st.columns([0.4, 0.6])
 
-        selected_questions = st.multiselect(
-            "Attribute",
-            all_questions,
-        )
-        selected_questions = [
-            question for question in all_questions if question in selected_questions
-        ]
+        with col1:
+            question_groups = st.multiselect(
+                "Question group", sorted(question_groups, reverse=True)
+            )
+
+            questions_by_group = get_questions(
+                product_category,
+                product_subcategory,
+                sorted(question_groups, reverse=True),
+            )
+            # Flatten the questions list for the multiselect
+            all_questions = [
+                f"{group} | {q['label']}"
+                for group, questions in questions_by_group.items()
+                for q in questions
+            ]
+        with col2:
+            selected_questions = st.multiselect(
+                "Attribute",
+                all_questions,
+            )
+            selected_questions = [
+                question for question in all_questions if question in selected_questions
+            ]
+            if not selected_questions:
+                selected_questions = all_questions
 
         # Initialize by_reference before columns so it can be used within column logic
         if "by_reference_checkbox" not in st.session_state:
