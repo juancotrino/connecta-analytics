@@ -149,8 +149,7 @@ def get_group_ids(
 def get_questions(
     category_name: str | None = None,
     subcategory_name: str | None = None,
-    group_name: list[str] | None = None,
-    by: Literal["label", "code"] = "label",
+    groups_names: list[str] | None = None,
 ) -> dict[str, list[str]]:
     category_id = get_category_id(category_name)
     subcategory_id = get_subcategory_id(subcategory_name, category_id)
@@ -168,7 +167,7 @@ def get_questions(
         )
 
     # If no groups are selected, get all groups for this category/subcategory
-    if not group_name:
+    if not groups_names:
         groups_ref = (
             db.collection("settings").document("survey_config").collection("groups")
         )
@@ -183,7 +182,7 @@ def get_questions(
         group_docs = groups_ref.stream()
         group_ids = [doc.id for doc in group_docs]
     else:
-        group_ids = get_group_ids(group_name, category_id, subcategory_id)
+        group_ids = get_group_ids(groups_names, category_id, subcategory_id)
 
     if group_ids:
         questions_ref = questions_ref.where(
@@ -206,16 +205,10 @@ def get_questions(
             filter=FieldFilter("subcategory_id", "==", subcategory_id)
         )
 
-    all_groups = {doc.id: doc.to_dict()["name"] for doc in all_groups_ref.stream()}
-
+    all_groups = {doc.id: doc.to_dict() for doc in all_groups_ref.stream()}
+    all_groups = dict(sorted(all_groups.items(), key=lambda item: item[1]["order"]))
     # Create a mapping of group_id to its index in the sorted groups
-    group_order = {
-        group_id: idx
-        for idx, group_id in enumerate(
-            sorted(all_groups.keys(), key=lambda x: all_groups[x], reverse=True)
-        )
-    }
-
+    group_order = {group_id: idx for idx, group_id in enumerate(all_groups.keys())}
     # Sort questions by group order first, then by question order
     sorted_questions = sorted(
         questions,
@@ -229,10 +222,10 @@ def get_questions(
     grouped_questions = {}
     for question in sorted_questions:
         group_id = question.get("group_id", "")
-        group_name = all_groups.get(group_id, "Unknown")
-        if group_name not in grouped_questions:
-            grouped_questions[group_name] = []
-        grouped_questions[group_name].append(
+        groups_name = all_groups.get(group_id, "Unknown")["name"]
+        if groups_name not in grouped_questions:
+            grouped_questions[groups_name] = []
+        grouped_questions[groups_name].append(
             question
             # question.get("label", "")
             # {"label": question.get("label", ""), "code": question.get("code", "")}
@@ -334,9 +327,9 @@ def get_question_groups(category: str, subcategory: str) -> list[str]:
         .where(filter=FieldFilter("subcategory_id", "==", subcategory_id))
         .stream()
     )
-
-    # Collect and return the group names
-    group_names = [group_doc.to_dict().get("name") for group_doc in groups_query]
+    groups = [group_query.to_dict() for group_query in groups_query]
+    ordered_groups = sorted(groups, key=lambda x: x.get("order"))
+    group_names = [group_doc.get("name") for group_doc in ordered_groups]
     return group_names
 
 
@@ -548,11 +541,16 @@ def reorder_contingency_table(
     index_mapping = {key: value.strip() for key, value in index_mapping.items()}
 
     if len(index_mapping) == 1 and not next(iter(index_mapping.values())):
-        return reordered_df
+        reordered_df = (
+            reordered_df.drop(index="All")
+            if "All" in reordered_df.index
+            else reordered_df
+        )
+        return reordered_df.dropna(how="all")
 
     reordered_df = reordered_df.reindex(index_mapping.values())
 
-    return reordered_df
+    return reordered_df.dropna(how="all")
 
 
 def parse_question_codes(columns: pd.Index, metadata_df: pd.DataFrame):
@@ -623,6 +621,9 @@ def parse_question_codes(columns: pd.Index, metadata_df: pd.DataFrame):
                 temp_question_dict[base_code][visit] = []
 
             temp_question_dict[base_code][visit].append(col)
+
+        elif "BACKUP" in col:
+            temp_question_dict[col] = [col]
 
         # Handle other question types
         else:
@@ -821,7 +822,7 @@ def build_cross_contingency_table(
     selected_question: str,
     view_type: Literal["Grouped", "Detailed"] = "Detailed",
     questions_by_group: dict[str, list[str]] | None = None,
-) -> pd.DataFrame:
+) -> list[pd.DataFrame]:
     contingency_tables_count = []
 
     for i, (cross_question_code, cross_question_label) in enumerate(
@@ -935,47 +936,39 @@ def create_grouped_df(
     question_code: str,
     sub_cross_question_code: str,
 ) -> pd.DataFrame:
-    if questions_by_group:
-        group, label = selected_question.split(" | ")
-        group_questions = questions_by_group[group]
+    group, label = selected_question.split(" | ")
+    group_questions = questions_by_group[group]
 
-        question_config = list(
-            filter(lambda d: d.get("label") == label, group_questions)
+    question_config = list(filter(lambda d: d.get("label") == label, group_questions))
+
+    if question_config:
+        question_config = question_config[0]
+        question_type_config = get_question_type(question_config["question_type_id"])
+
+        match question_type_config["code"]:
+            case "E":
+                collapsed_table = create_scale_question_df(question_table)
+            case "N":
+                collapsed_table = question_table
+            case "J":
+                collapsed_table = create_jr_question_df(question_table)
+            case "U":
+                collapsed_table = question_table
+            case "M":
+                collapsed_table = question_table
+            case "A":
+                collapsed_table = question_table
+            case _:
+                collapsed_table = question_table
+
+        collapsed_table = append_summary_rows(
+            db,
+            metadata_df,
+            question_code,
+            sub_cross_question_code,
+            collapsed_table,
+            question_type_config,
         )
-
-        if question_config:
-            question_config = question_config[0]
-            question_type_config = get_question_type(
-                question_config["question_type_id"]
-            )
-
-            match question_type_config["code"]:
-                case "E":
-                    collapsed_table = create_scale_question_df(question_table)
-                case "N":
-                    collapsed_table = question_table
-                case "J":
-                    collapsed_table = create_jr_question_df(question_table)
-                case "U":
-                    collapsed_table = question_table
-                case "M":
-                    collapsed_table = question_table
-                case "A":
-                    collapsed_table = question_table
-                case _:
-                    collapsed_table = question_table
-
-            collapsed_table = append_summary_rows(
-                db,
-                metadata_df,
-                question_code,
-                sub_cross_question_code,
-                collapsed_table,
-                question_type_config,
-            )
-
-    else:
-        collapsed_table = question_table
 
     return collapsed_table
 
@@ -1017,7 +1010,7 @@ def append_summary_rows(
             .fillna("0")
             .astype(str)
             .str.strip()
-            .str[0]
+            .astype(float)
             .astype(int)
         )
 
@@ -1043,33 +1036,70 @@ def append_summary_rows(
 
 
 def sort_question_table(
-    question_table: pd.DataFrame, question_config: dict
+    question_table: pd.DataFrame, question_config: dict, question_type_config: dict
 ) -> pd.DataFrame:
+    stats_labels: list = question_type_config["properties"]
+
+    # Create boolean masks for filtering
+    is_stats = question_table.index.get_level_values(-1).isin(stats_labels)
+    is_not_stats = ~is_stats
+
+    # Get the index values for each group
+    stats_indices = question_table.index[is_stats]
+    options_indices = question_table.index[is_not_stats]
+
+    # Select the rows for each group
+    question_table_stats = question_table.loc[question_table.index.isin(stats_indices)]
+
+    reordered_rows = []
+
+    for first_level_value in question_table_stats.index.get_level_values(0).unique():
+        for label in stats_labels:
+            idx = (first_level_value, label)
+            if idx in question_table_stats.index:
+                reordered_rows.append(idx)
+
+    question_table_stats = question_table_stats.loc[reordered_rows]
+
+    question_table_options = question_table.loc[
+        question_table.index.isin(options_indices)
+    ]
+
     match question_config["sorted_by"]:
         case "options":
             match question_config["sort_order"]:
                 case "desc":
-                    return question_table.sort_index(level=-1, ascending=False)
+                    reordered_question_table_options = (
+                        question_table_options.sort_index(level=-1, ascending=False)
+                    )
                 case "asc":
-                    return question_table.sort_index(level=-1, ascending=True)
+                    reordered_question_table_options = (
+                        question_table_options.sort_index(level=-1, ascending=True)
+                    )
                 case "original":
-                    return question_table
+                    reordered_question_table_options = question_table_options
                 case _:
-                    return question_table
+                    reordered_question_table_options = question_table_options
         case "values":
             match question_config["sort_order"]:
                 case "desc":
-                    return question_table.sort_values(
-                        by=("TOTAL", "TOTAL", "(A)"), ascending=False
+                    reordered_question_table_options = (
+                        question_table_options.sort_values(
+                            by=[("V1", "TOTAL", "TOTAL")], ascending=False
+                        )
                     )
                 case "asc":
-                    return question_table.sort_values(
-                        by=("TOTAL", "TOTAL", "(A)"), ascending=True
+                    reordered_question_table_options = (
+                        question_table_options.sort_values(
+                            by=[("V1", "TOTAL", "TOTAL")], ascending=True
+                        )
                     )
                 case "original":
-                    return question_table
+                    reordered_question_table_options = question_table_options
                 case _:
-                    return question_table
+                    reordered_question_table_options = question_table_options
+
+    return pd.concat([reordered_question_table_options, question_table_stats])
 
 
 def create_detailed_df(
@@ -1079,31 +1109,26 @@ def create_detailed_df(
     question_code: str,
     sub_cross_question_code: str,
     question_table: pd.DataFrame,
-    questions_by_group: dict[str, list[str]] | None = None,
+    questions_by_group: dict[str, list[str]],
 ) -> pd.DataFrame:
-    if questions_by_group:
-        group, label = selected_question.split(" | ")
-        group_questions = questions_by_group[group]
+    group, label = selected_question.split(" | ")
+    group_questions = questions_by_group[group]
 
-        question_config = list(
-            filter(lambda d: d.get("label") == label, group_questions)
+    question_config = list(filter(lambda d: d.get("label") == label, group_questions))
+
+    if question_config:
+        question_config = question_config[0]
+        question_type_config = get_question_type(question_config["question_type_id"])
+
+        # question_table = sort_question_table(question_table, question_config)
+        question_table = append_summary_rows(
+            db,
+            metadata_df,
+            question_code,
+            sub_cross_question_code,
+            question_table,
+            question_type_config,
         )
-
-        if question_config:
-            question_config = question_config[0]
-            question_type_config = get_question_type(
-                question_config["question_type_id"]
-            )
-
-            question_table = sort_question_table(question_table, question_config)
-            question_table = append_summary_rows(
-                db,
-                metadata_df,
-                question_code,
-                sub_cross_question_code,
-                question_table,
-                question_type_config,
-            )
 
     return question_table
 
@@ -1157,7 +1182,10 @@ def remove_stats(df: pd.DataFrame):
     idx = df.index
     if isinstance(idx, pd.MultiIndex) and idx.nlevels > 1:
         # MultiIndex: drop from last level
-        return df.drop(index=stat_labels, level=-1)
+        return df.drop(
+            index=[label for label in stat_labels if label in idx.get_level_values(-1)],
+            level=-1,
+        )
     else:
         # Single-level Index: drop by label
         return df.drop(index=[label for label in stat_labels if label in idx])
@@ -1266,7 +1294,6 @@ def get_inner_statistical_significance(
     col_identifier_func: Callable,
     levels_order: list[int] = None,
 ):
-    # df_percentage_updated = df_percentage.copy()
     for col_group_key, col_group_df in iterate_statistical_groups(idx_group_df):
         inner_df = remove_stats(col_group_df)
         statistical_significance = compose_statistical_significance_df(
@@ -1319,33 +1346,23 @@ def build_statistical_significance_df(
     cross_variables: list[str],
     selected_questions: list[str],
     config: dict,
-    questions_by_group: dict[str, list[str]] | None = None,
-    by_moment: bool = False,
+    questions_by_group: dict[str, list[str]],
     view_type: Literal["Grouped", "Detailed"] = "Detailed",
     show_question_text: bool = False,
 ) -> pd.DataFrame:
     parsed_questions = parse_question_codes(db.columns, metadata_df)
 
-    if questions_by_group:
-        cross_questions_codes = get_cross_questions_codes(
-            cross_variables, config, parsed_questions, for_="grids"
-        ) + get_cross_questions_codes(
-            cross_variables, config, parsed_questions, for_="filters"
-        )
-        selected_questions_codes = get_question_codes(
-            selected_questions, questions_by_group
-        )
-        selected_questions_codes = get_related_question_codes(
-            selected_questions_codes, parsed_questions
-        )
-
-    else:
-        cross_questions_codes = get_cross_questions_codes(
-            cross_variables, config, parsed_questions, for_="filters"
-        )
-        selected_questions_codes = get_codes_by_labels(
-            selected_questions, parsed_questions
-        )
+    cross_questions_codes = get_cross_questions_codes(
+        cross_variables, config, parsed_questions, for_="grids"
+    ) + get_cross_questions_codes(
+        cross_variables, config, parsed_questions, for_="filters"
+    )
+    selected_questions_codes = get_question_codes(
+        selected_questions, questions_by_group
+    )
+    selected_questions_codes = get_related_question_codes(
+        selected_questions_codes, parsed_questions
+    )
 
     question_tables_count = []
 
@@ -1376,6 +1393,11 @@ def build_statistical_significance_df(
                     [[question_label], question_composed_count_df.index]
                 )
 
+                # convert the index to string
+                question_composed_count_df.index = question_composed_count_df.index.map(
+                    lambda x: tuple(str(i) for i in x)
+                )
+
                 question_composed_count_dfs.append(question_composed_count_df)
 
             except Exception:
@@ -1384,69 +1406,102 @@ def build_statistical_significance_df(
                 continue
 
         if question_composed_count_dfs:
-            if by_moment:
-                # Before concatenation, add the visit as a new level to each DataFrame's columns
-                question_count_with_visit = []
-                for question_code, df_count in zip(
-                    question_codes,
-                    question_composed_count_dfs,
-                ):
-                    visit = question_code.split("_")[1]  # e.g., 'V1'
-                    if isinstance(df_count.columns, pd.MultiIndex):
-                        new_columns = pd.MultiIndex.from_tuples(
-                            [(visit, *col) for col in df_count.columns]
+            # Before concatenation, add the visit as a new level to each DataFrame's columns
+            question_count_with_visit = []
+
+            for question_code, df_count in zip(
+                question_codes,
+                question_composed_count_dfs,
+            ):
+                question_code_parts = question_code.split("_")
+                if len(question_code_parts) == 1:
+                    visit = "V1"
+                else:
+                    visit = question_code_parts[1]  # e.g., 'V1'
+
+                if isinstance(df_count.columns, pd.MultiIndex):
+                    new_columns = pd.MultiIndex.from_tuples(
+                        [(visit, *col) for col in df_count.columns]
+                    )
+                else:
+                    new_columns = pd.MultiIndex.from_tuples(
+                        [(visit, col) for col in df_count.columns]
+                    )
+                df_count.columns = new_columns
+                question_count_with_visit.append(df_count)
+
+            question_table_count: pd.DataFrame = question_count_with_visit[0].copy()
+
+            if len(question_count_with_visit) > 1:
+                column_lists = [
+                    tuple(df.columns.tolist()) for df in question_count_with_visit
+                ]
+                all_columns_same = len(set(column_lists)) == 1
+
+                if not all_columns_same:
+                    for df in question_count_with_visit[1:]:
+                        question_table_count = question_table_count.merge(
+                            df, how="outer", left_index=True, right_index=True
                         )
-                    else:
-                        new_columns = pd.MultiIndex.from_tuples(
-                            [(visit, col) for col in df_count.columns]
-                        )
-                    df_count.columns = new_columns
-                    df_count = df_count.drop(columns=[(visit, "TOTAL", "TOTAL")])
-
-                    question_count_with_visit.append(df_count)
-
-                question_table_count = pd.concat(question_count_with_visit, axis=1)
-
+                else:
+                    for df in question_count_with_visit[1:]:
+                        question_table_count = question_table_count.combine_first(df)
             else:
-                question_table_count = pd.concat(question_composed_count_dfs)
-
+                question_table_count = pd.concat(question_count_with_visit, axis=1)
         else:
             continue
 
         question_tables_count.append(question_table_count)
 
-    if questions_by_group:
-        final_table_count = pd.concat(question_tables_count).fillna(0)
-        # Create three-level multiindex
-        new_index = []
-        current = 0
-        for selected_question in selected_questions:
-            # Count how many rows this question has
-            count = sum(
-                1
-                for i in range(current, len(final_table_count.index))
-                if final_table_count.index[current][0] == final_table_count.index[i][0]
-            )
+    final_tables = []
 
-            for i in range(count):
-                first_level = final_table_count.index[current + i][0]
-                second_level = final_table_count.index[current + i][1]
-                group, question = selected_question.split(" | ")
+    for selected_question, question_table_count in zip(
+        selected_questions, question_tables_count
+    ):
+        group, label = selected_question.split(" | ")
+        group_questions = questions_by_group[group]
+
+        question_config = list(
+            filter(lambda d: d.get("label") == label, group_questions)
+        )
+
+        if question_config:
+            question_config = question_config[0]
+            question_type_config = get_question_type(
+                question_config["question_type_id"]
+            )
+            question_table_count = sort_question_table(
+                question_table_count, question_config, question_type_config
+            )
+            if view_type == "Grouped":
+                question_table_count = question_table_count.drop(
+                    columns=[
+                        col
+                        for col in question_table_count.columns
+                        if col[1] == "TOTAL" and col[2] == "TOTAL"
+                    ]
+                )
+
+            # Create three-level multiindex
+            new_index = []
+
+            for i in range(len(question_table_count)):
+                first_level = question_table_count.index[i][0]
+                second_level = question_table_count.index[i][1]
 
                 composed_label = (
-                    f"{question} - {first_level}" if show_question_text else question
+                    f"{label} - {first_level}" if show_question_text else label
                 )
 
                 new_index.append((group, composed_label, second_level))
-            current += count
 
-        final_table_count.index = pd.MultiIndex.from_tuples(new_index)
+            question_table_count.index = pd.MultiIndex.from_tuples(new_index)
 
-        final_table_count.index.names = ["Group", "Question", "Options"]
+            final_tables.append(question_table_count)
 
-    else:
-        final_table_count = pd.concat(question_tables_count).dropna()
-        final_table_count.index.names = ["Question", "Options"]
+    final_table_count = pd.concat(final_tables).fillna(0)
+
+    final_table_count.index.names = ["Group", "Question", "Options"]
 
     final_table_percentage = get_percentage_df(final_table_count)
 
@@ -1480,15 +1535,24 @@ def format_mixed_cell(x, decimal_precision: int):
             tokens = s.split()
             letters = []
             romans = []
-            for token in tokens:
-                # Remove commas for classification, but keep for display
-                token_clean = token.replace(",", "")
-                if re.fullmatch(r"[IVXLCDM]+", token_clean):
-                    romans.append(token)
-                elif re.fullmatch(r"[A-Za-z,]+", token):
-                    letters.append(token)
+            if len(tokens) == 1:
+                token_clean = tokens[0].replace(",", "")
+                if re.fullmatch(r"[IVXL]+", token_clean):
+                    romans.append(tokens[0])
+                elif re.fullmatch(r"[A-Za-z,]+", tokens[0]):
+                    letters.append(tokens[0])
                 else:
-                    letters.append(token)  # fallback
+                    letters.append(tokens[0])  # fallback
+            else:
+                for i, token in enumerate(tokens):
+                    # Remove commas for classification, but keep for display
+                    token_clean = token.replace(",", "")
+                    if i == 0:
+                        if re.fullmatch(r"[A-Za-z,]+", token_clean):
+                            letters.append(token)
+                    else:
+                        if re.fullmatch(r"[IVXLCDM]+", token_clean):
+                            romans.append(token)
 
             out = []
             if letters:

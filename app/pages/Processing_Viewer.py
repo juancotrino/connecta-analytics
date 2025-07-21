@@ -15,7 +15,6 @@ from app.modules.processing_viewer import (
     filter_df,
     get_cross_questions,
     build_statistical_significance_df,
-    get_filter_questions,
     create_html_table,
 )
 from app.modules.utils import (
@@ -90,9 +89,10 @@ def main():
             )
             col.dataframe(metadata_df, use_container_width=True)
 
-        db = pd.concat(studies_dbs)
+        db = pd.concat(studies_dbs).reset_index(drop=True)
 
-        col.dataframe(db)
+        st.markdown("### Combined Database")
+        st.dataframe(db)
 
     st.markdown("### Database filter")
 
@@ -108,170 +108,115 @@ def main():
 
     st.markdown("### Statistical significance")
 
-    question_groups = get_question_groups(product_category, product_subcategory)
-    questions_by_group = get_questions(
-        product_category, product_subcategory, question_groups
-    )
+    col1, col2 = st.columns([0.4, 0.6])
 
-    with st.expander("Filters"):
-        col1, col2, col3 = st.columns([0.4, 0.45, 0.15])
+    with col1:
+        question_groups = st.multiselect(
+            "Question group", get_question_groups(product_category, product_subcategory)
+        )
 
-        with col1:
-            filter_questions = get_filter_questions(metadata_df)
-            selected_questions = st.multiselect(
-                "Attribute", filter_questions, key="filters_selected_questions"
+        questions_by_group = get_questions(
+            product_category, product_subcategory, question_groups
+        )
+
+        # Flatten the questions list for the multiselect
+        all_questions = [
+            f"{group} | {q['label']}"
+            for group, questions in questions_by_group.items()
+            for q in questions
+        ]
+
+    with col2:
+        selected_questions = st.multiselect(
+            "Attribute",
+            all_questions,
+        )
+        selected_questions = [
+            question for question in all_questions if question in selected_questions
+        ]
+        if not selected_questions:
+            selected_questions = all_questions
+
+    # Initialize by_reference before columns so it can be used within column logic
+    if "by_reference_checkbox" not in st.session_state:
+        st.session_state["by_reference_checkbox"] = False
+
+    by_reference = st.session_state["by_reference_checkbox"]
+
+    col1, col2, col3, col4 = st.columns([0.60, 0.15, 0.1, 0.15])
+
+    with col1:
+        # Initialize session state for cross questions if not exists
+        if "grids_selected_cross_questions" not in st.session_state:
+            st.session_state["grids_selected_cross_questions"] = []
+
+        if by_reference:
+            cross_questions = get_cross_questions(
+                config,
+                for_="grids",
             )
+            # When by_reference is True, show all cross questions as selected
+            st.multiselect(
+                "Cross questions",
+                st.session_state["grids_selected_cross_questions"],
+                default=st.session_state["grids_selected_cross_questions"],
+                disabled=True,
+            )
+            selected_cross_questions = cross_questions
+        else:
+            cross_questions = get_cross_questions(
+                config,
+                for_="filters",
+            )
+            # Initialize the key-based multiselect with preserved selections
+            if "grids_cross_questions_multiselect" not in st.session_state:
+                st.session_state["grids_cross_questions_multiselect"] = (
+                    st.session_state["grids_selected_cross_questions"]
+                )
 
-        with col2:
-            cross_questions = get_cross_questions(config, for_="filters")
             selected_cross_questions = st.multiselect(
                 "Cross questions",
                 cross_questions,
-                key="filters_selected_cross_questions",
+                key="grids_cross_questions_multiselect",
+            )
+            # Update session state with current selection
+            st.session_state["grids_selected_cross_questions"] = (
+                selected_cross_questions
             )
 
-        with col3:
-            decimal_precision = st.number_input(
-                "Decimal precision",
-                min_value=0,
-                max_value=4,
-                step=1,
-                key="filters_decimal_precision",
+    with col2:
+        st.markdown('<div class="checkbox-container">', unsafe_allow_html=True)
+        by_reference = st.checkbox("Cross by reference", key="by_reference_checkbox")
+        show_question_text = st.checkbox("Show question text")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col3:
+        view_type = st.radio("View type", ["Grouped", "Detailed"], horizontal=False)
+
+    with col4:
+        decimal_precision = st.number_input(
+            "Decimal precision", min_value=0, max_value=4, step=1
+        )
+
+    if question_groups and selected_questions and selected_cross_questions:
+        try:
+            df = build_statistical_significance_df(
+                db,
+                metadata_df,
+                selected_cross_questions,
+                selected_questions,
+                config,
+                questions_by_group,
+                view_type=view_type,
+                show_question_text=show_question_text,
             )
 
-        if selected_questions and selected_cross_questions:
-            try:
-                df = build_statistical_significance_df(
-                    db,
-                    metadata_df,
-                    selected_cross_questions,
-                    selected_questions,
-                    config,
-                )
+            html_table = create_html_table(df, decimal_precision)
 
-                html_table = create_html_table(df, decimal_precision)
-
-                st.markdown(
-                    '<div style="overflow-x: auto;">{}</div>'.format(html_table),
-                    unsafe_allow_html=True,
-                )
-
-            except Exception as e:
-                st.error(f"Error rendering table: {str(e)}")
-
-    with st.expander("Grids"):
-        col1, col2 = st.columns([0.4, 0.6])
-
-        with col1:
-            question_groups = st.multiselect(
-                "Question group", sorted(question_groups, reverse=True)
+            st.markdown(
+                '<div style="overflow-x: auto;">{}</div>'.format(html_table),
+                unsafe_allow_html=True,
             )
 
-            questions_by_group = get_questions(
-                product_category,
-                product_subcategory,
-                sorted(question_groups, reverse=True),
-            )
-            # Flatten the questions list for the multiselect
-            all_questions = [
-                f"{group} | {q['label']}"
-                for group, questions in questions_by_group.items()
-                for q in questions
-            ]
-        with col2:
-            selected_questions = st.multiselect(
-                "Attribute",
-                all_questions,
-            )
-            selected_questions = [
-                question for question in all_questions if question in selected_questions
-            ]
-            if not selected_questions:
-                selected_questions = all_questions
-
-        # Initialize by_reference before columns so it can be used within column logic
-        if "by_reference_checkbox" not in st.session_state:
-            st.session_state["by_reference_checkbox"] = False
-
-        by_reference = st.session_state["by_reference_checkbox"]
-
-        col1, col2, col3, col4 = st.columns([0.60, 0.15, 0.1, 0.15])
-
-        with col1:
-            # Initialize session state for cross questions if not exists
-            if "grids_selected_cross_questions" not in st.session_state:
-                st.session_state["grids_selected_cross_questions"] = []
-
-            if by_reference:
-                cross_questions = get_cross_questions(
-                    config,
-                    for_="grids",
-                )
-                # When by_reference is True, show all cross questions as selected
-                st.multiselect(
-                    "Cross questions",
-                    st.session_state["grids_selected_cross_questions"],
-                    default=st.session_state["grids_selected_cross_questions"],
-                    disabled=True,
-                )
-                selected_cross_questions = cross_questions
-            else:
-                cross_questions = get_cross_questions(
-                    config,
-                    for_="filters",
-                )
-                # Initialize the key-based multiselect with preserved selections
-                if "grids_cross_questions_multiselect" not in st.session_state:
-                    st.session_state["grids_cross_questions_multiselect"] = (
-                        st.session_state["grids_selected_cross_questions"]
-                    )
-
-                selected_cross_questions = st.multiselect(
-                    "Cross questions",
-                    cross_questions,
-                    key="grids_cross_questions_multiselect",
-                )
-                # Update session state with current selection
-                st.session_state["grids_selected_cross_questions"] = (
-                    selected_cross_questions
-                )
-
-        with col2:
-            st.markdown('<div class="checkbox-container">', unsafe_allow_html=True)
-            by_reference = st.checkbox(
-                "Cross by reference", key="by_reference_checkbox"
-            )
-            show_question_text = st.checkbox("Show question text")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col3:
-            view_type = st.radio("View type", ["Grouped", "Detailed"], horizontal=False)
-
-        with col4:
-            decimal_precision = st.number_input(
-                "Decimal precision", min_value=0, max_value=4, step=1
-            )
-
-        if selected_questions and selected_cross_questions:
-            try:
-                df = build_statistical_significance_df(
-                    db,
-                    metadata_df,
-                    selected_cross_questions,
-                    selected_questions,
-                    config,
-                    questions_by_group=questions_by_group,
-                    by_moment=True,
-                    view_type=view_type,
-                    show_question_text=show_question_text,
-                )
-
-                html_table = create_html_table(df, decimal_precision)
-
-                st.markdown(
-                    '<div style="overflow-x: auto;">{}</div>'.format(html_table),
-                    unsafe_allow_html=True,
-                )
-
-            except Exception as e:
-                st.error(f"Error rendering table: {str(e)}")
+        except Exception as e:
+            st.error(f"Error rendering table: {str(e)}")
