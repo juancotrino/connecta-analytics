@@ -915,7 +915,7 @@ def create_scale_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
     tb_df = tb_df.groupby(level=options_level).sum(numeric_only=True)
 
     # Concatenate
-    return pd.concat([t2b_df, tb_df]).sort_index()
+    return pd.concat([t2b_df, tb_df])
 
 
 def create_jr_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
@@ -1339,7 +1339,7 @@ def concatenate_statistical_significance(
     return df_percentage
 
 
-@st.cache_data(show_spinner=False)
+# @st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
@@ -1408,12 +1408,18 @@ def build_statistical_significance_df(
         if question_composed_count_dfs:
             # Before concatenation, add the visit as a new level to each DataFrame's columns
             question_count_with_visit = []
-
+            seen = set()
+            repeated = set()
             for question_code, df_count in zip(
                 question_codes,
                 question_composed_count_dfs,
             ):
                 question_code_parts = question_code.split("_")
+                composed_variable = "_".join(question_code_parts[:2])
+                if len(question_code_parts) > 2 and composed_variable in seen:
+                    repeated.add(composed_variable)
+                    continue
+                seen.add(composed_variable)
                 if len(question_code_parts) == 1:
                     visit = "V1"
                 else:
@@ -1429,19 +1435,30 @@ def build_statistical_significance_df(
                     )
                 df_count.columns = new_columns
                 question_count_with_visit.append(df_count)
-
-            question_table_count: pd.DataFrame = question_count_with_visit[0].copy()
-
+            if len(repeated) > 0:
+                st.warning(
+                    f"The variable `{question_label}`"
+                    " has been processed multiple times. "
+                    "Only the first instance will be processed and shown."
+                )
             if len(question_count_with_visit) > 1:
                 column_lists = [
                     tuple(df.columns.tolist()) for df in question_count_with_visit
                 ]
                 all_columns_same = len(set(column_lists)) == 1
-
+                question_table_count = question_count_with_visit[0].copy()
                 if not all_columns_same:
                     for df in question_count_with_visit[1:]:
+                        index_order = question_table_count.index.tolist()
                         question_table_count = question_table_count.merge(
-                            df, how="outer", left_index=True, right_index=True
+                            df,
+                            how="outer",
+                            left_index=True,
+                            right_index=True,
+                            sort=False,
+                        )
+                        question_table_count = question_table_count.reindex(
+                            index_order, axis=0
                         )
                 else:
                     for df in question_count_with_visit[1:]:
@@ -1470,9 +1487,12 @@ def build_statistical_significance_df(
             question_type_config = get_question_type(
                 question_config["question_type_id"]
             )
-            question_table_count = sort_question_table(
-                question_table_count, question_config, question_type_config
-            )
+
+            if group == "FILTERS":
+                question_table_count = sort_question_table(
+                    question_table_count, question_config, question_type_config
+                )
+
             if view_type == "Grouped":
                 question_table_count = question_table_count.drop(
                     columns=[
