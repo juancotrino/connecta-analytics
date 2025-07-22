@@ -1339,7 +1339,7 @@ def concatenate_statistical_significance(
     return df_percentage
 
 
-# @st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
