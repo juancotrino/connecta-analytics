@@ -525,7 +525,9 @@ def reorder_contingency_table(
     cross_question_code: str,
     df: pd.DataFrame,
     metadata_df: pd.DataFrame,
+    selected_question: str,
 ) -> pd.DataFrame:
+    group = selected_question.split(" | ")[0]
     column_mapping: dict = eval(metadata_df.loc[cross_question_code]["values"])
     new_columns = [
         column_name.strip()
@@ -550,7 +552,7 @@ def reorder_contingency_table(
 
     reordered_df = reordered_df.reindex(index_mapping.values())
 
-    return reordered_df.dropna(how="all")
+    return reordered_df.dropna(how="all") if group == "FILTERS" else reordered_df
 
 
 def parse_question_codes(columns: pd.Index, metadata_df: pd.DataFrame):
@@ -846,6 +848,7 @@ def build_cross_contingency_table(
                 sub_cross_question_code,
                 contingency_table_count,
                 metadata_df,
+                selected_question,
             )
 
             if view_type == "Grouped":
