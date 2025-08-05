@@ -19,7 +19,15 @@ from app.modules.processor import (
     getWarning,
     get_diferences_with_kpis,
 )
+from app.modules.business_definition import get_business_data
+from app.modules.processing_viewer import (
+    get_categories,
+    get_subcategories,
+    get_study_countries,
+    get_studies_names,
+)
 from app.modules.utils import (
+    _to_show,
     try_download,
     get_temp_file,
     read_sav_metadata,
@@ -433,6 +441,64 @@ def main():
     st.markdown("# Final Processing")
 
     with st.container(border=True):
+        business_data = get_business_data()
+        category = st.selectbox(
+            "Category",
+            get_categories(),
+            index=None,
+            format_func=_to_show,
+            key="category_select_register",
+        )
+
+        if not category:
+            return
+
+        subcategory = st.selectbox(
+            "Subcategory",
+            get_subcategories(category),
+            index=None,
+            format_func=_to_show,
+            key="subcategory_select_register",
+        )
+
+        if not subcategory:
+            return
+
+        country = st.selectbox(
+            "Country",
+            # TODO: May show a complete list of countries
+            get_study_countries(category, subcategory),
+            index=None,
+            format_func=_to_show,
+            key="country_select_register",
+        )
+
+        if not country:
+            return
+
+        company = st.selectbox(
+            "Company",
+            business_data["clients"],
+            index=None,
+            key="company_select_register",
+        )
+
+        if not company:
+            return
+
+        study = st.selectbox(
+            "Study",
+            ["New"] + get_studies_names(category, subcategory, country, company),
+            index=None,
+            format_func=_to_show,
+            key="study_select_register",
+        )
+
+        if not study:
+            return
+
+        st.write("Register new configuration.")
+
         st.write("Load `.sav` database file to be formatted.")
 
         # Add section to upload a file

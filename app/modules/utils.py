@@ -10,7 +10,7 @@ import pyreadstat
 from openpyxl import Workbook
 
 import streamlit as st
-from firebase_admin import firestore
+from firebase_admin import firestore, auth
 
 from app.modules.preprocessing import reorder_columns
 
@@ -317,3 +317,51 @@ def roman(num):
     for v, n in L:
         if num >= v:  # If their difference is positive, we recurse
             return n + roman(num - v)  # We append the result to the numeral
+
+
+def _to_code(text: str) -> str:
+    return text.lower().replace(" ", "_")
+
+
+def _to_show(text: str, form: str = "capitalize") -> str:
+    match form:
+        case "capitalize":
+            return text.replace("_", " ").capitalize()
+        case "title":
+            return text.replace("_", " ").title()
+        case _:
+            return text.replace("_", " ")
+
+
+@st.cache_data(show_spinner=False)
+def get_users() -> list:
+    users = []
+    page = auth.list_users()
+
+    while page:
+        for user in page.users:
+            users.append(
+                {
+                    "user_id": user.uid,
+                    "name": user.display_name,
+                    "email": user.email,
+                }
+            )
+        page = page.get_next_page()
+    return users
+
+
+def get_user_name_from_id(user_id: str) -> str:
+    users = get_users()
+    for user in users:
+        if user["user_id"] == user_id:
+            return user["name"]
+    return None
+
+
+def get_user_id_from_name(user_name: str) -> str:
+    users = get_users()
+    for user in users:
+        if user["name"] == user_name:
+            return user["user_id"]
+    return None

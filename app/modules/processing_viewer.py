@@ -16,7 +16,14 @@ from app.cloud import CloudStorageClient
 from app.modules.processing import (
     significant_differences,
 )
-from app.modules.utils import get_countries, get_temp_file, column_letters, roman
+from app.modules.utils import (
+    get_countries,
+    get_temp_file,
+    column_letters,
+    roman,
+    _to_show,
+    _to_code,
+)
 
 cs_client = CloudStorageClient("connecta-app-1-service-processing")
 
@@ -47,20 +54,6 @@ def get_business_data():
     if document.exists:
         business_data = document.to_dict()
         return business_data
-
-
-def _to_code(text: str) -> str:
-    return text.lower().replace(" ", "_")
-
-
-def _to_show(text: str, form: str = "capitalize") -> str:
-    match form:
-        case "capitalize":
-            return text.replace("_", " ").capitalize()
-        case "title":
-            return text.replace("_", " ").title()
-        case _:
-            return text.replace("_", " ")
 
 
 def get_category_id(category_name: str | None) -> str | None:

@@ -17,3 +17,15 @@ You can also copy-paste the variables from the `.sav` database. Leave it empty i
 - Cross Variable (Chi2): If you want to generate a Chi2 report, write in this field the Cross Variable. If no Chi2 is needed, leave it empty.
 
 """
+
+
+def questions_to_markdown(questions: list[dict]) -> str:
+    markdown = "# Tipos de Pregunta\n\n"
+    for question in questions:
+        markdown += f"## {question['description']} ({question['code']})\n\n"
+        markdown += "**Propiedades estadísticas:**\n\n"
+        for prop in question["properties"]:
+            markdown += f"- {prop}\n"
+        markdown += f"\n**Descripción:**\n\n{question['help']}\n\n"
+        markdown += "---\n\n"
+    return markdown

@@ -18,6 +18,7 @@ from app.modules.processing_viewer import (
     create_html_table,
 )
 from app.modules.utils import (
+    _to_show,
     read_sav_db,
     read_sav_metadata,
     load_json,
@@ -41,13 +42,17 @@ def main():
     st.markdown("### Study")
 
     categories = get_categories()
-    product_category = st.selectbox("Product category", categories, index=None)
+    product_category = st.selectbox(
+        "Product category", categories, index=None, format_func=_to_show
+    )
 
     if not product_category:
         return
 
     subcategories = get_subcategories(product_category)
-    product_subcategory = st.selectbox("Product subcategory", subcategories, index=None)
+    product_subcategory = st.selectbox(
+        "Product subcategory", subcategories, index=None, format_func=_to_show
+    )
 
     if not product_subcategory:
         return

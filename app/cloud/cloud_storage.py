@@ -21,6 +21,28 @@ class CloudStorageClient:
         blob = bucket.blob(blob_name)
         blob.delete()
 
+    def create_folder(self, folder_name: str) -> str:
+        """
+        Creates a folder (virtual directory) in the bucket.
+
+        Args:
+            folder_name (str): Name of the folder to create. Should not start or end with '/'
+        """
+        if not folder_name:
+            raise ValueError("Folder name cannot be empty")
+
+        # Ensure the folder name ends with a '/'
+        if not folder_name.endswith("/"):
+            folder_name = f"{folder_name}/"
+
+        # Create an empty blob with the folder name
+        bucket = self.storage_client.bucket(self.bucket_name)
+        blob = bucket.blob(folder_name)
+        blob.upload_from_string(
+            "", content_type="application/x-www-form-urlencoded;charset=UTF-8"
+        )
+        return f"gs://{self.bucket_name}/{folder_name}"
+
     def list_files(self, folder_path=None):
         """
         Lists all files within a folder in the bucket.
