@@ -475,6 +475,7 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
         dict_row = {}
         if not condition is None and "#" in condition:
             variables_to_segment = re.findall(r"#(.*?)#", condition)
+            flag_unique =True
             for var in variables_to_segment:
                 tuples_ref = []
                 flag_total = False
@@ -486,8 +487,9 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                 refs_unique.sort(reverse=True)
                 for refindex in refs_unique:
                     tuples_ref.append((refindex, refdict[refindex], var))
-                if flag_total:
+                if flag_total and flag_unique:
                     tuples_ref.append(("T", "TOTAL", var))
+                    flag_unique=False
                 dict_row[var] = tuples_ref
 
             combinations = list(itertools.product(*dict_row.values()))
@@ -499,6 +501,7 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                 new_condition = condition
                 new_name = row_original[0]
                 first = True
+                name_total=False
                 for tuple in comb:
                     if (
                         first
@@ -514,12 +517,16 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                     if not var_to_replace in new_condition:
                         var_to_replace = "#" + tuple[2] + "*#"
                     if str(tuple[0]) == "T":
-                        new_value_to_var = ""
+                        new_condition = ""
+                        name_total=True
                     else:
                         new_value_to_var = "`" + tuple[2] + "`==" + str(tuple[0])
                     new_condition = new_condition.replace(
                         var_to_replace, new_value_to_var
                     )
+
+                if name_total:
+                    new_name = row_original[0] +"_TOTAL"
 
                 if not row_original[4] is None and not row_original[4] == "":
                     new_name += "_" + row_original[4]
