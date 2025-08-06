@@ -22,6 +22,8 @@ from app.modules.utils import (
     read_sav_db,
     read_sav_metadata,
     load_json,
+    get_countries,
+    get_companies_blobs,
 )
 
 
@@ -35,6 +37,17 @@ def main():
     if not company:
         st.warning(
             "Your user is not associated with a company or client registered. "
+            "Please contact the service administrator."
+        )
+        return
+
+    companies_blobs = get_companies_blobs("connecta-app-1-service-processing")
+
+    if company == "Connecta":
+        ...
+    elif company not in companies_blobs:
+        st.warning(
+            "We don't have records of any study for your company. "
             "Please contact the service administrator."
         )
         return
@@ -63,8 +76,14 @@ def main():
     if not selected_country:
         return
 
+    countries_iso_2_code = get_countries()
+    selected_country_code = countries_iso_2_code[selected_country]
+
+    if company == "Connecta":
+        company = st.selectbox("Company", companies_blobs)
+
     study_names = get_studies_names(
-        product_category, product_subcategory, selected_country, company
+        product_category, product_subcategory, selected_country_code, company
     )
 
     selected_studies = st.multiselect("Studies", study_names)
@@ -75,7 +94,7 @@ def main():
     studies_data = download_studies_data(
         product_category,
         product_subcategory,
-        selected_country,
+        selected_country_code,
         company,
         selected_studies,
     )

@@ -13,6 +13,7 @@ import streamlit as st
 from firebase_admin import firestore, auth
 
 from app.modules.preprocessing import reorder_columns
+from app.cloud.cloud_storage import CloudStorageClient
 
 
 @st.cache_data(show_spinner=False)
@@ -365,3 +366,41 @@ def get_user_id_from_name(user_name: str) -> str:
         if user["name"] == user_name:
             return user["user_id"]
     return None
+
+
+def upload_to_gcs(source_file_name: str, destination_blob_name: str, bucket_name: str):
+    gcs = CloudStorageClient(bucket_name)
+    return gcs.upload_to_gcs(source_file_name, destination_blob_name)
+
+
+def delete_gcs(blob_name: str, bucket_name: str):
+    gcs = CloudStorageClient(bucket_name)
+    gcs.delete_from_gcs(blob_name)
+
+
+def upload_study_to_gcs(
+    uploaded_file_sav: BytesIO,
+    category: str,
+    subcategory: str,
+    country_code: str,
+    company: str,
+    study_id: str,
+    study_name: str,
+    extension: str,
+):
+    temp_file_name = get_temp_file(uploaded_file_sav, extension)
+    file_name = f"{_to_code(study_id)}_{_to_code(study_name)}"
+    blob_name = (
+        f"databases/{category}/{subcategory}/{country_code}/"
+        f"{company}/{file_name}.{extension}"
+    )
+    upload_to_gcs(temp_file_name, blob_name, "connecta-app-1-service-processing")
+    # delete temp file
+    os.unlink(temp_file_name)
+
+
+@st.cache_data(show_spinner=False)
+def get_companies_blobs(bucket_name: str) -> list[str]:
+    gcs = CloudStorageClient(bucket_name)
+    blobs = gcs.list_files("databases")
+    return list(set([blob.split("/")[3] for blob in blobs if len(blob.split("/")) > 3]))

@@ -250,7 +250,7 @@ def get_cross_questions_codes(
 ) -> list[str]:
     # Create a dictionary mapping labels to codes for efficient lookup
     key = get_config_key_cross_questions(for_)
-    label_to_code = {item["label"]: item["code"] for item in config[key]}
+    label_to_code = {item["label"]: item["variable"] for item in config[key]}
 
     # Get codes for each target label
     return [
@@ -326,16 +326,13 @@ def get_question_groups(category: str, subcategory: str) -> list[str]:
     return group_names
 
 
-@st.cache_data(show_spinner=False)
 def get_studies_names(
-    category: str, subcategory: str, country: str, company: str
+    category: str, subcategory: str, country_code: str, company: str
 ) -> list[str]:
     """Get studies names from files in storage bucket and transform them
     to show them in the UI."""
     category = _to_code(category)
     subcategory = _to_code(subcategory)
-    countries_iso = get_countries()
-    country_code = countries_iso[country].lower()
     study_names = cs_client.list_files(
         f"databases/{category}/{subcategory}/{country_code}/{company}"
     )
@@ -344,17 +341,16 @@ def get_studies_names(
     )
 
 
-@st.cache_data(show_spinner=False)
 def get_study_countries(
     category: str,
     subcategory: str,
 ) -> list[str]:
     category = _to_code(category)
     subcategory = _to_code(subcategory)
-    countries_iso = get_countries()
-    iso_countries = {iso: country for country, iso in countries_iso.items()}
+    countries_iso_2_code = get_countries()
+    iso_countries = {iso: country for country, iso in countries_iso_2_code.items()}
     files = cs_client.list_files(f"databases/{category}/{subcategory}")
-    study_countries = list(set([file.split("/")[0].upper() for file in files]))
+    study_countries = list(set([file.split("/")[0] for file in files]))
     return [_to_show(iso_countries[country_code]) for country_code in study_countries]
 
 
@@ -372,14 +368,12 @@ def get_available_countries(studies_id: str) -> list[str]:
 
 @st.cache_data(show_spinner=True)
 def download_studies_data(
-    category: str, subcategory: str, country: str, company: str, studies: list[str]
+    category: str, subcategory: str, country_code: str, company: str, studies: list[str]
 ) -> dict[str, dict[str, str]]:
     """Download the respective files (.sav, .json) from storage bucket for the
     selected studies."""
     category = _to_code(category)
     subcategory = _to_code(subcategory)
-    countries_iso = get_countries()
-    country_code = countries_iso[country].lower()
     blob_path = f"databases/{category}/{subcategory}/{country_code}/{company}"
 
     studies_files = {}

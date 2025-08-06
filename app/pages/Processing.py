@@ -1,9 +1,11 @@
+import json
+from io import BytesIO
 import pandas as pd
 
 import streamlit as st
 
 from app.modules.preprocessing import preprocessing, generate_open_ended_db
-from app.modules.processing import processing, get_question_types
+from app.modules.processing import processing
 from app.modules.database_transformation import transform_database
 from app.modules.processor import (
     getPreProcessCode,
@@ -23,16 +25,27 @@ from app.modules.business_definition import get_business_data
 from app.modules.processing_viewer import (
     get_categories,
     get_subcategories,
-    get_study_countries,
     get_studies_names,
 )
 from app.modules.utils import (
+    upload_study_to_gcs,
     _to_show,
     try_download,
     get_temp_file,
     read_sav_metadata,
     write_temp_sav,
+    get_countries,
 )
+
+CONFIG_ATTRIBUTES = ["filters", "cross_variables", "section_variables"]
+
+# Initialize session state
+config_template = {
+    "study_id": "",
+    "study_name": "",
+    "country_code": "",
+    "config": {attr: [] for attr in CONFIG_ATTRIBUTES},
+}
 
 
 def main():
@@ -464,16 +477,17 @@ def main():
         if not subcategory:
             return
 
-        country = st.selectbox(
+        countries_iso_2_code = get_countries()
+        countries_code_2_iso = {v: k for k, v in countries_iso_2_code.items()}
+        country_code = st.selectbox(
             "Country",
-            # TODO: May show a complete list of countries
-            get_study_countries(category, subcategory),
+            countries_code_2_iso,
             index=None,
-            format_func=_to_show,
+            format_func=lambda x: countries_code_2_iso[x],
             key="country_select_register",
         )
 
-        if not country:
+        if not country_code:
             return
 
         company = st.selectbox(
@@ -488,7 +502,7 @@ def main():
 
         study = st.selectbox(
             "Study",
-            ["New"] + get_studies_names(category, subcategory, country, company),
+            ["New"] + get_studies_names(category, subcategory, country_code, company),
             index=None,
             format_func=_to_show,
             key="study_select_register",
@@ -497,51 +511,106 @@ def main():
         if not study:
             return
 
-        st.write("Register new configuration.")
+        if study == "New":
+            col1, col2 = st.columns(2)
+            with col1:
+                study_id = st.number_input(
+                    "Study ID", key="study_id_register", step=1, value=None
+                )
 
-        st.write("Load `.sav` database file to be formatted.")
+            with col2:
+                study_name = st.text_input("Study name", key="study_name_register")
 
-        # Add section to upload a file
-        uploaded_file_sav = st.file_uploader(
-            "Upload `.sav` file", type=["sav"], key="final_processing_sav"
-        )
+            if not study_name or not study_id:
+                return
 
-        question_types_dicts = get_question_types()
-        question_types = [
-            question_type["code"] for question_type in question_types_dicts
-        ]
-
-        if uploaded_file_sav:
-            temp_file_name = get_temp_file(uploaded_file_sav)
-            metadata_df = read_sav_metadata(temp_file_name)
-
-            metadata_df = metadata_df.drop(columns=["label", "values"])
-            # Add new columns to metadata_df
-            metadata_df["question_type"] = None
-            metadata_df["open_ended"] = None
-            metadata_df["scales"] = None
-            metadata_df["inverted"] = None
-            metadata_df.index.name = "Variable"
-
-            # Initialize session state for the dataframe if it doesn't exist
-            if "process_config_df" not in st.session_state:
-                st.session_state.process_config_df = metadata_df
-
-            # Use the session state dataframe in the editor
-            st.session_state.process_config_df = st.data_editor(
-                st.session_state.process_config_df,
-                num_rows="dynamic",
-                use_container_width=True,
-                column_config={
-                    "question_type": st.column_config.SelectboxColumn(
-                        "Question Type",
-                        options=question_types,
-                        required=True,
-                    ),
-                    "open_ended": st.column_config.TextColumn("Open Ended"),
-                    "scales": st.column_config.TextColumn("Scales"),
-                    "inverted": st.column_config.TextColumn("Inverted"),
-                },
+            # Add section to upload a file
+            uploaded_file_sav = st.file_uploader(
+                "Upload `.sav` file", type=["sav"], key="final_processing_sav"
             )
 
-            st.write(st.session_state.process_config_df.to_dict())
+            if uploaded_file_sav:
+                temp_file_name = get_temp_file(uploaded_file_sav)
+                metadata_df = read_sav_metadata(temp_file_name)
+                with st.expander("Database Metadata"):
+                    st.data_editor(metadata_df)
+
+                cols = st.columns(len(CONFIG_ATTRIBUTES))
+
+                variables_dfs = {}
+
+                for attribute in CONFIG_ATTRIBUTES:
+                    key = f"dek_{attribute}"
+
+                    with cols[CONFIG_ATTRIBUTES.index(attribute)]:
+                        st.write(f"### {_to_show(attribute)}")
+
+                        variables_df = st.data_editor(
+                            pd.DataFrame(columns=["variable", "label"]),
+                            num_rows="dynamic",
+                            key=key,
+                            column_config={
+                                "variable": st.column_config.SelectboxColumn(
+                                    "Variable",
+                                    options=metadata_df.index.to_list(),
+                                    required=True,
+                                ),
+                                "label": st.column_config.TextColumn(
+                                    "Label", required=True, width="large"
+                                ),
+                            },
+                        )
+
+                        variables_dfs[attribute] = variables_df
+
+                if st.button(
+                    "Register study config",
+                    type="primary",
+                    disabled=not all([not df.empty for df in variables_dfs.values()]),
+                ):
+                    config = config_template.copy()
+                    config["study_id"] = study_id
+                    config["study_name"] = study_name
+                    config["country_code"] = country_code
+                    for attribute in CONFIG_ATTRIBUTES:
+                        config["config"][attribute].extend(
+                            variables_dfs[attribute].to_dict("records")
+                        )
+
+                    json_str = json.dumps(config, indent=2, ensure_ascii=False)
+                    json_bytes = BytesIO(json_str.encode("utf-8"))
+
+                    # upload .sav file
+                    upload_study_to_gcs(
+                        uploaded_file_sav,
+                        category,
+                        subcategory,
+                        country_code,
+                        company,
+                        str(int(study_id)),
+                        study_name,
+                        "sav",
+                    )
+
+                    # upload .json file
+                    upload_study_to_gcs(
+                        json_bytes,
+                        category,
+                        subcategory,
+                        country_code,
+                        company,
+                        str(int(study_id)),
+                        study_name,
+                        "json",
+                    )
+
+                    st.success("Study config registered successfully.")
+
+                # # JSON output
+                # st.write("### JSON Output")
+                # json_output = json.dumps(
+                #     st.session_state.config, indent=2, ensure_ascii=False
+                # )
+                # st.code(json_output, language="json")
+        else:
+            st.write("Download and show the json file to edit it")

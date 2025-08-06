@@ -181,7 +181,6 @@ def get_questions(
     return questions
 
 
-@st.cache_data(show_spinner=False)
 def get_groups(category_id: str, subcategory_id: str) -> list[str]:
     db = firestore.client()
     groups_ref = (

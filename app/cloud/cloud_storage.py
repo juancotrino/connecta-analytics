@@ -43,7 +43,7 @@ class CloudStorageClient:
         )
         return f"gs://{self.bucket_name}/{folder_name}"
 
-    def list_files(self, folder_path=None):
+    def list_files(self, folder_path: str | None = None):
         """
         Lists all files within a folder in the bucket.
 

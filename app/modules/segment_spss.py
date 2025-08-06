@@ -30,7 +30,6 @@ from scipy.stats import chi2_contingency, pearsonr
 # import matplotlib.pyplot as plt
 # import seaborn as sns
 
-from app.cloud import CloudStorageClient
 from app.modules.utils import get_inverted_scales_keywords, get_temp_file
 
 time_zone = timezone("America/Bogota")
@@ -278,7 +277,7 @@ def create_chart(worksheet, source_chart, dataframe, chart_title, chart_destinat
     # Copy the style from source to target chart
     copy_chart_style(source_chart, new_chart)
 
-    positions = [0, 74000, 83000, 100000]
+    # positions = [0, 74000, 83000, 100000]
     for i, value in enumerate(
         dataframe.iloc[:, 1], start=0
     ):  # assuming values are in the second column
@@ -324,7 +323,7 @@ def create_chart_top10(
     # Copy the style from source to target chart
     copy_chart_style(source_chart, new_chart)
 
-    positions = [0, 74000, 83000, 100000]
+    # positions = [0, 74000, 83000, 100000]
     for i, value in enumerate(
         dataframe.iloc[max(0, len(dataframe) - 10) :, 1], start=0
     ):  # assuming values are in the second column
@@ -454,16 +453,6 @@ def create_zip(zip_name: str, files: dict):
     return zip_path
 
 
-def upload_to_gcs(source_file_name: str, destination_blob_name: str):
-    gcs = CloudStorageClient("connecta-app-1-temp-data")
-    return gcs.upload_to_gcs(source_file_name, destination_blob_name)
-
-
-def delete_gcs(blob_name: str):
-    gcs = CloudStorageClient("connecta-app-1-temp-data")
-    gcs.delete_from_gcs(blob_name)
-
-
 def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
     temp_file_name = get_temp_file(spss_file)
     data, study_metadata = pyreadstat.read_sav(
@@ -473,9 +462,9 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
         row_original = df.iloc[i]
         condition = row_original[2]
         dict_row = {}
-        if not condition is None and "#" in condition:
+        if condition is not None and "#" in condition:
             variables_to_segment = re.findall(r"#(.*?)#", condition)
-            flag_unique =True
+            flag_unique = True
             for var in variables_to_segment:
                 tuples_ref = []
                 flag_total = False
@@ -489,7 +478,7 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                     tuples_ref.append((refindex, refdict[refindex], var))
                 if flag_total and flag_unique:
                     tuples_ref.append(("T", "TOTAL", var))
-                    flag_unique=False
+                    flag_unique = False
                 dict_row[var] = tuples_ref
 
             combinations = list(itertools.product(*dict_row.values()))
@@ -501,11 +490,11 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                 new_condition = condition
                 new_name = row_original[0]
                 first = True
-                name_total=False
+                name_total = False
                 for tuple in comb:
                     if (
                         first
-                        and not row_original[0] is None
+                        and row_original[0] is not None
                         and not row_original[0] == ""
                     ):
                         new_name += "_"
@@ -514,11 +503,11 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                     first = False
                     new_name += tuple[1][:10]
                     var_to_replace = "#" + tuple[2] + "#"
-                    if not var_to_replace in new_condition:
+                    if var_to_replace not in new_condition:
                         var_to_replace = "#" + tuple[2] + "*#"
                     if str(tuple[0]) == "T":
                         new_condition = ""
-                        name_total=True
+                        name_total = True
                     else:
                         new_value_to_var = "`" + tuple[2] + "`==" + str(tuple[0])
                     new_condition = new_condition.replace(
@@ -526,9 +515,9 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
                     )
 
                 if name_total:
-                    new_name = row_original[0] +"_TOTAL"
+                    new_name = row_original[0] + "_TOTAL"
 
-                if not row_original[4] is None and not row_original[4] == "":
+                if row_original[4] is not None and row_original[4] != "":
                     new_name += "_" + row_original[4]
                 row_duplicate[0] = new_name
                 row_duplicate[2] = new_condition
@@ -577,7 +566,7 @@ def segment_spss(
         chi2_wb.remove(chi2_wb.active)
 
         # Read the existing Excel file
-        existing_file = f"static/templates/chart_template.xlsx"
+        existing_file = "static/templates/chart_template.xlsx"
         wb_existing = openpyxl.load_workbook(existing_file)
         ws_existing = wb_existing.active
 

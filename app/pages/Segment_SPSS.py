@@ -5,12 +5,18 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.help import help_segment_spss
-from app.modules.segment_spss import segment_spss, get_temp_file, read_sav_metadata, create_zip, upload_to_gcs, delete_gcs
-from app.modules.validations import validate_segmentation_spss_jobs, validate_segmentation_spss_db
+from app.modules.segment_spss import (
+    segment_spss,
+    get_temp_file,
+    read_sav_metadata,
+    create_zip,
+)
+from app.modules.validations import (
+    validate_segmentation_spss_jobs,
+    validate_segmentation_spss_db,
+)
 from app.modules.processor import getVarsForPlantilla
-from app.modules.utils import try_download
-
-
+from app.modules.utils import try_download, upload_to_gcs, delete_gcs
 
 
 def main():
@@ -26,55 +32,76 @@ def main():
 
     with col2:
         # Add section to upload a file
-        st.markdown('### File metadata')
+        st.markdown("### File metadata")
         metadata_container = st.container()
         uploaded_file = st.file_uploader("Upload SAV file", type=["sav"], key=__name__)
 
         if uploaded_file:
             temp_file_name = get_temp_file(uploaded_file)
             metadata_df = read_sav_metadata(temp_file_name)
-            metadata_df['answer_options_count'] = metadata_df['values'].apply(lambda x: len(ast.literal_eval(x)) if x else 0).astype(int)
-            metadata_container.dataframe(
-                metadata_df,
-                use_container_width=True
+            metadata_df["answer_options_count"] = (
+                metadata_df["values"]
+                .apply(lambda x: len(ast.literal_eval(x)) if x else 0)
+                .astype(int)
             )
+            metadata_container.dataframe(metadata_df, use_container_width=True)
 
-    if 'gcs_path' not in st.session_state:
-        st.session_state['gcs_path'] = None
+    if "gcs_path" not in st.session_state:
+        st.session_state["gcs_path"] = None
 
     with col1:
-        with st.form('segment_spss_form'):
-            st.markdown('### Scenarios for segmentation')
+        with st.form("segment_spss_form"):
+            st.markdown("### Scenarios for segmentation")
             st.write("Fill the parameters for the segmentation")
 
             with st.expander("Help"):
                 st.markdown(help_segment_spss)
-                get_data_button=st.form_submit_button("Get Data from SAV file")
+                get_data_button = st.form_submit_button("Get Data from SAV file")
 
             config = {
-                'scenario_name': st.column_config.TextColumn('Scenario Name', width='small', required=True),
-                'variables': st.column_config.TextColumn('Variables', required=False),
-                'condition': st.column_config.TextColumn('Condition', required=False),
-                'cross_variable': st.column_config.TextColumn('Cross Variable (Chi2)', width='small', required=False),
-                'chi2_mode': st.column_config.SelectboxColumn('Mode', options=['T2B', 'TB'], default='T2B'),
-                'correlation_variables': st.column_config.TextColumn('Correlation Variables', required=False),
+                "scenario_name": st.column_config.TextColumn(
+                    "Scenario Name", width="small", required=True
+                ),
+                "variables": st.column_config.TextColumn("Variables", required=False),
+                "condition": st.column_config.TextColumn("Condition", required=False),
+                "cross_variable": st.column_config.TextColumn(
+                    "Cross Variable (Chi2)", width="small", required=False
+                ),
+                "chi2_mode": st.column_config.SelectboxColumn(
+                    "Mode", options=["T2B", "TB"], default="T2B"
+                ),
+                "correlation_variables": st.column_config.TextColumn(
+                    "Correlation Variables", required=False
+                ),
             }
 
-            st.markdown('### Scenarios')
+            st.markdown("### Scenarios")
 
             jobs = st.data_editor(
                 pd.DataFrame(columns=[k for k in config.keys()]),
                 num_rows="dynamic",
                 use_container_width=True,
                 key="edit_set_of_strings",
-                column_config=config
+                column_config=config,
             )
 
             jobs_df = pd.DataFrame(jobs)
 
-            jobs_df['variables'] = jobs_df['variables'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
-            jobs_df['condition'] = jobs_df['condition'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
-            jobs_df['correlation_variables'] = jobs_df['correlation_variables'].apply(lambda x: x.replace(' ', '').replace('\n\n', '\n') if x is not None else x)
+            jobs_df["variables"] = jobs_df["variables"].apply(
+                lambda x: x.replace(" ", "").replace("\n\n", "\n")
+                if x is not None
+                else x
+            )
+            jobs_df["condition"] = jobs_df["condition"].apply(
+                lambda x: x.replace(" ", "").replace("\n\n", "\n")
+                if x is not None
+                else x
+            )
+            jobs_df["correlation_variables"] = jobs_df["correlation_variables"].apply(
+                lambda x: x.replace(" ", "").replace("\n\n", "\n")
+                if x is not None
+                else x
+            )
 
             jobs_validated = validate_segmentation_spss_jobs(jobs_df)
 
@@ -82,28 +109,32 @@ def main():
             if uploaded_file:
                 db_validated = validate_segmentation_spss_db(jobs_df, temp_file_name)
 
-            transform_inverted_scales = st.checkbox('Transform inverted scales')
+            transform_inverted_scales = st.checkbox("Transform inverted scales")
 
-            process = st.form_submit_button('Process scenarios')
+            process = st.form_submit_button("Process scenarios")
 
             if jobs_validated and db_validated and not jobs_df.empty:
                 if uploaded_file and process:
-                    with st.spinner('Processing...'):
+                    with st.spinner("Processing..."):
                         try:
-                            files, warning_empty = segment_spss(jobs_df, uploaded_file, transform_inverted_scales)
-                            if warning_empty!="":
+                            files, warning_empty = segment_spss(
+                                jobs_df, uploaded_file, transform_inverted_scales
+                            )
+                            if warning_empty != "":
                                 st.warning(warning_empty)
-                            zip_path = create_zip('segmented_data.zip', files)
+                            zip_path = create_zip("segmented_data.zip", files)
                             file_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                            st.session_state['gcs_path'] = upload_to_gcs(zip_path, f'segmented_data_{file_timestamp}.zip')
+                            st.session_state["gcs_path"] = upload_to_gcs(
+                                zip_path,
+                                f"segmented_data_{file_timestamp}.zip",
+                                "connecta-app-1-temp-data",
+                            )
                         except Exception as e:
                             st.error(e)
             elif not uploaded_file and process:
-                st.error('Missing SAV file')
-        if(get_data_button and uploaded_file):
-            results_plantilla = getVarsForPlantilla(
-                                uploaded_file
-                            )[1]
+                st.error("Missing SAV file")
+        if get_data_button and uploaded_file:
+            results_plantilla = getVarsForPlantilla(uploaded_file)[1]
         try:
             try_download(
                 "Download Stadistics Plantilla",
@@ -114,17 +145,21 @@ def main():
         except Exception:
             pass
 
-    if st.session_state['gcs_path']:
-
+    if st.session_state["gcs_path"]:
         # Create a button to download the file and execute the additional action
-        if st.button('Download segmented data', type='primary'):
-            st.markdown(f"""
-                <iframe src="{st.session_state['gcs_path']}" ></iframe>
-            """, unsafe_allow_html=True)
+        if st.button("Download segmented data", type="primary"):
+            st.markdown(
+                f"""
+                <iframe src="{st.session_state["gcs_path"]}" ></iframe>
+            """,
+                unsafe_allow_html=True,
+            )
             time.sleep(1)
-            delete_gcs(st.session_state['gcs_path'].split('/')[-1])
+            delete_gcs(
+                st.session_state["gcs_path"].split("/")[-1], "connecta-app-1-temp-data"
+            )
 
-            del st.session_state['gcs_path']
+            del st.session_state["gcs_path"]
 
             st.rerun()
 

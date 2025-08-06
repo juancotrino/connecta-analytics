@@ -1,4 +1,5 @@
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 # Initialize Firestore
 db = firestore.Client()
@@ -42,7 +43,7 @@ def get_document(
         # Query the child collection
         query = (
             root_doc.collection(child_collection_name)
-            .where("name", "==", child_document_name)
+            .where(filter=FieldFilter("name", "==", child_document_name))
             .limit(1)
             .stream()
         )
