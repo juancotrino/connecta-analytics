@@ -238,8 +238,21 @@ def main():
             html_table = create_html_table(df, decimal_precision)
 
             st.markdown(
-                '<div style="overflow-x: auto;">{}</div>'.format(html_table),
+                '<div style="overflow-x: auto; margin-bottom: 1.5rem;">{}</div>'.format(
+                    html_table
+                ),
                 unsafe_allow_html=True,
+            )
+
+            # Encode the HTML content as UTF-8 bytes
+            html_bytes = html_table.encode("utf-8")
+
+            st.download_button(
+                "Download table",
+                data=html_bytes,
+                file_name="statistical_significance.html",
+                mime="text/html; charset=utf-8",
+                type="primary",
             )
 
         except Exception as e:

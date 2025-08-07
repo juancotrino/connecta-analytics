@@ -156,13 +156,13 @@ def write_temp_sav(df: pd.DataFrame, metadata):
             return BytesIO(f.read())
 
 
-def write_temp_excel(wb: Workbook | pd.DataFrame):
+def write_temp_excel(data: Workbook | pd.DataFrame, index: bool = False):
     with tempfile.NamedTemporaryFile() as tmpfile:
-        if isinstance(wb, Workbook):
+        if isinstance(data, Workbook):
             # Write the DataFrame to the temporary SPSS file
-            wb.save(tmpfile.name)
-        elif isinstance(wb, pd.DataFrame):
-            wb.to_excel(tmpfile, index=False)
+            data.save(tmpfile.name)
+        elif isinstance(data, pd.DataFrame):
+            data.to_excel(tmpfile, index=index)
 
         with open(tmpfile.name, "rb") as f:
             return BytesIO(f.read())
@@ -415,7 +415,7 @@ def get_study_config(
     gcs = CloudStorageClient("connecta-app-1-service-processing")
     bytes_io = gcs.download_as_bytes(blob_name)
     # Read the bytes from BytesIO and decode to string before parsing JSON
-    return json.loads(bytes_io.getvalue().decode('utf-8'))
+    return json.loads(bytes_io.getvalue().decode("utf-8"))
 
 
 @st.cache_data(show_spinner=False)
