@@ -399,6 +399,25 @@ def upload_study_to_gcs(
     os.unlink(temp_file_name)
 
 
+def get_study_config(
+    category: str,
+    subcategory: str,
+    country_code: str,
+    company: str,
+    study: str,
+) -> dict:
+    category = _to_code(category)
+    subcategory = _to_code(subcategory)
+    study_name = _to_code(study)
+    blob_name = (
+        f"databases/{category}/{subcategory}/{country_code}/{company}/{study_name}.json"
+    )
+    gcs = CloudStorageClient("connecta-app-1-service-processing")
+    bytes_io = gcs.download_as_bytes(blob_name)
+    # Read the bytes from BytesIO and decode to string before parsing JSON
+    return json.loads(bytes_io.getvalue().decode('utf-8'))
+
+
 @st.cache_data(show_spinner=False)
 def get_companies_blobs(bucket_name: str) -> list[str]:
     gcs = CloudStorageClient(bucket_name)

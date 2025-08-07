@@ -35,6 +35,7 @@ from app.modules.utils import (
     read_sav_metadata,
     write_temp_sav,
     get_countries,
+    get_study_config,
 )
 
 CONFIG_ATTRIBUTES = ["filters", "cross_variables", "section_variables"]
@@ -524,87 +525,103 @@ def main():
             if not study_name or not study_id:
                 return
 
-            # Add section to upload a file
-            uploaded_file_sav = st.file_uploader(
-                "Upload `.sav` file", type=["sav"], key="final_processing_sav"
+            config = config_template.copy()
+
+        else:
+            config = get_study_config(
+                category,
+                subcategory,
+                country_code,
+                company,
+                study,
             )
+            study_id = config["study_id"]
+            study_name = config["study_name"]
+            country_code = config["country_code"]
 
-            if uploaded_file_sav:
-                temp_file_name = get_temp_file(uploaded_file_sav)
-                metadata_df = read_sav_metadata(temp_file_name)
-                with st.expander("Database Metadata"):
-                    st.data_editor(metadata_df)
+        # Add section to upload a file
+        uploaded_file_sav = st.file_uploader(
+            "Upload `.sav` file", type=["sav"], key="final_processing_sav"
+        )
 
-                cols = st.columns(len(CONFIG_ATTRIBUTES))
+        if uploaded_file_sav:
+            temp_file_name = get_temp_file(uploaded_file_sav)
+            metadata_df = read_sav_metadata(temp_file_name)
+            with st.expander("Database Metadata"):
+                st.data_editor(metadata_df)
 
-                variables_dfs = {}
+            cols = st.columns(len(CONFIG_ATTRIBUTES))
 
+            variables_dfs = {}
+
+            for attribute in CONFIG_ATTRIBUTES:
+                key = f"dek_{attribute}"
+
+                with cols[CONFIG_ATTRIBUTES.index(attribute)]:
+                    st.write(f"### {_to_show(attribute)}")
+                    attribute_config = config["config"][attribute]
+                    variables_df = st.data_editor(
+                        pd.DataFrame(columns=["variable", "label"])
+                        if not attribute_config
+                        else pd.DataFrame(attribute_config),
+                        num_rows="dynamic",
+                        key=key,
+                        column_config={
+                            "variable": st.column_config.SelectboxColumn(
+                                "Variable",
+                                options=metadata_df.index.to_list(),
+                                required=True,
+                            ),
+                            "label": st.column_config.TextColumn(
+                                "Label", required=True, width="large"
+                            ),
+                        },
+                    )
+
+                    variables_dfs[attribute] = variables_df
+
+            if st.button(
+                "Register study config",
+                type="primary",
+                disabled=not all([not df.empty for df in variables_dfs.values()]),
+            ):
+                config = config_template.copy()
+                config["study_id"] = study_id
+                config["study_name"] = study_name
+                config["country_code"] = country_code
                 for attribute in CONFIG_ATTRIBUTES:
-                    key = f"dek_{attribute}"
-
-                    with cols[CONFIG_ATTRIBUTES.index(attribute)]:
-                        st.write(f"### {_to_show(attribute)}")
-
-                        variables_df = st.data_editor(
-                            pd.DataFrame(columns=["variable", "label"]),
-                            num_rows="dynamic",
-                            key=key,
-                            column_config={
-                                "variable": st.column_config.SelectboxColumn(
-                                    "Variable",
-                                    options=metadata_df.index.to_list(),
-                                    required=True,
-                                ),
-                                "label": st.column_config.TextColumn(
-                                    "Label", required=True, width="large"
-                                ),
-                            },
-                        )
-
-                        variables_dfs[attribute] = variables_df
-
-                if st.button(
-                    "Register study config",
-                    type="primary",
-                    disabled=not all([not df.empty for df in variables_dfs.values()]),
-                ):
-                    config = config_template.copy()
-                    config["study_id"] = study_id
-                    config["study_name"] = study_name
-                    config["country_code"] = country_code
-                    for attribute in CONFIG_ATTRIBUTES:
-                        config["config"][attribute].extend(
-                            variables_dfs[attribute].to_dict("records")
-                        )
-
-                    json_str = json.dumps(config, indent=2, ensure_ascii=False)
-                    json_bytes = BytesIO(json_str.encode("utf-8"))
-
-                    # upload .sav file
-                    upload_study_to_gcs(
-                        uploaded_file_sav,
-                        category,
-                        subcategory,
-                        country_code,
-                        company,
-                        str(int(study_id)),
-                        study_name,
-                        "sav",
+                    config["config"][attribute].extend(
+                        variables_dfs[attribute].to_dict("records")
                     )
 
-                    # upload .json file
-                    upload_study_to_gcs(
-                        json_bytes,
-                        category,
-                        subcategory,
-                        country_code,
-                        company,
-                        str(int(study_id)),
-                        study_name,
-                        "json",
-                    )
+                json_str = json.dumps(config, indent=2, ensure_ascii=False)
+                json_bytes = BytesIO(json_str.encode("utf-8"))
 
-                    st.success("Study config registered successfully.")
+                # upload .sav file
+                upload_study_to_gcs(
+                    uploaded_file_sav,
+                    category,
+                    subcategory,
+                    country_code,
+                    company,
+                    str(int(study_id)),
+                    study_name,
+                    "sav",
+                )
+
+                # upload .json file
+                upload_study_to_gcs(
+                    json_bytes,
+                    category,
+                    subcategory,
+                    country_code,
+                    company,
+                    str(int(study_id)),
+                    study_name,
+                    "json",
+                )
+
+                st.success("Study config registered successfully.")
 
                 # # JSON output
                 # st.write("### JSON Output")
@@ -612,5 +629,3 @@ def main():
                 #     st.session_state.config, indent=2, ensure_ascii=False
                 # )
                 # st.code(json_output, language="json")
-        else:
-            st.write("Download and show the json file to edit it")
