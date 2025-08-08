@@ -36,6 +36,7 @@ from app.modules.utils import (
     write_temp_sav,
     get_countries,
     get_study_config,
+    get_companies_blobs,
 )
 
 CONFIG_ATTRIBUTES = ["filters", "cross_variables", "section_variables"]
@@ -623,9 +624,4 @@ def main():
 
                 st.success("Study config registered successfully.")
 
-                # # JSON output
-                # st.write("### JSON Output")
-                # json_output = json.dumps(
-                #     st.session_state.config, indent=2, ensure_ascii=False
-                # )
-                # st.code(json_output, language="json")
+                get_companies_blobs.clear()

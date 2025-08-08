@@ -31,9 +31,9 @@ db = firestore.client()
 
 # CSS to highlight headers and index of the dataframe
 table_styles = [
-    dict(selector="th", props="font-size: 1.0em; "),
-    dict(selector="td", props="font-size: 1.0em; text-align: right"),
-    dict(selector="tr:hover", props="background-color: #666666"),
+    {"selector": "tr:nth-child(even)", "props": [("background-color", "#1f1f1f")]},
+    {"selector": "tr:nth-child(odd)", "props": [("background-color", "#030303")]},
+    {"selector": "tr:hover", "props": [("background-color", "#666666")]},
 ]
 
 stats_template = {
@@ -1606,19 +1606,22 @@ def create_html_table(df: pd.DataFrame, decimal_precision: int) -> str:
         z_index = 10 + nlevels - i
         sticky_css += (
             f"thead tr:nth-child({i + 1}) th {{"
-            f"position: sticky; top: {top}px; background: #222; color: #fff; z-index: {z_index}; border-bottom: 1px solid #888; border-top: 1px solid #888;"
+            f"position: sticky; top: {top}px; background: #222; color: #fff; z-index: {z_index}; "
+            "border-bottom: 1px solid #888; border-top: 1px solid #888;"
             f"}}"
         )
 
     css = (
         "<style>"
-        ".sticky-table-container {max-height: 600px; overflow-y: auto; width: 100%; border: 1px solid #ccc;}"
-        "table {border-collapse: separate; border-spacing: 0; width: 100%;}"
-        "th { height: 38px; min-height: 38px; max-height: 38px; padding: 8px 4px; background: #222; color: #fff; box-sizing: border-box; margin: 0; }"
-        "tr { margin: 0; }"
+        ".sticky-table-container {max-height: 600px; overflow-y: auto; width: 100%; border: 1px solid #ccc; margin: 10px 0;}"
+        "table {border-collapse: separate; border-spacing: 0; width: 100%; font-size: 16px; color: inherit; border: 1px solid #ddd;}"
+        "th { border: 1px solid #ddd !important; position: sticky; height: 38px; min-height: 38px; max-height: 38px; padding: 8px 4px; background: #222; color: #fff; box-sizing: border-box; margin: 0; }"
+        "th, td {border: 1px solid #ddd !important; padding: 8px !important; text-align: center !important;}"
+        "tr { text-align: center !important; margin: 0; }"
         f"{sticky_css}"
         "</style>"
     )
+
     html_table = (
         df.style.format(lambda x: format_mixed_cell(x, decimal_precision))
         .set_table_styles(table_styles)

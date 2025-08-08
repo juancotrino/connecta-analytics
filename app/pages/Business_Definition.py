@@ -234,7 +234,6 @@ def main():
             ):
                 if group_id is None:
                     group_id = create_group(group, category_id, subcategory_id)
-                    get_category_tree_groups.clear(category_id, subcategory_id)
                     get_group_id.clear(group, category_id, subcategory_id)
                     # Clear any existing questions in session state for this new group
                     if f"current_questions_{group}" in st.session_state:
@@ -319,26 +318,26 @@ def main():
                         },
                     )
 
-                    if not questions[group].empty:
-                        if st.button(
-                            "Add questions",
-                            type="primary",
-                            key=f"add_questions_{group}",
-                            on_click=partial(
-                                load_questions,
-                                questions[group],
-                                group_id,
-                                category_id,
-                                subcategory_id,
-                                current_questions,
-                                key,
-                                group,
-                                category,
-                                subcategory,
-                            ),
-                        ):
-                            st.success("Questions added successfully.")
-                            st.rerun()
+                    if st.button(
+                        "Add questions",
+                        type="primary",
+                        key=f"add_questions_{group}",
+                        on_click=partial(
+                            load_questions,
+                            questions[group],
+                            group_id,
+                            category_id,
+                            subcategory_id,
+                            current_questions,
+                            key,
+                            group,
+                            category,
+                            subcategory,
+                        ),
+                        disabled=questions[group].empty,
+                    ):
+                        st.success("Questions added successfully.")
+                        st.rerun()
 
                 with col2:
                     st.markdown("##### Current questions")
