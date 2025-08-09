@@ -11,6 +11,7 @@ import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 from email_validator import EmailNotValidError, validate_email
 from firebase_admin import auth, firestore
+from app.modules.business_definition import get_business_data
 
 POST_REQUEST_URL_BASE = "https://identitytoolkit.googleapis.com/v1/accounts:"
 
@@ -380,32 +381,64 @@ class Authenticator:
         Password strength is validated using entropy bits (the power of the password alphabet).
         Upon registration, a validation link is sent to the user's email address.
         """
+        user_type = st.radio("User type", options=["Internal", "External"], index=None)
+
+        if not user_type:
+            return
 
         with st.form(key="register_form"):
             email = st.text_input("E-mail")
             name = st.text_input("Name")
             password = st.text_input("Password", type="password")
             confirm_password = st.text_input("Confirm password", type="password")
+
+            if user_type == "External":
+                business_data = get_business_data()
+                active_companies = business_data["clients"]
+                company = st.selectbox("Company", options=active_companies, index=None)
+                if email:
+                    self.preauthorized = email.split("@")[1]
+            elif user_type == "Internal":
+                user_type = "Connecta"
+                company = "Connecta"
+            else:
+                company = None
+
+            active_roles = [
+                role for role in self.active_roles if role.startswith(user_type.lower())
+            ]
+
             roles = st.multiselect(
-                "Roles", options=self.active_roles, default="connecta-viewer"
+                "Roles",
+                options=active_roles,
+                default="connecta-viewer" if user_type == "Connecta" else None,
             )
+
             register_button = st.form_submit_button(label="Submit")
 
         if not register_button:
             return None
         # Below are some checks to ensure proper and secure registration
+
         if password != confirm_password:
             st.session_state["login_error_message"] = "Passwords do not match"
             st.session_state["success_message"] = None
             return None
+
         if not name:
             st.session_state["login_error_message"] = "Please enter your name"
             st.session_state["success_message"] = None
             return None
         if "@" not in email and isinstance(self.preauthorized, str):
             email = f"{email}@{self.preauthorized}"
+
         if self.preauthorized and not email.endswith(self.preauthorized):
             st.session_state["login_error_message"] = "Domain not allowed"
+            st.session_state["success_message"] = None
+            return None
+
+        if not roles:
+            st.session_state["login_error_message"] = "Please select at least one role"
             st.session_state["success_message"] = None
             return None
         try:
@@ -428,11 +461,23 @@ class Authenticator:
             )
             st.session_state["success_message"] = None
             return None
+
+        if (
+            "login_error_message" in st.session_state
+            and st.session_state["login_error_message"]
+        ):
+            st.error(st.session_state["login_error_message"])
+            return None
+
         user = auth.create_user(
-            email=email, password=password, display_name=name, email_verified=False
+            email=email,
+            password=password,
+            display_name=name,
+            email_verified=False,
+            disabled=False,
         )
 
-        self.assign_user_role(user.uid, roles)
+        self.assign_user_metadata(user.uid, roles, company)
 
         # Having registered the user, send them a verification e-mail
         token = self.authenticate_user(
@@ -454,9 +499,9 @@ class Authenticator:
         st.session_state["login_error_message"] = None
         return st.balloons()
 
-    def assign_user_role(self, uid: str, roles: list[str]):
+    def assign_user_metadata(self, uid: str, roles: list[str], company: str):
         db = firestore.client()
-        db.collection("users").document(uid).set({"roles": roles})
+        db.collection("users").document(uid).set({"roles": roles, "company": company})
 
     @property
     def active_roles(self) -> tuple[str]:
