@@ -12,6 +12,7 @@ from app.modules.processing_viewer import (
     get_study_countries,
     get_studies_names,
     download_studies_data,
+    combine_dictionaries,
     filter_df,
     get_cross_questions,
     build_statistical_significance_df,
@@ -102,9 +103,11 @@ def main():
     with st.expander("Inspect variables"):
         sav_cols = st.columns(len(studies_data))
         studies_dbs = []
+        studies_configs = []
         for col, (study, data) in zip(sav_cols, studies_data.items()):
             col.markdown(f"### {study}")
             studies_dbs.append(read_sav_db(data["sav"]))
+            studies_configs.append(load_json(data["json"])["config"])
             metadata_df = read_sav_metadata(data["sav"])
             metadata_df["answer_options_count"] = (
                 metadata_df["values"]
@@ -120,7 +123,7 @@ def main():
 
     st.markdown("### Database filter")
 
-    config = load_json(data["json"])["config"]
+    config = combine_dictionaries(studies_configs)
 
     fields = st.columns(len(config["filters"]))
 

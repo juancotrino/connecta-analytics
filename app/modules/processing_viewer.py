@@ -419,8 +419,40 @@ def df_to_html(df: pd.DataFrame) -> str:
     )
 
 
+def combine_dictionaries(
+    dicts_list: list[dict[str, list[dict[str, str]]]],
+) -> dict[str, list[dict[str, str]]]:
+    """
+    Combines multiple dictionaries with filters, cross_variables, and section_variables,
+    ensuring no duplicate variables within each category across all dictionaries.
+
+    Args:
+        dicts_list: List of dictionaries, each containing 'filters', 'cross_variables',
+                  and 'section_variables' keys with lists of variable dictionaries.
+
+    Returns:
+        A single dictionary with combined and deduplicated variables in each category.
+    """
+    categories = ["filters", "cross_variables", "section_variables"]
+    result = {category: [] for category in categories}
+    seen = {category: set() for category in categories}
+
+    for data in dicts_list:
+        for category in categories:
+            for item in data.get(category, []):
+                var_name = item["variable"]
+                if var_name not in seen[category]:
+                    result[category].append(item)
+                    seen[category].add(var_name)
+
+    return result
+
+
 def filter_df(
-    fields: DeltaGenerator, filters: dict, metadata_df: pd.DataFrame, db: pd.DataFrame
+    fields: list[DeltaGenerator],
+    filters: list[dict],
+    metadata_df: pd.DataFrame,
+    db: pd.DataFrame,
 ) -> pd.DataFrame:
     for field, filter in zip(fields, filters):
         filter_name = filter["label"]
@@ -451,7 +483,13 @@ def filter_df(
                 except Exception:
                     options = []
 
-            selection = field.multiselect(filter_name, sorted(options.values()))
+            options_cleaned = {
+                value: option
+                for value, option in options.items()
+                if value in db[filter_variable].unique()
+            }
+
+            selection = field.multiselect(filter_name, sorted(options_cleaned.values()))
             selection = [mirrored_options[option] for option in selection]
 
             if selection:
