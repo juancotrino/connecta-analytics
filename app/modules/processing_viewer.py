@@ -1,4 +1,6 @@
 from typing import Literal, Callable
+from functools import reduce
+import json
 import traceback
 import ast
 import re
@@ -446,6 +448,44 @@ def combine_dictionaries(
                     seen[category].add(var_name)
 
     return result
+
+
+def combine_dataframes(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    # --- Function to merge dict strings ---
+    def merge_dicts(d1, d2):
+        d1 = ast.literal_eval(d1) if isinstance(d1, str) and d1.strip() else {}
+        d2 = ast.literal_eval(d2) if isinstance(d2, str) and d2.strip() else {}
+        d1 = {float(k): v for k, v in d1.items()}
+        d2 = {float(k): v for k, v in d2.items()}
+        d1.update(d2)  # if keys overlap, d2 overwrites
+        return str(d1)  # JSON string
+
+    # --- Merge ---
+    merged = df1.merge(
+        df2, left_index=True, right_index=True, how="outer", suffixes=("_1", "_2")
+    )
+
+    # Merge dictionaries for the "values" column
+    merged["values"] = merged.apply(
+        lambda row: merge_dicts(row.get("values_1", ""), row.get("values_2", "")),
+        axis=1,
+    )
+
+    # For all other columns → keep df1’s version if available, else df2’s
+    other_cols = [col for col in df1.columns if col != "values"]
+    for col in other_cols:
+        merged[col] = merged[f"{col}_1"].combine_first(merged[f"{col}_2"])
+
+    # ✅ Reorder columns to match df1's original order
+    final = merged[df1.columns.tolist()]
+
+    return final
+
+
+def combine_metadata(
+    metadata_list: list[pd.DataFrame],
+) -> pd.DataFrame:
+    return reduce(combine_dataframes, metadata_list)
 
 
 def filter_df(

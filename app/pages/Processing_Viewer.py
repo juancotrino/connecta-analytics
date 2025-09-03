@@ -12,6 +12,7 @@ from app.modules.processing_viewer import (
     get_study_countries,
     get_studies_names,
     download_studies_data,
+    combine_metadata,
     combine_dictionaries,
     filter_df,
     get_cross_questions,
@@ -103,6 +104,7 @@ def main():
     with st.expander("Inspect variables"):
         sav_cols = st.columns(len(studies_data))
         studies_dbs = []
+        studies_metadata = []
         studies_configs = []
         for col, (study, data) in zip(sav_cols, studies_data.items()):
             col.markdown(f"### {study}")
@@ -115,6 +117,7 @@ def main():
                 .astype(int)
             )
             col.dataframe(metadata_df, use_container_width=True)
+            studies_metadata.append(metadata_df)
 
         db = pd.concat(studies_dbs).reset_index(drop=True)
 
@@ -124,6 +127,7 @@ def main():
     st.markdown("### Database filter")
 
     config = combine_dictionaries(studies_configs)
+    metadata_df = combine_metadata(studies_metadata)
 
     fields = st.columns(len(config["filters"]))
 
