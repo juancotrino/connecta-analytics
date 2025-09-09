@@ -241,6 +241,9 @@ def main():
                 view_type=view_type,
                 show_question_text=show_question_text,
             )
+            if by_reference and view_type == "Detailed":
+                # remove columns that contain "TOTAL" in any of the header levels
+                df = df.loc[:, ~df.columns.get_level_values(1).str.contains("TOTAL")]
 
             html_table = create_html_table(df, decimal_precision)
 

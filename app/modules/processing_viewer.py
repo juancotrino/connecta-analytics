@@ -1,6 +1,5 @@
 from typing import Literal, Callable
 from functools import reduce
-import json
 import traceback
 import ast
 import re
@@ -986,6 +985,14 @@ def create_scale_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([t2b_df, tb_df])
 
 
+def create_numeric_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
+    # TODO: Define this functions behavior
+    # question_table = question_table.mean().to_frame().T
+    # question_table.index = ["Promedio"]
+    question_table = question_table.dropna(how="all")
+    return question_table
+
+
 def create_jr_question_df(question_table: pd.DataFrame) -> pd.DataFrame:
     old_label = question_table.index[2]
     question_table = question_table.rename(index={old_label: "JR"})
@@ -1017,7 +1024,7 @@ def create_grouped_df(
             case "E":
                 collapsed_table = create_scale_question_df(question_table)
             case "N":
-                collapsed_table = question_table
+                collapsed_table = create_numeric_question_df(question_table)
             case "J":
                 collapsed_table = create_jr_question_df(question_table)
             case "U":
@@ -1407,6 +1414,24 @@ def concatenate_statistical_significance(
     return df_percentage
 
 
+def append_general_total_row(
+    df_count: pd.DataFrame, df_percentage: pd.DataFrame
+) -> pd.DataFrame:
+    total_rows = df_count[df_count.index.get_level_values(-1) == "Total"]
+    general_total_rows = total_rows[(total_rows != 0).all(axis=1)]
+    general_total_rows.index = pd.MultiIndex.from_tuples(
+        [
+            ("TOTAL",) * general_total_rows.index.nlevels
+            for _ in range(len(general_total_rows))
+        ],
+        names=general_total_rows.index.names,
+    )
+    if not general_total_rows.empty:
+        final_df = pd.concat([general_total_rows.iloc[[0]], df_percentage])
+
+    return final_df
+
+
 @st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,
@@ -1556,10 +1581,9 @@ def build_statistical_significance_df(
                 question_config["question_type_id"]
             )
 
-            if group == "FILTERS":
-                question_table_count = sort_question_table(
-                    question_table_count, question_config, question_type_config
-                )
+            question_table_count = sort_question_table(
+                question_table_count, question_config, question_type_config
+            )
 
             if view_type == "Grouped":
                 question_table_count = question_table_count.drop(
@@ -1601,6 +1625,10 @@ def build_statistical_significance_df(
     if view_type == "Grouped":
         # Drop all rows that are stats in the last level of the index
         final_table_percentage = remove_stats(final_table_percentage)
+
+        final_table_percentage = append_general_total_row(
+            final_table_count, final_table_percentage
+        )
 
     final_table_percentage = add_letter_level_per_group(final_table_percentage)
 
