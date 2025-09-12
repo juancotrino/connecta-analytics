@@ -591,9 +591,8 @@ def main():
                 config["study_name"] = study_name
                 config["country_code"] = country_code
                 for attribute in CONFIG_ATTRIBUTES:
-                    config["config"][attribute].extend(
-                        variables_dfs[attribute].to_dict("records")
-                    )
+                    # Replace the list instead of extending to prevent duplicates
+                    config["config"][attribute] = variables_dfs[attribute].to_dict("records")
 
                 json_str = json.dumps(config, indent=2, ensure_ascii=False)
                 json_bytes = BytesIO(json_str.encode("utf-8"))
