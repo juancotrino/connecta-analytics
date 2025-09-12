@@ -18,7 +18,9 @@ from app.modules.processing_viewer import (
     get_cross_questions,
     build_statistical_significance_df,
     create_html_table,
+    remap_references,
 )
+from app.modules.processing import get_references
 from app.modules.utils import (
     _to_show,
     read_sav_db,
@@ -101,6 +103,8 @@ def main():
         selected_studies,
     )
 
+    current_references = get_references(product_category, product_subcategory, company)
+
     with st.expander("Inspect variables"):
         sav_cols = st.columns(len(studies_data))
         studies_dbs = []
@@ -108,9 +112,11 @@ def main():
         studies_configs = []
         for col, (study, data) in zip(sav_cols, studies_data.items()):
             col.markdown(f"### {study}")
-            studies_dbs.append(read_sav_db(data["sav"]))
-            studies_configs.append(load_json(data["json"])["config"])
+            sav_db = read_sav_db(data["sav"])
             metadata_df = read_sav_metadata(data["sav"])
+            sav_db = remap_references(sav_db, metadata_df, current_references)
+            studies_dbs.append(sav_db)
+            studies_configs.append(load_json(data["json"])["config"])
             metadata_df["answer_options_count"] = (
                 metadata_df["values"]
                 .apply(lambda x: len(ast.literal_eval(x)) if x else 0)

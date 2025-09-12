@@ -1,11 +1,13 @@
 import json
+import uuid
 from io import BytesIO
+from functools import partial
 import pandas as pd
 
 import streamlit as st
 
 from app.modules.preprocessing import preprocessing, generate_open_ended_db
-from app.modules.processing import processing
+from app.modules.processing import processing, create_reference, get_references
 from app.modules.database_transformation import transform_database
 from app.modules.processor import (
     getPreProcessCode,
@@ -21,7 +23,11 @@ from app.modules.processor import (
     getWarning,
     get_diferences_with_kpis,
 )
-from app.modules.business_definition import get_business_data
+from app.modules.business_definition import (
+    get_business_data,
+    get_category_id,
+    get_subcategory_id,
+)
 from app.modules.processing_viewer import (
     get_categories,
     get_subcategories,
@@ -592,7 +598,9 @@ def main():
                 config["country_code"] = country_code
                 for attribute in CONFIG_ATTRIBUTES:
                     # Replace the list instead of extending to prevent duplicates
-                    config["config"][attribute] = variables_dfs[attribute].to_dict("records")
+                    config["config"][attribute] = variables_dfs[attribute].to_dict(
+                        "records"
+                    )
 
                 json_str = json.dumps(config, indent=2, ensure_ascii=False)
                 json_bytes = BytesIO(json_str.encode("utf-8"))
@@ -624,3 +632,124 @@ def main():
                 st.success("Study config registered successfully.")
 
                 get_companies_blobs.clear()
+
+            st.write("---")
+
+            st.write("### References")
+
+            category_id = get_category_id(category)
+            subcategory_id = get_subcategory_id(subcategory, category_id)
+
+            # category = category
+            # subcategory = subcategory
+            # company = company
+
+            references_editor_columns = [
+                "id",
+                "label",
+            ]
+
+            def load_references(
+                references: list[str],
+                client: str,
+                category_id: str,
+                subcategory_id: str,
+                current_references: list[dict[str, str]],
+                key: str,
+                group: str,
+                category: str,
+                subcategory: str,
+            ):
+                # Clear any existing references in session state for this new group
+                if f"current_{group}" in st.session_state:
+                    del st.session_state[f"current_{group}"]
+                # Get fresh references list from database
+                current_references = get_references(category, subcategory, client)
+                st.session_state[f"current_{group}"] = current_references
+
+                for i, reference in enumerate(references, 1):
+                    create_reference(
+                        len(current_references) + i,
+                        reference,
+                        client,
+                        subcategory_id,
+                        category_id,
+                    )
+                # Clear cache
+                get_references.clear(category, subcategory, client)
+
+                # Refresh the list and store in session
+                st.session_state[f"current_{group}"] = get_references(
+                    category, subcategory, client
+                )
+                # Change the key of the data editor to start over.
+                st.session_state[key] = str(uuid.uuid4())
+
+            group = "references"
+
+            key = f"dek_{group}"
+            # Define a variable as a key of the data editor.
+            if key not in st.session_state:
+                st.session_state[key] = str(uuid.uuid4())
+
+            if f"current_{group}" in st.session_state:
+                current_references = st.session_state[f"current_{group}"]
+            else:
+                current_references = []
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("##### Add references")
+                references_metadata = eval(metadata_df.loc["REF.1", "values"])
+
+                current_references = get_references(category, subcategory, company)
+
+                current_references_labels = [ref["label"] for ref in current_references]
+
+                references_to_add = st.multiselect(
+                    "References",
+                    [
+                        ref
+                        for _, ref in references_metadata.items()
+                        if ref not in current_references_labels
+                    ],
+                )
+
+                if st.button(
+                    "Add references",
+                    type="primary",
+                    key=f"add_{group}",
+                    on_click=partial(
+                        load_references,
+                        references_to_add,
+                        company,
+                        category_id,
+                        subcategory_id,
+                        current_references,
+                        key,
+                        group,
+                        category,
+                        subcategory,
+                    ),
+                    disabled=not references_to_add,
+                ):
+                    st.success("References added successfully.")
+                    references_to_add.clear()
+                    st.rerun()
+
+            with col2:
+                st.markdown("##### Current references")
+                current_references_df = pd.DataFrame(
+                    current_references,
+                    columns=references_editor_columns,
+                )
+                current_references_df = current_references_df[references_editor_columns]
+                st.dataframe(
+                    current_references_df.sort_values(by="id"),
+                    column_config={
+                        "id": st.column_config.TextColumn("ID", width="small"),
+                        "label": st.column_config.TextColumn("Label", width="medium"),
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                )

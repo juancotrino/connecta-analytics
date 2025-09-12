@@ -1432,6 +1432,31 @@ def append_general_total_row(
     return final_df
 
 
+def remap_references(
+    db: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    current_references: list[dict[str, str]],
+) -> pd.DataFrame:
+    ref_col_name = "REF.1"
+
+    # create dictionary id: label
+    reference_label_to_id = {
+        reference["label"]: reference["id"] for reference in current_references
+    }
+
+    metadata_mapping = eval(metadata_df.loc["REF.1", "values"])
+
+    # map values of db in the columns REF.1 to the id in metadata_mapping
+    db[ref_col_name] = (
+        db[ref_col_name]
+        .map(metadata_mapping)
+        .map(reference_label_to_id)
+        .fillna(db[ref_col_name])
+    ).astype(float)
+
+    return db
+
+
 @st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,

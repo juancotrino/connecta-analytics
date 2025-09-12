@@ -5,6 +5,7 @@ from itertools import product
 
 import streamlit as st
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 import numpy as np
 import pandas as pd
@@ -18,7 +19,12 @@ from openpyxl.utils.cell import range_boundaries
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font
 
+from app.cloud.firestore import create_document
 from app.modules.utils import get_temp_file, write_temp_excel
+from app.modules.business_definition import (
+    get_category_id,
+    get_subcategory_id,
+)
 
 letters_list = list(string.ascii_uppercase)
 
@@ -1077,3 +1083,51 @@ def processing(xlsx_file: BytesIO):
             ws_totals.cell(row=i, column=col).fill = blueFill
 
     return write_temp_excel(wb_new), wb_new
+
+
+def create_reference(
+    id_: str,
+    label: str,
+    client: str,
+    subcategory_id: str,
+    category_id: str,
+) -> str:
+    data = {
+        "id": id_,
+        "label": label,
+        "client": client,
+        "subcategory_id": subcategory_id,
+        "category_id": category_id,
+    }
+    return create_document("settings", "survey_config", "references", data)
+
+
+@st.cache_data(show_spinner=False)
+def get_references(
+    category_name: str | None = None,
+    subcategory_name: str | None = None,
+    client: str | None = None,
+) -> list[dict[str, str]]:
+    db = firestore.client()
+    category_id = get_category_id(category_name)
+    subcategory_id = get_subcategory_id(subcategory_name, category_id)
+
+    references_ref = (
+        db.collection("settings").document("survey_config").collection("references")
+    )
+    if category_id:
+        references_ref = references_ref.where(
+            filter=FieldFilter("category_id", "==", category_id)
+        )
+    if subcategory_id:
+        references_ref = references_ref.where(
+            filter=FieldFilter("subcategory_id", "==", subcategory_id)
+        )
+    if client:
+        references_ref = references_ref.where(
+            filter=FieldFilter("client", "==", client)
+        )
+
+    references_query = references_ref.stream()
+    references = [reference_doc.to_dict() for reference_doc in references_query]
+    return references
