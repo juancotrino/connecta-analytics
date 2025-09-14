@@ -46,6 +46,14 @@ def main():
             )
             metadata_container.dataframe(metadata_df, use_container_width=True)
 
+        _, col22= st.columns(2)
+        with col22:
+            # Add section to upload a file
+            st.markdown("### List KPIs")
+            kpis_list_uploaded_file = st.file_uploader("Upload excel file with KPIs List", type=["xlsx"], key="kpis_list")
+
+
+
     if "gcs_path" not in st.session_state:
         st.session_state["gcs_path"] = None
 
@@ -113,12 +121,14 @@ def main():
 
             process = st.form_submit_button("Process scenarios")
 
+            download_button=st.empty()
+
             if jobs_validated and db_validated and not jobs_df.empty:
                 if uploaded_file and process:
                     with st.spinner("Processing..."):
                         try:
                             files, warning_empty = segment_spss(
-                                jobs_df, uploaded_file, transform_inverted_scales
+                                jobs_df, uploaded_file, transform_inverted_scales,kpis_list_uploaded_file
                             )
                             if warning_empty != "":
                                 st.warning(warning_empty)
@@ -145,23 +155,24 @@ def main():
         except Exception:
             pass
 
-    if st.session_state["gcs_path"]:
-        # Create a button to download the file and execute the additional action
-        if st.button("Download segmented data", type="primary"):
-            st.markdown(
-                f"""
-                <iframe src="{st.session_state["gcs_path"]}" ></iframe>
-            """,
-                unsafe_allow_html=True,
-            )
-            time.sleep(1)
-            delete_gcs(
-                st.session_state["gcs_path"].split("/")[-1], "connecta-app-1-temp-data"
-            )
+    with col1:
+        if st.session_state["gcs_path"]:
+            # Create a button to download the file and execute the additional action
+            if st.button("Download segmented data", type="primary"):
+                st.markdown(
+                    f"""
+                    <iframe src="{st.session_state["gcs_path"]}" ></iframe>
+                """,
+                    unsafe_allow_html=True,
+                )
+                time.sleep(1)
+                delete_gcs(
+                    st.session_state["gcs_path"].split("/")[-1], "connecta-app-1-temp-data"
+                )
 
-            del st.session_state["gcs_path"]
+                del st.session_state["gcs_path"]
 
-            st.rerun()
+                st.rerun()
 
         # # Send POST request
         # response = requests.post("your_endpoint_url", json=data)

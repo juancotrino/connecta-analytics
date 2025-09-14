@@ -70,6 +70,7 @@ def process_chi2(
     chi2_mode: str,
     inverted_scales_keywords: list,
     correction: bool = False,
+    kpis_list_file: BytesIO= None,
 ):
     data, study_metadata = pyreadstat.read_sav(file_path, apply_value_formats=False)
 
@@ -150,6 +151,54 @@ def process_chi2(
     results_df = results_df.reset_index(names="code").merge(
         variables_scale_info, on="code"
     )
+
+    if kpis_list_file is not None:
+        file_xlsx_kpis_list = get_temp_file(kpis_list_file)
+        kpis_df_questions = pd.read_excel(
+            file_xlsx_kpis_list,
+            usecols="B,C,D",
+            names=["names_kpis", "number_question_kpi", "number_question2_kpi"],
+        ).dropna(subset=["names_kpis"])
+        kpis_df_questions = kpis_df_questions.applymap(
+            lambda x: x.strip() if isinstance(x, str) else x
+        )
+        # Para la columna 2
+        kpis_df_questions[kpis_df_questions.columns[1]] = kpis_df_questions[kpis_df_questions.columns[1]].apply(
+            lambda x: f"{x.upper()}." if isinstance(x, str) and len(x.strip().split()) == 1 and not x.endswith('.') else x
+        )
+
+        # Para la columna 3
+        kpis_df_questions[kpis_df_questions.columns[2]] = kpis_df_questions[kpis_df_questions.columns[2]].apply(
+            lambda x: f"{x.upper()}." if isinstance(x, str) and len(x.strip().split()) == 1 and not x.endswith('.') else x
+        )
+        kpis_dict={}
+        for _, row in kpis_df_questions.iterrows():
+            kpi = row["names_kpis"]
+            question = row["number_question_kpi"]
+            question2 = row["number_question2_kpi"]
+            # Verificar si está vacío o NaN
+            if not pd.isna(question) and not (isinstance(question, str) and question.strip() == ""):
+                kpis_dict[question]=kpi
+
+            if not pd.isna(question2) and not (isinstance(question2, str) and question2.strip() == ""):
+                kpis_dict[question2]=kpi
+
+        def reemplazar_si_kpi(texto: str) -> str:
+            if not isinstance(texto, str) or not texto.strip():
+                return texto
+
+            palabras = texto.strip().split()
+            primera = palabras[0]
+
+            if primera in kpis_dict:
+                return (
+                    " ".join(palabras[2:])    # si el valor del diccionario es MULTI
+                    if kpis_dict[primera] == "MULTI"
+                    else kpis_dict[primera]    # si es cualquier otro valor
+                )
+            return texto                         # si no está, dejo igual
+
+        results_df["text"] = results_df["text"].apply(reemplazar_si_kpi)
 
     if not results_df.empty:
         return results_df[["text", "Cramer's V", "P-value", "scale_type"]].sort_values(
@@ -526,7 +575,7 @@ def add_segment_conditions(df: pd.DataFrame, spss_file: BytesIO):
 
 
 def segment_spss(
-    jobs: pd.DataFrame, spss_file: BytesIO | str, transform_inverted_scales: bool
+    jobs: pd.DataFrame, spss_file: BytesIO | str, transform_inverted_scales: bool, kpis_list_file: BytesIO= None
 ):
     # print('Started execution')
     if isinstance(spss_file, BytesIO):
@@ -645,6 +694,7 @@ def segment_spss(
                 job["chi2_mode"],
                 inverted_scales_keywords,
                 correction,
+                kpis_list_file,
             )
 
             # Create a new workbook object and select the active worksheet
