@@ -126,7 +126,7 @@ def main():
 
         try:
             try_download(
-                "Download processed database", final_db, "db_preprocessed", "sav"
+                "Download processed database", final_db, "db_preprocessed_"+uploaded_file_preprocess_sav.name, "sav"
             )
         except Exception:
             pass
