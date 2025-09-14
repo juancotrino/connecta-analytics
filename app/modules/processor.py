@@ -3452,10 +3452,8 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                         val_abajo = ws_kpis.cell(row=fila + 1, column=3).value
 
                         # Verifica condiciones especiales
-                        if val_actual == "T2B" or val_abajo == "JR":
+                        if val_actual == "T2B" or val_actual == "JR":
                             cell.fill=greenFill
-                        elif val_arriba == "JR":
-                            cell.fill=redFill
 
                         left_border = medium if col_idx in left_thick_border_list else thin
                         right_border = medium if col_idx in right_thick_border_list else thin
