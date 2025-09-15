@@ -140,6 +140,12 @@ def main():
     fields = st.columns(len(config["filters"]))
 
     db = filter_df(fields, config["filters"], metadata_df, db)
+    if "filter_REF.1" in st.session_state:
+        references = st.session_state["filter_REF.1"]
+        if not references:
+            references = list(st.session_state["filter_REF.1_cleaned"].keys())
+    else:
+        references = []
 
     if db.empty:
         st.warning("The filters you applied to the database, return no records.")
@@ -248,6 +254,7 @@ def main():
                 questions_by_group,
                 view_type=view_type,
                 show_question_text=show_question_text,
+                references=references,
             )
             if by_reference and view_type == "Detailed":
                 # remove columns that contain "TOTAL" in any of the header levels

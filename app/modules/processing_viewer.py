@@ -528,8 +528,20 @@ def filter_df(
                 if value in db[filter_variable].unique()
             }
 
-            selection = field.multiselect(filter_name, sorted(options_cleaned.values()))
-            selection = [mirrored_options[option] for option in selection]
+            if f"filter_{filter_variable}_cleaned" not in st.session_state:
+                st.session_state[f"filter_{filter_variable}_cleaned"] = options_cleaned
+
+            # Create a unique key for this filter in session state
+            session_key = f"filter_{filter_variable}"
+            # Get the display values for the multiselect
+            display_selection = field.multiselect(
+                filter_name,
+                sorted(options_cleaned.values()),
+                key=f"{session_key}_display",
+            )
+            # Map display values back to original values and store in session state
+            selection = [mirrored_options[option] for option in display_selection]
+            st.session_state[session_key] = selection
 
             if selection:
                 db = db[db[filter_variable].isin(selection)].reset_index(drop=True)
@@ -1477,6 +1489,44 @@ def remap_references(
     return db, metadata_df
 
 
+def reorder_by_references(
+    dfs: list[pd.DataFrame], reference_ids: list[str], metadata_df: pd.DataFrame
+) -> list[pd.DataFrame]:
+    if not reference_ids:
+        return dfs
+
+    reordered_dfs = []
+
+    references_mapping = eval(metadata_df.loc["REF.1", "values"])
+    reference_names = [references_mapping[id_] for id_ in reference_ids]
+
+    for df in dfs:
+        # Get the current MultiIndex
+        current_columns = df.columns
+
+        # Create a mapping from value to its position in the desired order
+        order_mapping = {value: idx for idx, value in enumerate(reference_names)}
+
+        # Create a temporary column for sorting
+        temp_columns = []
+        for col in current_columns:
+            # For each column, get its position in the desired order
+            # If the value is not in the order list, put it at the end
+            sort_key = order_mapping.get(col[1], len(reference_names))
+            temp_columns.append((*col, sort_key))
+
+        # Sort the columns based on the temporary sort key
+        temp_columns.sort(key=lambda x: x[-1])
+
+        # Remove the temporary sort key
+        new_columns = [col[:-1] for col in temp_columns]
+
+        # Reindex the DataFrame with the new column order
+        reordered_dfs.append(df[new_columns])
+
+    return reordered_dfs
+
+
 @st.cache_data(show_spinner=False)
 def build_statistical_significance_df(
     db: pd.DataFrame,
@@ -1487,6 +1537,7 @@ def build_statistical_significance_df(
     questions_by_group: dict[str, list[str]],
     view_type: Literal["Grouped", "Detailed"] = "Detailed",
     show_question_text: bool = False,
+    references: list[str] = [],
 ) -> pd.DataFrame:
     parsed_questions = parse_question_codes(db.columns, metadata_df)
 
@@ -1522,6 +1573,10 @@ def build_statistical_significance_df(
                     selected_question,
                     view_type,
                     questions_by_group,
+                )
+
+                contingency_tables_count = reorder_by_references(
+                    contingency_tables_count, references, metadata_df
                 )
 
                 question_composed_count_df = pd.concat(contingency_tables_count, axis=1)
