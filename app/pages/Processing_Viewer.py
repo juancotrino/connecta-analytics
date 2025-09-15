@@ -114,7 +114,9 @@ def main():
             col.markdown(f"### {study}")
             sav_db = read_sav_db(data["sav"])
             metadata_df = read_sav_metadata(data["sav"])
-            sav_db = remap_references(sav_db, metadata_df, current_references)
+            sav_db, metadata_df = remap_references(
+                study, sav_db, metadata_df, current_references
+            )
             studies_dbs.append(sav_db)
             studies_configs.append(load_json(data["json"])["config"])
             metadata_df["answer_options_count"] = (

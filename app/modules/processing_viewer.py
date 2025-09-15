@@ -1433,10 +1433,11 @@ def append_general_total_row(
 
 
 def remap_references(
+    study: str,
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
     current_references: list[dict[str, str]],
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     ref_col_name = "REF.1"
 
     # create dictionary id: label
@@ -1446,6 +1447,19 @@ def remap_references(
 
     metadata_mapping = eval(metadata_df.loc["REF.1", "values"])
 
+    unregistered_references = [
+        reference
+        for reference in metadata_mapping.values()
+        if reference not in reference_label_to_id
+    ]
+
+    if unregistered_references:
+        st.warning(
+            f"References [{', '.join(unregistered_references)}] are not "
+            f"found in the registry for **{study}**. "
+            "Please register them manually in `Processing` service."
+        )
+
     # map values of db in the columns REF.1 to the id in metadata_mapping
     db[ref_col_name] = (
         db[ref_col_name]
@@ -1454,7 +1468,13 @@ def remap_references(
         .fillna(db[ref_col_name])
     ).astype(float)
 
-    return db
+    metadata_mapped = {
+        float(reference_label_to_id[ref]): ref for ref in metadata_mapping.values()
+    }
+
+    metadata_df.loc["REF.1", "values"] = str(metadata_mapped)
+
+    return db, metadata_df
 
 
 @st.cache_data(show_spinner=False)
