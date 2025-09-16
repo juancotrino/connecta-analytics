@@ -528,8 +528,8 @@ def filter_df(
                 if value in db[filter_variable].unique()
             }
 
-            if f"filter_{filter_variable}_cleaned" not in st.session_state:
-                st.session_state[f"filter_{filter_variable}_cleaned"] = options_cleaned
+            # Always store the latest cleaned options in session state
+            st.session_state[f"filter_{filter_variable}_cleaned"] = options_cleaned
 
             # Create a unique key for this filter in session state
             session_key = f"filter_{filter_variable}"
