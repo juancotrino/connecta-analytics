@@ -74,7 +74,7 @@ class Authenticator:
         alphabet_chars = len(set(password))
         strength = int(len(password) * math.log2(alphabet_chars) * 1.5)
 
-        if strength < 100:
+        if strength < 50:
             return False, "Password is too weak. Please choose a stronger password."
         return True, ""
 
