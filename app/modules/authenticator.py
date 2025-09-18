@@ -448,14 +448,18 @@ class Authenticator:
             st.session_state["success_message"] = None
             return None
 
-        # Need a password that has minimum 66 entropy bits (the power of its alphabet)
-        # I multiply this number by 1.5 to display password strength with st.progress
-        # For an explanation, read this -
+        # Calculate password strength using entropy bits (the power of its alphabet)
+        # Multiply by 1.5 to scale for better display with st.progress
+        # For an explanation, read:
         # https://en.wikipedia.org/wiki/Password_strength#Entropy_as_a_measure_of_password_strength
         alphabet_chars = len(set(password))
         strength = int(len(password) * math.log2(alphabet_chars) * 1.5)
-        if strength < 100:
-            st.progress(strength)
+        
+        # Always show password strength progress bar
+        st.progress(min(100, strength) / 100)  # Cap at 100% for display
+        
+        # Only show error for weak passwords
+        if strength < 50:
             st.session_state["login_error_message"] = (
                 "Password is too weak. Please choose a stronger password."
             )
