@@ -1123,7 +1123,10 @@ def append_summary_rows(
 
 
 def sort_question_table(
-    question_table: pd.DataFrame, question_config: dict, question_type_config: dict
+    question_table: pd.DataFrame,
+    question_config: dict,
+    question_type_config: dict,
+    view_type: str,
 ) -> pd.DataFrame:
     stats_labels: list = question_type_config["properties"]
 
@@ -1152,39 +1155,44 @@ def sort_question_table(
         question_table.index.isin(options_indices)
     ]
 
-    match question_config["sorted_by"]:
-        case "options":
-            match question_config["sort_order"]:
-                case "desc":
-                    reordered_question_table_options = (
-                        question_table_options.sort_index(level=-1, ascending=False)
-                    )
-                case "asc":
-                    reordered_question_table_options = (
-                        question_table_options.sort_index(level=-1, ascending=True)
-                    )
-                case "original":
-                    reordered_question_table_options = question_table_options
-                case _:
-                    reordered_question_table_options = question_table_options
-        case "values":
-            match question_config["sort_order"]:
-                case "desc":
-                    reordered_question_table_options = (
-                        question_table_options.sort_values(
-                            by=[("V1", "TOTAL", "TOTAL")], ascending=False
+    if view_type == "Detailed":
+        match question_config["sorted_by"]:
+            case "options":
+                match question_config["sort_order"]:
+                    case "desc":
+                        st.write(question_table_options)
+                        reordered_question_table_options = (
+                            question_table_options.sort_index(level=-1, ascending=False)
                         )
-                    )
-                case "asc":
-                    reordered_question_table_options = (
-                        question_table_options.sort_values(
-                            by=[("V1", "TOTAL", "TOTAL")], ascending=True
+                        st.write(reordered_question_table_options)
+                    case "asc":
+                        reordered_question_table_options = (
+                            question_table_options.sort_index(level=-1, ascending=True)
                         )
-                    )
-                case "original":
-                    reordered_question_table_options = question_table_options
-                case _:
-                    reordered_question_table_options = question_table_options
+                    case "original":
+                        reordered_question_table_options = question_table_options
+                    case _:
+                        reordered_question_table_options = question_table_options
+            case "values":
+                match question_config["sort_order"]:
+                    case "desc":
+                        reordered_question_table_options = (
+                            question_table_options.sort_values(
+                                by=[("V1", "TOTAL", "TOTAL")], ascending=False
+                            )
+                        )
+                    case "asc":
+                        reordered_question_table_options = (
+                            question_table_options.sort_values(
+                                by=[("V1", "TOTAL", "TOTAL")], ascending=True
+                            )
+                        )
+                    case "original":
+                        reordered_question_table_options = question_table_options
+                    case _:
+                        reordered_question_table_options = question_table_options
+    else:
+        reordered_question_table_options = question_table_options
 
     return pd.concat([reordered_question_table_options, question_table_stats])
 
@@ -1682,7 +1690,7 @@ def build_statistical_significance_df(
             )
 
             question_table_count = sort_question_table(
-                question_table_count, question_config, question_type_config
+                question_table_count, question_config, question_type_config, view_type
             )
 
             if view_type == "Grouped":
