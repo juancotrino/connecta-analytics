@@ -150,7 +150,7 @@ class App:
                 # User is authenticated
                 _ = self.authenticator.login_panel  # Displays logout and account config
                 self.hide_unauthorized_pages()
-                if "internal" in os.getenv("K_SERVICE"):
+                if os.getenv("K_SERVICE").endswith("connecta-analytics-app-legacy"):
                     self.render_admin_panel()
                 self.render_pages()
                 footer()
