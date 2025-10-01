@@ -30,6 +30,8 @@ RUN git clone --depth 1 -b dev https://github.com/juancotrino/connecta-analytics
   ! -name '__init__.py' \
   -delete
 
+RUN pip install -r requirements.txt
+
 ENV PORT 8080
 
 EXPOSE ${PORT}
