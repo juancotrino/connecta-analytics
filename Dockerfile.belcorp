@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y \
 # && rm -rf /var/lib/apt/lists/*
 
 
-RUN git clone -b dev https://github.com/juancotrino/connecta-analytics.git . && \
-  cd connecta-analytics/app && \
+RUN git clone --depth 1 -b dev https://github.com/juancotrino/connecta-analytics.git . && \
+  cd app/pages && \
   find . -maxdepth 1 -type f \
   ! -name 'Processing_Viewer.py' \
   ! -name '__init__.py' \

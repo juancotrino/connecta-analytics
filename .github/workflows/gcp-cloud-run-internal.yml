@@ -42,7 +42,7 @@
 #   Container Registry vs Artifact Registry   - https://cloud.google.com/blog/products/application-development/understanding-artifact-registry-vs-container-registry
 #   Principle of least privilege              - https://cloud.google.com/blog/products/identity-security/dont-get-pwned-practicing-the-principle-of-least-privilege
 
-name: Build and Deploy to Cloud Run
+name: Build and Deploy to Cloud Run Internal
 
 on:
   push:
@@ -94,7 +94,7 @@ jobs:
           password: "${{ steps.auth.outputs.access_token }}"
           registry: "${{ env.GAR_LOCATION }}-docker.pkg.dev"
 
-      - name: Build internal and Push Container
+      - name: Build and Push Container
         # --build-arg GH_PRIVATE_REPO_ACCESS=${{ secrets.GH_PRIVATE_REPO_ACCESS }} \
         run: |-
           docker build \
@@ -102,8 +102,8 @@ jobs:
             -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}" ./
           docker push "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
       # END - Docker auth and build
-      - name: Deploy internal to Cloud Run
-        id: deploy-internal
+      - name: Deploy to Cloud Run
+        id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: "connecta-analytics-app-legacy"
@@ -134,39 +134,5 @@ jobs:
           # #   NODE_ENV=production
           # #   TOKEN_EXPIRE=6400
       # If required, use the Cloud Run url output in later steps
-      - name: Build Belcorp and Push Container
-        # --build-arg GH_PRIVATE_REPO_ACCESS=${{ secrets.GH_PRIVATE_REPO_ACCESS }} \
-        run: |-
-          docker build \
-            -f Dockerfile.belcorp \
-            -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}" ./
-          docker push "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
-      # END - Docker auth and build
-      - name: Deploy Belcorp to Cloud Run
-        id: deploy-belcorp
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: "connecta-analytics-app-legacy-belcorp"
-          region: ${{ env.REGION }}
-          # NOTE: If using a pre-built image, update the image name here
-          image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}
-          flags: |
-            --allow-unauthenticated
-            --memory=2048Mi
-            --cpu=1
-            --concurrency=100
-            --timeout=3600
-            --max-instances=1
-            --service-account=${{ secrets.GCR_SERVICE_ACCOUNT }}
-          env_vars: |
-            COOKIE_KEY=${{ secrets.COOKIE_KEY }}
-            FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
-            SITE_URL=${{ secrets.SITE_URL }}
-            CLIENT_ID=${{ secrets.CLIENT_ID }}
-            CLIENT_SECRET=${{ secrets.CLIENT_SECRET }}
-            BIGQUERY_SCHEMA_ID=${{ secrets.BIGQUERY_SCHEMA_ID }}
-            GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
-            GCP_REGION=${{ secrets.GCP_REGION }}
-      # If required, use the Cloud Run url output in later steps
-      - name: Show Belcorp Output
-        run: echo ${{ steps.deploy-belcorp.outputs.url }}
+      - name: Show Output
+        run: echo ${{ steps.deploy.outputs.url }}
