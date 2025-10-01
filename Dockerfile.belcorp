@@ -20,6 +20,8 @@ RUN git clone --depth 1 -b dev https://github.com/juancotrino/connecta-analytics
   -delete && \
   cd ../modules && \
   find . -maxdepth 1 -type f \
+  ! -name 'authenticator.py' \
+  ! -name 'styling.py' \
   ! -name 'preprocessing.py' \
   ! -name 'business_definition.py' \
   ! -name 'processing_viewer.py' \
