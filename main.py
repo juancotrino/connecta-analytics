@@ -1,3 +1,4 @@
+import os
 import importlib
 import logging
 from typing import Optional, List
@@ -149,7 +150,8 @@ class App:
                 # User is authenticated
                 _ = self.authenticator.login_panel  # Displays logout and account config
                 self.hide_unauthorized_pages()
-                self.render_admin_panel()
+                if "internal" in os.getenv("K_SERVICE"):
+                    self.render_admin_panel()
                 self.render_pages()
                 footer()
             else:
