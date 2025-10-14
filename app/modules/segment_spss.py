@@ -663,7 +663,13 @@ def segment_spss(
         else:
             filtered_data = survey_data[variables]
 
-        if filtered_data.empty:
+        condition_vars = re.findall(r'`?([A-Za-z0-9_\.]+)`?', job["condition"])
+        keywords_auxilar = {"and", "or", "not"}
+        condition_vars = [v for v in condition_vars if v not in keywords_auxilar]
+        other_cols = [c for c in filtered_data.columns if c not in condition_vars]
+        all_empty = filtered_data[other_cols].isna().all().all()
+
+        if filtered_data.empty or all_empty:
             warning_empty += f"Conditions produced an empty database for scenario: {job['scenario_name']}\n"
             continue
 
