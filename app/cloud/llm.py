@@ -62,16 +62,13 @@ class LLM:
 
         while retries < max_retries:
             try:
-                start_time = time.time()
                 response = requests.post(
                     self.url, headers=self.__headers, json=data, timeout=timeout
                 )
-                end_time = time.time()
-                elapsed_time = end_time - start_time
 
                 # If the request is successful, return the response
                 if response.status_code == 200:
-                    return response, elapsed_time, retries
+                    return response, retries
                 elif response.status_code == 503:
                     retries += 1
                     time.sleep(backoff)

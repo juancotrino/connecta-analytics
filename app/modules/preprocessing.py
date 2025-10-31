@@ -1,5 +1,6 @@
 from json import JSONDecoder
 import re
+import time
 
 # from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
@@ -304,13 +305,17 @@ def process_question(
 
     st.info(f"Coding question `{question}`")
     try:
-        response, elapsed_time, retries = model.send(
+        start_time = time.time()
+        response, retries = model.send(
             system_prompt="You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.",
             user_prompt=user_prompt,
             timeout=timeout,
         )
     except Exception as e:
         ui_container.error(f"Error in request for question `{question}`: {e}")
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
 
     formatted_time = format_time(elapsed_time)
 
