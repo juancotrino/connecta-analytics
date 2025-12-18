@@ -967,6 +967,67 @@ def getProcessAbiertas(
                                     includeall=checkinclude,
                                     varanidada=varsList.iloc[i][2] + tipo,
                                 )
+                    elif tipo == "C4":
+                        result += (
+                            "\nDELETE VARIABLES "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ".\nEXECUTE."
+                        )
+                        result += (
+                            "\nSPSS_TUTORIALS_CLONE_VARIABLES VARIABLES="
+                            + varsList.iloc[i][2]
+                            + '\n/OPTIONS FIX="'
+                            + tipo
+                            + '" FIXTYPE=SUFFIX ACTION=RUN.\nEXECUTE.'
+                        )
+                        result += (
+                            "\nVALUE LABELS "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + ' 1 "'
+                            + tipo
+                            + '".'
+                        )
+                        result += (
+                            "\nRECODE "
+                            + varsList.iloc[i][2]
+                            + tipo
+                            + " (5=SYSMIS) (4=1) (3=SYSMIS) (2=SYSMIS) (1=SYSMIS).\nEXECUTE.\n"
+                        )
+                        result += writeAgrupMulti(
+                            prefix, multis, varlabeloriginal + " - " + tipo
+                        )
+                        filtro = data[varsList.iloc[i][2]] == 4
+                        result += writeAbiertasQuestion(
+                            varAbierta,
+                            colvars,
+                            getListOrderConditions(multis, data, listNetos, filtro),
+                            includeall=checkinclude,
+                            varanidada=varsList.iloc[i][2] + tipo,
+                        )
+                        listatotal = []
+                        for var in multis:
+                            listatotal += data[filtro][var].tolist()
+                        count2 = Counter(listatotal)
+                        listatotaluniq = list(set(listatotal))
+                        for net in listNetos:
+                            if (
+                                net[0] != "First"
+                                and net[0] != "End"
+                                and any(count2[ele] > 0 for ele in net[1])
+                            ):
+                                nombreneto = (
+                                    net[0].strip().replace(" ", "_") + "_" + varAbierta
+                                )
+                                result+=f"TEMPORARY.\nSELECT IF (nvalid({multis[0]})=1 and {varsList.iloc[i][2] + tipo}=1).\n"
+                                result += writeQuestion(
+                                    "NETO_" + nombreneto,
+                                    "T",
+                                    colvars,
+                                    includeall=checkinclude,
+                                    varanidada=varsList.iloc[i][2] + tipo,
+                                )
                     elif tipo == "MB":
                         result += (
                             "\nDELETE VARIABLES "
@@ -2106,7 +2167,7 @@ def writeQuestion(
     else:
         txt += " ORDER=A KEY=VALUE "
 
-    if qtype in ["E", "J"]:
+    if qtype in ["E", "J"] or custom_order != "":
         txt += "EMPTY=INCLUDE TOTAL=YES POSITION=AFTER"
     else:
         txt += "EMPTY=EXCLUDE TOTAL=YES POSITION=AFTER"
