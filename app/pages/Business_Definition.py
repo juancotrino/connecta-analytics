@@ -192,7 +192,7 @@ def main():
                 label="Groups",
                 value=existing_groups_names,
                 suggestions=["FILTERS", "KPI'S PRINCIPALES"],
-                maxtags=10,
+                maxtags=20,
                 key="groups",
             )
 
