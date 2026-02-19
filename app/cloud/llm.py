@@ -10,10 +10,10 @@ from google.auth.transport.requests import Request
 class LLM:
     def __init__(
         self,
-        model: str = "meta/llama-3.1-405b-instruct-maas",
-        endpoint: str = "us-central1-aiplatform.googleapis.com",
-        project_id: str = os.getenv("GCP_PROJECT_ID"),
-        region: str = os.getenv("GCP_REGION"),
+        model: str = os.getenv("LLM_MODEL"),
+        endpoint: str = os.getenv("LLM_ENDPOINT"),
+        project_id: str = os.getenv("LLM_PROJECT_ID"),
+        region: str = os.getenv("LLM_REGION"),
     ) -> None:
         self.model = model
         self.url = f"https://{endpoint}/v1/projects/{project_id}/locations/{region}/endpoints/openapi/chat/completions"
