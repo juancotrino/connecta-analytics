@@ -14,6 +14,9 @@ from streamlit.runtime.scriptrunner import add_script_run_ctx
 # from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 from app.cloud import LLM
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Function to expand lists/tuples into columns
@@ -161,9 +164,11 @@ def generate_open_ended_db(results: dict, temp_file_name_sav: str):
     df["question_code"] = df["question_id-Response_ID"].apply(lambda x: x.split("-")[0])
     df["Response_ID"] = df["question_id-Response_ID"].apply(lambda x: x.split("-")[1])
     df["question_code_number"] = df["question_code"].apply(
-        lambda x: int(x.split("_")[0][1:])
-        if "." not in x.split("_")[0][1:]
-        else float(x.split("_")[0][1:])
+        lambda x: (
+            int(x.split("_")[0][1:])
+            if "." not in x.split("_")[0][1:]
+            else float(x.split("_")[0][1:])
+        )
     )
     df = df.sort_values(by="question_code_number").reset_index(drop=True)
     df["Response_ID"] = df["Response_ID"].astype(float)
@@ -312,7 +317,19 @@ def process_question(
             timeout=timeout,
         )
     except Exception as e:
+        logger.exception("Error in request for question `%s`", question)
+
+        response_info = {
+            "coding_results": pd.DataFrame(),
+            "status_code": None,
+            "elapsed_time": None,
+            "usage": None,
+            "retries": None,
+            "error": str(e),
+        }
+
         ui_container.error(f"Error in request for question `{question}`: {e}")
+        return response_info
 
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -382,8 +399,6 @@ def process_question(
     results[question] = response_info
 
     ui_container.success(f"Model response successfull for question: `{question}`")
-
-    # return response_info
 
 
 def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
