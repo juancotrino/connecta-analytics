@@ -3212,6 +3212,13 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                 if cell.value not in (None, "", "TOTAL")
             ]
 
+
+            letter_refs_list = [
+                cell.value
+                for cell in ws_tables[3][3:]
+                if cell.value not in (None, "", "TOTAL")
+            ]
+
             refs_col_indexes = [
                 cell.column
                 for cell in ws_tables[2]
@@ -3263,12 +3270,13 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                 if fila_total:
                     first_col=get_column_letter(min(indexs))
                     last_col=get_column_letter(max(indexs))
-                    merge_cells_visits= f"{first_col}{first_row}:{last_col}{first_row}"
+                    merge_cells_visits= f"{first_col}{first_row-1}:{last_col}{first_row-1}"
                     merge_with_border_range(ws_kpis,merge_cells_visits,complete_border)
-                    ws_kpis[f"{first_col}{first_row}"]=visits_name_list[visits_list.index(visit)]
-                    ws_kpis[f"{first_col}{first_row}"].fill=grayFill
+                    ws_kpis[f"{first_col}{first_row-1}"]=visits_name_list[visits_list.index(visit)]
+                    ws_kpis[f"{first_col}{first_row-1}"].fill=grayFill
                     for i, var in enumerate(indexs):
-                        ws_kpis[f"{get_column_letter(var)}{first_row+1}"]=refs_list[i]
+                        ws_kpis[f"{get_column_letter(var)}{first_row}"]=refs_list[i]
+                        ws_kpis[f"{get_column_letter(var)}{first_row+1}"]=letter_refs_list[i]
                         if fila_total:
                             ws_kpis[f"{get_column_letter(var)}{first_row+2}"]=ws_tables[f"{get_column_letter(refs_col_indexes[i])}{fila_total}"].value
 
@@ -3501,7 +3509,7 @@ def get_kpis_tables(xlsx_tablas, xlsx_kpis_list):
                         apply_medium_bottom_border(cell)
                     if col_idx in [2] and fila-1 in bottom_thick_border_list:
                         apply_medium_top_border(cell)
-                    if fila >= first_row+1 and col_idx in columns_refs_data:
+                    if fila >= first_row and col_idx in columns_refs_data:
                         cell.alignment = centrado
 
                         if cell.value in (None, ""):
