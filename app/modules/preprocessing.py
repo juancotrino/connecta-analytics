@@ -311,6 +311,7 @@ def process_question(
     st.info(f"Coding question `{question}`")
     try:
         start_time = time.time()
+        logger.debug("User prompt: %s", user_prompt)
         response, retries = model.send(
             system_prompt="You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.",
             user_prompt=user_prompt,
