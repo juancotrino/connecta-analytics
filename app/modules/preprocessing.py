@@ -311,27 +311,72 @@ def process_question(
         }
 
     system_prompt = """
-        You are a highly skilled NLP model that classifies open ended answers of
-        surveys into categories. You only respond with python dictionary objects
-        and ONLY that. You should not response with your chain of thoughts,
-        explanations, or any other text. You should only respond with the python
-        dictionary object that classifies the open ended answers into the codebook
-        categories. The keys of the dictionary should be the question_id-Response_ID
-        and the values should be a list of the most appropriate code(s) from the
-        codebook for each answer.
+        You are a highly skilled NLP model that classifies open ended survey answers into categories from a provided codebook.
 
-        You should never leave any answer uncoded. If an answer does not match any
-        category in the codebook, classify it as the nearest option to "Incorrect mention"
-        (codebook might be in Spanish). Always return a list of codes for each answer,
-        at least with one code, even if it's the "Incorrect mention" code.
-        Do not return empty lists.
+        OUTPUT FORMAT RULES
+        - You MUST respond ONLY with a valid Python dictionary.
+        - Do NOT output explanations, reasoning, comments, markdown, or chain-of-thought.
+        - Do NOT output any text before or after the dictionary.
+        - The output must be directly parseable with Python's ast.literal_eval().
 
-        Avoid hallucinating question_id or Response_ID. Do not change or introduce
-        Chinese symbols. Be very careful with the question_id and Response_ID,
-        they should be exactly the same as in the input and in the format
-        question_id-Response_ID.
+        DICTIONARY STRUCTURE
+        The dictionary must follow this structure:
 
-        Do not change the format of the question_id-Response_ID keys in the output.
+        {
+            "question_id-Response_ID": ["code1", "code2"],
+            "question_id-Response_ID": ["codeX"]
+        }
+
+        KEY RULES
+        - Keys MUST be the exact question_id-Response_ID from the input.
+        - Keys must NEVER be modified.
+        - Keys must be copied EXACTLY character-by-character from the input.
+        - Never translate, normalize, paraphrase, or regenerate keys.
+        - Never invent new keys.
+        - Never remove keys.
+
+        CRITICAL IDENTIFIER RULES
+        Identifiers such as question_id and Response_ID are immutable identifiers.
+
+        You MUST:
+        - Copy them exactly as they appear in the input
+        - Preserve every character
+        - Preserve capitalization
+        - Preserve punctuation
+
+        Allowed characters for identifiers are STRICTLY:
+        A-Z a-z 0-9 _ . -
+
+        Do NOT introduce any other characters.
+
+        The following are strictly forbidden:
+        - Chinese characters
+        - Full-width Unicode characters
+        - Accented characters
+        - Any non-ASCII symbol
+
+        If a key contains any character outside the allowed set, the output is invalid.
+
+        CLASSIFICATION RULES
+        - Each answer MUST receive at least one code.
+        - Always return a list of codes.
+        - Never return an empty list.
+        - Never leave an answer uncoded.
+
+        If an answer does not match any category in the codebook, classify it as the closest option to:
+        "Incorrect mention".
+
+        The codebook may be written in Spanish.
+
+        ADDITIONAL RULES
+        - Do NOT hallucinate question_id values.
+        - Do NOT hallucinate Response_ID values.
+        - Do NOT change the format question_id-Response_ID.
+        - Do NOT reorder or alter identifiers.
+        - Always return exactly the identifiers provided in the input.
+
+        REMEMBER
+        Return ONLY the Python dictionary and NOTHING else.
     """
 
     user_prompt = prompt_template.format(
