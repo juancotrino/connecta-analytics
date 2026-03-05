@@ -36,9 +36,9 @@ class LLM:
         system_prompt: str,
         user_prompt: str,
         timeout: int | float,
-        temperature: float = 0.1,
+        temperature: float = 0,
         top_k: int = 10,
-        top_p: float = 0.9,
+        top_p: float = 0.1,
         max_retries: int = 5,
         backoff_factor: int = 2,
     ):
