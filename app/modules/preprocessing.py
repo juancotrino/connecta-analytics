@@ -325,6 +325,13 @@ def process_question(
         (codebook might be in Spanish). Always return a list of codes for each answer,
         at least with one code, even if it's the "Incorrect mention" code.
         Do not return empty lists.
+
+        Avoid hallucinating question_id or Response_ID. Do not change or introduce
+        Chinese symbols. Be very careful with the question_id and Response_ID,
+        they should be exactly the same as in the input and in the format
+        question_id-Response_ID.
+
+        Do not change the format of the question_id-Response_ID keys in the output.
     """
 
     user_prompt = prompt_template.format(
