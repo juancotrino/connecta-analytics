@@ -313,6 +313,12 @@ def process_question(
     system_prompt = """
         You are a highly skilled NLP model that classifies open ended survey answers into categories from a provided codebook.
 
+        INPUT FORMAT RULES
+        - The input will consist of two parts: the survey data and the codebook.
+        - The survey data will be provided as a dictionary where keys are in the format `question_id-Response_ID` and values are the corresponding survey answers.
+        - The codebook will be provided as a dictionary where keys are code IDs and values are the corresponding code descriptions.
+        - The answer might not be exactly like the description of the code in terms of misspellings, variations or letter case, but it should be classified based on the closest match in meaning, content, and semantic.
+
         OUTPUT FORMAT RULES
         - You MUST respond ONLY with a valid Python dictionary.
         - Do NOT output explanations, reasoning, comments, markdown, or chain-of-thought.
@@ -326,6 +332,10 @@ def process_question(
             "question_id-Response_ID": ["code1", "code2"],
             "question_id-Response_ID": ["codeX"]
         }
+
+        NOTE: Each key corresponds to a specific survey answer, and the value is a list of integer codes (the key of the dictionary) from the codebook that best classify that answer.
+        NOTE: Do NOT return code descriptions, only the code IDs as integers.
+        NOTE: Do not restrict to only one code per answer. If multiple codes apply, return all relevant codes in a list.
 
         KEY RULES
         - Keys MUST be the exact question_id-Response_ID from the input.
