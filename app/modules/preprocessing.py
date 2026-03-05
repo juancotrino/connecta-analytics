@@ -310,6 +310,19 @@ def process_question(
             "retries": None,
         }
 
+    system_prompt = """
+        You are a highly skilled NLP model that classifies open ended answers of
+        surveys into categories. You only respond with python dictionary objects
+        and ONLY that. You should not response with your chain of thoughts,
+        explanations, or any other text. You should only respond with the python
+        dictionary object that classifies the open ended answers into the codebook
+        categories. The keys of the dictionary should be the question_id-Response_ID
+        and the values should be a list of the most appropriate code(s) from the
+        codebook for each answer. If an answer does not match any category in the
+        codebook, classify it the nerest to "Incorrect mention" (codebook might be
+        in spanish).
+    """
+
     user_prompt = prompt_template.format(
         survey_data={
             row["question_id-Response_ID"]: row["answer"]
@@ -327,7 +340,7 @@ def process_question(
         start_time = time.time()
         logger.info("User prompt for question `%s`: %s", question, user_prompt)
         response, retries = model.send(
-            system_prompt="You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects and ONLY that. You should not response with your chain of thoughts, explanations, or any other text. You should only respond with the python dictionary object that classifies the open ended answers into the codebook categories. The keys of the dictionary should be the question_id-Response_ID and the values should be a list of the most appropriate code(s) from the codebook for each answer. If an answer does not match any category in the codebook, classify it as an empty list.",
+            system_prompt=system_prompt,
             user_prompt=user_prompt,
             timeout=timeout,
         )
