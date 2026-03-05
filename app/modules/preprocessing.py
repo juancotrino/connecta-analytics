@@ -265,6 +265,20 @@ def calculate_timeout(num_answers, base_time=50, rate=2.25):
     return base_time + (num_answers * rate)
 
 
+def remove_chain_of_thought(text: str) -> str:
+    """
+    Removes <think>...</think> blocks from model output.
+    Works even if there are multiple blocks.
+    """
+    if not text:
+        return text
+
+    # Remove everything between <think>...</think>
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+
+    return cleaned.strip()
+
+
 def process_question(
     question: str,
     prompt_template: str,
@@ -311,12 +325,13 @@ def process_question(
     st.info(f"Coding question `{question}`")
     try:
         start_time = time.time()
-        logger.debug("User prompt: %s", user_prompt)
+        logger.info("User prompt for question `%s`: %s", question, user_prompt)
         response, retries = model.send(
-            system_prompt="You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects.",
+            system_prompt="You are a highly skilled NLP model that classifies open ended answers of surveys into categories. You only respond with python dictionary objects and ONLY that. You should not response with your chain of thoughts, explanations, or any other text. You should only respond with the python dictionary object that classifies the open ended answers into the codebook categories. The keys of the dictionary should be the question_id-Response_ID and the values should be a list of the most appropriate code(s) from the codebook for each answer. If an answer does not match any category in the codebook, classify it as an empty list.",
             user_prompt=user_prompt,
             timeout=timeout,
         )
+        logger.info("Model response for question `%s`: %s", question, response.json())
     except Exception as e:
         logger.exception("Error in request for question `%s`", question)
 
@@ -354,10 +369,14 @@ def process_question(
 
     response_info["usage"] = response_json["usage"]
 
+    response_content = response_json["choices"][0]["message"]["content"]
+
+    response_content_cleaned = remove_chain_of_thought(response_content)
+
     coding_dict = (
-        response_json["choices"][0]["message"]["content"]
-        .replace("json", "")
+        response_content_cleaned.replace("json", "")
         .replace("\\n", "")
+        .replace("\n", "")
         .replace("`", "")
         .replace("'", '"')
     )

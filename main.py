@@ -4,6 +4,9 @@ import logging
 from typing import Optional, List
 from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
+
 from PIL import Image
 import streamlit as st
 import firebase_admin
@@ -21,9 +24,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 # Constants
 PAGE_TITLE = "Analytics Interface"
