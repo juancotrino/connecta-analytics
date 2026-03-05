@@ -318,9 +318,13 @@ def process_question(
         dictionary object that classifies the open ended answers into the codebook
         categories. The keys of the dictionary should be the question_id-Response_ID
         and the values should be a list of the most appropriate code(s) from the
-        codebook for each answer. If an answer does not match any category in the
-        codebook, classify it the nerest to "Incorrect mention" (codebook might be
-        in spanish).
+        codebook for each answer.
+
+        You should never leave any answer uncoded. If an answer does not match any
+        category in the codebook, classify it as the nearest option to "Incorrect mention"
+        (codebook might be in Spanish). Always return a list of codes for each answer,
+        at least with one code, even if it's the "Incorrect mention" code.
+        Do not return empty lists.
     """
 
     user_prompt = prompt_template.format(
@@ -338,13 +342,14 @@ def process_question(
     st.info(f"Coding question `{question}`")
     try:
         start_time = time.time()
-        logger.info("User prompt for question `%s`: %s", question, user_prompt)
+        logger.info(
+            {"event": "llm_prompt", "question_id": question, "prompt": user_prompt}
+        )
         response, retries = model.send(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             timeout=timeout,
         )
-        logger.info("Model response for question `%s`: %s", question, response.json())
     except Exception as e:
         logger.exception("Error in request for question `%s`", question)
 
@@ -392,6 +397,10 @@ def process_question(
         .replace("\n", "")
         .replace("`", "")
         .replace("'", '"')
+    )
+
+    logger.info(
+        {"event": "llm_response", "question_id": question, "response": coding_dict}
     )
 
     try:
