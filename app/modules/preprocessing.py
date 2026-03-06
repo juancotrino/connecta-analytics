@@ -468,16 +468,6 @@ def process_question(
         .replace("'", '"')
     )
 
-    logger.info(
-        json.dumps(
-            {
-                "event": "llm_response",
-                "question_id": question,
-                "response": response,
-            }
-        )
-    )
-
     try:
         # Extract and validate the JSON string
         coding_result = extract_json_string(coding_dict)[0]
@@ -498,6 +488,16 @@ def process_question(
         )
         ui_container.write(coding_dict)
         return response_info
+
+    logger.info(
+        json.dumps(
+            {
+                "event": "llm_response",
+                "question_id": question,
+                "response": coding_result,
+            }
+        )
+    )
 
     coding_df = pd.DataFrame(
         {
