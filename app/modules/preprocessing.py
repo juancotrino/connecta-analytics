@@ -1,5 +1,5 @@
 from json import JSONDecoder
-import json
+import sys
 import re
 import time
 
@@ -15,9 +15,17 @@ from streamlit.runtime.scriptrunner import add_script_run_ctx
 # from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 from app.cloud import LLM
+import google.cloud.logging
 import logging
 
+client = google.cloud.logging.Client()
+client.setup_logging()
+
 logger = logging.getLogger(__name__)
+# Add console output
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+logger.addHandler(console_handler)
 
 
 # Function to expand lists/tuples into columns
@@ -406,13 +414,11 @@ def process_question(
     try:
         start_time = time.time()
         logger.info(
-            json.dumps(
-                {
-                    "event": "llm_prompt",
-                    "question_id": question,
-                    "prompt": user_prompt,
-                }
-            )
+            {
+                "event": "llm_prompt",
+                "question_id": question,
+                "prompt": user_prompt,
+            }
         )
         response, retries = model.send(
             system_prompt=system_prompt,
@@ -490,13 +496,11 @@ def process_question(
         return response_info
 
     logger.info(
-        json.dumps(
-            {
-                "event": "llm_response",
-                "question_id": question,
-                "response": coding_result,
-            }
-        )
+        {
+            "event": "llm_response",
+            "question_id": question,
+            "response": coding_result,
+        }
     )
 
     coding_df = pd.DataFrame(
