@@ -1,4 +1,5 @@
 from json import JSONDecoder
+import json
 import re
 import time
 
@@ -405,14 +406,13 @@ def process_question(
     try:
         start_time = time.time()
         logger.info(
-            "llm_prompt",
-            extra={
-                "json_fields": {
+            json.dumps(
+                {
                     "event": "llm_prompt",
                     "question_id": question,
                     "prompt": user_prompt,
                 }
-            },
+            )
         )
         response, retries = model.send(
             system_prompt=system_prompt,
@@ -469,14 +469,13 @@ def process_question(
     )
 
     logger.info(
-        "llm_response",
-        extra={
-            "json_fields": {
+        json.dumps(
+            {
                 "event": "llm_response",
                 "question_id": question,
                 "response": response,
             }
-        },
+        )
     )
 
     try:
