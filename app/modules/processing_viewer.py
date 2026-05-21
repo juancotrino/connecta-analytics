@@ -1809,10 +1809,38 @@ def format_mixed_cell(x, decimal_precision: int):
         return x
 
 
-def create_html_table(df: pd.DataFrame, decimal_precision: int) -> str:
+def create_html_table(
+    df: pd.DataFrame, decimal_precision: int, light_mode: bool = False
+) -> str:
     nlevels = df.columns.nlevels
     row_height = 38  # px
     sticky_css = ""
+
+    if light_mode:
+        header_bg = "#f3f4f6"
+        header_text = "#111827"
+        header_border = "#d1d5db"
+        table_border = "#d1d5db"
+        table_text = "#111827"
+        even_row = "#f8fafc"
+        odd_row = "#ffffff"
+        hover_row = "#eef2ff"
+    else:
+        header_bg = "#222"
+        header_text = "#fff"
+        header_border = "#888"
+        table_border = "#ddd"
+        table_text = "#fff"
+        even_row = "#1f1f1f"
+        odd_row = "#030303"
+        hover_row = "#666666"
+
+    table_styles_for_mode = [
+        {"selector": "tr:nth-child(even)", "props": [("background-color", even_row)]},
+        {"selector": "tr:nth-child(odd)", "props": [("background-color", odd_row)]},
+        {"selector": "tr:hover", "props": [("background-color", hover_row)]},
+    ]
+
     # Sticky column header CSS (as before)
     for i in range(nlevels + 3):
         top = i * row_height
@@ -1820,17 +1848,19 @@ def create_html_table(df: pd.DataFrame, decimal_precision: int) -> str:
         z_index = 10 + nlevels - i
         sticky_css += (
             f"thead tr:nth-child({i + 1}) th {{"
-            f"position: sticky; top: {top}px; background: #222; color: #fff; z-index: {z_index}; "
-            "border-bottom: 1px solid #888; border-top: 1px solid #888;"
+            f"position: sticky; top: {top}px; background: {header_bg}; color: {header_text}; z-index: {z_index}; "
+            f"border-bottom: 1px solid {header_border}; border-top: 1px solid {header_border};"
             f"}}"
         )
 
     css = (
         "<style>"
-        ".sticky-table-container {max-height: 600px; overflow-y: auto; width: 100%; border: 1px solid #ccc; margin: 10px 0;}"
-        "table {border-collapse: separate; border-spacing: 0; width: 100%; font-size: 16px; color: inherit; border: 1px solid #ddd;}"
-        "th { border: 1px solid #ddd !important; position: sticky; height: 38px; min-height: 38px; max-height: 38px; padding: 8px 4px; background: #222; color: #fff; box-sizing: border-box; margin: 0; }"
-        "th, td {border: 1px solid #ddd !important; padding: 8px !important; text-align: center !important;}"
+        f".sticky-table-container {{max-height: 600px; overflow-y: auto; width: 100%; border: 1px solid {table_border}; margin: 10px 0;}}"
+        f"table {{border-collapse: separate; border-spacing: 0; width: 100%; font-size: 16px; color: inherit; border: 1px solid {table_border};}}"
+        f"th {{ border: 1px solid {table_border} !important; position: sticky; height: 38px; min-height: 38px; max-height: 38px; padding: 8px 4px; background: {header_bg}; color: {header_text}; box-sizing: border-box; margin: 0; }}"
+        f"th, td {{border: 1px solid {table_border} !important; padding: 8px !important; text-align: center !important;}}"
+        f"td {{ color: {table_text} !important; }}"
+        f"td.data {{ color: {table_text} !important; }}"
         "tr { text-align: center !important; margin: 0; }"
         f"{sticky_css}"
         "</style>"
@@ -1838,7 +1868,7 @@ def create_html_table(df: pd.DataFrame, decimal_precision: int) -> str:
 
     html_table = (
         df.style.format(lambda x: format_mixed_cell(x, decimal_precision))
-        .set_table_styles(table_styles)
+        .set_table_styles(table_styles_for_mode)
         .to_html(escape=False, border=5)
     )
     return f"{css}<div class='sticky-table-container'>{html_table}</div>"

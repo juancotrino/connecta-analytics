@@ -260,17 +260,20 @@ def main():
                 # remove columns that contain "TOTAL" in any of the header levels
                 df = df.loc[:, ~df.columns.get_level_values(1).str.contains("TOTAL")]
 
-            html_table = create_html_table(df, decimal_precision)
+            ui_html_table = create_html_table(df, decimal_precision, light_mode=False)
+            export_html_table = create_html_table(
+                df, decimal_precision, light_mode=True
+            )
 
             st.markdown(
                 '<div style="overflow-x: auto; margin-bottom: 1.5rem;">{}</div>'.format(
-                    html_table
+                    ui_html_table
                 ),
                 unsafe_allow_html=True,
             )
 
             # Encode the HTML content as UTF-8 bytes
-            html_bytes = html_table.encode("utf-8")
+            html_bytes = export_html_table.encode("utf-8")
 
             st.download_button(
                 "Download table",
