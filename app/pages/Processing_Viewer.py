@@ -18,6 +18,7 @@ from app.modules.processing_viewer import (
     get_cross_questions,
     build_statistical_significance_df,
     create_html_table,
+    create_excel_file,
     remap_references,
 )
 from app.modules.processing import get_references
@@ -274,14 +275,27 @@ def main():
 
             # Encode the HTML content as UTF-8 bytes
             html_bytes = export_html_table.encode("utf-8")
+            excel_bytes = create_excel_file(df, decimal_precision)
 
-            st.download_button(
-                "Download table",
-                data=html_bytes,
-                file_name="statistical_significance.html",
-                mime="text/html; charset=utf-8",
-                type="primary",
-            )
+            dl_col1, dl_col2 = st.columns([1, 1])
+            with dl_col1:
+                st.download_button(
+                    "Download as HTML",
+                    data=html_bytes,
+                    file_name="statistical_significance.html",
+                    mime="text/html; charset=utf-8",
+                    type="primary",
+                    use_container_width=True,
+                )
+            with dl_col2:
+                st.download_button(
+                    "Download as Excel",
+                    data=excel_bytes,
+                    file_name="statistical_significance.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True,
+                )
 
         except Exception as e:
             st.error(f"Error rendering table: {str(e)}")

@@ -1872,3 +1872,217 @@ def create_html_table(
         .to_html(escape=False, border=5)
     )
     return f"{css}<div class='sticky-table-container'>{html_table}</div>"
+
+
+def create_excel_file(df: pd.DataFrame, decimal_precision: int) -> bytes:
+    import io
+    import xlsxwriter
+
+    output = io.BytesIO()
+    wb = xlsxwriter.Workbook(output, {"in_memory": True})
+    ws = wb.add_worksheet("Statistical Significance")
+
+    # Light-theme palette
+    HEADER_BG = "#F3F4F6"
+    EVEN_BG = "#F8FAFC"
+    ODD_BG = "#FFFFFF"
+    TEXT_COLOR = "#111827"
+    RED_COLOR = "#FF4D4D"
+    BLUE_COLOR = "#2563EB"
+    BORDER_COLOR = "#D1D5DB"
+
+    base = {"border": 1, "border_color": BORDER_COLOR, "valign": "vcenter"}
+
+    # Cell-level formats
+    hdr_fmt = wb.add_format(
+        {
+            **base,
+            "bg_color": HEADER_BG,
+            "font_color": TEXT_COLOR,
+            "bold": True,
+            "align": "center",
+            "text_wrap": True,
+        }
+    )
+    hdr_left_fmt = wb.add_format(
+        {
+            **base,
+            "bg_color": HEADER_BG,
+            "font_color": TEXT_COLOR,
+            "align": "left",
+            "text_wrap": True,
+        }
+    )
+    hdr_bold_left_fmt = wb.add_format(
+        {
+            **base,
+            "bg_color": HEADER_BG,
+            "font_color": TEXT_COLOR,
+            "bold": True,
+            "align": "left",
+            "text_wrap": True,
+        }
+    )
+    even_fmt = wb.add_format(
+        {**base, "bg_color": EVEN_BG, "font_color": TEXT_COLOR, "align": "center"}
+    )
+    odd_fmt = wb.add_format(
+        {**base, "bg_color": ODD_BG, "font_color": TEXT_COLOR, "align": "center"}
+    )
+
+    # Cell-level formats for rich-string cells (no font_color — each run provides its own)
+    even_rich_fmt = wb.add_format({**base, "bg_color": EVEN_BG, "align": "center"})
+    odd_rich_fmt = wb.add_format({**base, "bg_color": ODD_BG, "align": "center"})
+
+    # Per-run formats for rich text (font properties only, no bg/border)
+    text_rfmt = wb.add_format({"font_color": TEXT_COLOR})
+    red_rfmt = wb.add_format({"font_color": RED_COLOR, "bold": True})
+    blue_rfmt = wb.add_format({"font_color": BLUE_COLOR, "bold": True})
+
+    col_nlevels = df.columns.nlevels
+    row_nlevels = df.index.nlevels  # 3: Group, Question, Options
+
+    # XlsxWriter uses 0-based row/col indices
+    data_row = col_nlevels
+    data_col = row_nlevels
+
+    col_tuples = list(df.columns)
+
+    # ── Column header rows ────────────────────────────────────────
+    for level in range(col_nlevels):
+        values = [(t[level] if isinstance(t, tuple) else t) for t in col_tuples]
+        i = 0
+        while i < len(values):
+            val = values[i]
+            span = 1
+            while i + span < len(values) and values[i + span] == val:
+                span += 1
+            text = str(val) if val is not None else ""
+            xl_col = data_col + i
+            if span > 1:
+                ws.merge_range(level, xl_col, level, xl_col + span - 1, text, hdr_fmt)
+            else:
+                ws.write(level, xl_col, text, hdr_fmt)
+            i += span
+
+    # ── Top-left corner: blank rows above, index names in last header row ───
+    index_names = list(df.index.names)
+    for r in range(col_nlevels):
+        for c in range(row_nlevels):
+            if r == col_nlevels - 1:
+                label = str(index_names[c]) if index_names[c] is not None else ""
+                ws.write(r, c, label, hdr_fmt)
+            else:
+                ws.write(r, c, "", hdr_fmt)
+
+    # ── Row index columns ─────────────────────────────────────────
+    index_tuples = list(df.index)
+    for level in range(row_nlevels):
+        is_inner = level == row_nlevels - 1
+        fmt = hdr_left_fmt if is_inner else hdr_bold_left_fmt
+        values = [(t[level] if isinstance(t, tuple) else t) for t in index_tuples]
+        i = 0
+        while i < len(values):
+            val = values[i]
+            span = 1
+            if not is_inner:
+                while i + span < len(values) and values[i + span] == val:
+                    span += 1
+            xl_row = data_row + i
+            text = str(val) if val is not None else ""
+            if not is_inner and span > 1:
+                ws.merge_range(xl_row, level, xl_row + span - 1, level, text, fmt)
+            else:
+                ws.write(xl_row, level, text, fmt)
+            i += span
+
+    # ── Data cells ────────────────────────────────────────────────
+    for row_i, row in enumerate(df.itertuples(index=False)):
+        xl_row = data_row + row_i
+        plain_fmt = even_fmt if row_i % 2 == 0 else odd_fmt
+        rich_fmt = even_rich_fmt if row_i % 2 == 0 else odd_rich_fmt
+
+        for col_i, raw_val in enumerate(row):
+            xl_col = data_col + col_i
+            written = False
+
+            if isinstance(raw_val, str):
+                m = re.match(r"^\s*([+-]?\d+(?:\.\d+)?)\s+(.+)$", raw_val)
+                if m:
+                    num_raw, suffix = m.groups()
+                    num = round(float(num_raw), decimal_precision)
+                    num_str = (
+                        "{:d}".format(int(num))
+                        if decimal_precision == 0 or num % 1 == 0
+                        else f"{num:,.{decimal_precision}f}"
+                    )
+                    tokens = suffix.split()
+                    letters, romans = [], []
+                    if len(tokens) == 1:
+                        tc = tokens[0].replace(",", "")
+                        if re.fullmatch(r"[IVXL]+", tc):
+                            romans.append(tokens[0])
+                        else:
+                            letters.append(tokens[0])
+                    else:
+                        for j, tok in enumerate(tokens):
+                            tc = tok.replace(",", "")
+                            if j == 0:
+                                if re.fullmatch(r"[A-Za-z,]+", tc):
+                                    letters.append(tok)
+                            else:
+                                if re.fullmatch(r"[IVXLCDM]+", tc):
+                                    romans.append(tok)
+
+                    if letters or romans:
+                        # write_rich_string: alternating format/string pairs,
+                        # final arg is the cell-level format (bg, border, align)
+                        frags = [text_rfmt, num_str]
+                        if letters:
+                            frags += [text_rfmt, " ", red_rfmt, " ".join(letters)]
+                        if romans:
+                            frags += [text_rfmt, " ", blue_rfmt, " ".join(romans)]
+                        frags.append(rich_fmt)
+                        ws.write_rich_string(xl_row, xl_col, *frags)
+                        written = True
+
+            if not written:
+                if isinstance(raw_val, (int, float)):
+                    n = round(float(raw_val), decimal_precision)
+                    ws.write_number(
+                        xl_row,
+                        xl_col,
+                        int(n) if (decimal_precision == 0 or n % 1 == 0) else n,
+                        plain_fmt,
+                    )
+                elif isinstance(raw_val, str):
+                    try:
+                        n = round(float(raw_val), decimal_precision)
+                        ws.write_number(
+                            xl_row,
+                            xl_col,
+                            int(n) if (decimal_precision == 0 or n % 1 == 0) else n,
+                            plain_fmt,
+                        )
+                    except Exception:
+                        ws.write(xl_row, xl_col, raw_val, plain_fmt)
+                else:
+                    ws.write(
+                        xl_row,
+                        xl_col,
+                        str(raw_val) if raw_val is not None else "",
+                        plain_fmt,
+                    )
+
+    # ── Column widths ─────────────────────────────────────────────
+    for c in range(row_nlevels):
+        ws.set_column(c, c, 18)
+    for c in range(data_col, data_col + len(col_tuples)):
+        ws.set_column(c, c, 12)
+
+    # ── Freeze panes at first data cell ──────────────────────────
+    ws.freeze_panes(data_row, data_col)
+
+    wb.close()
+    output.seek(0)
+    return output.read()
