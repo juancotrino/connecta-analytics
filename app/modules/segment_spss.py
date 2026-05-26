@@ -72,6 +72,8 @@ def process_chi2(
     correction: bool = False,
     kpis_list_file: BytesIO= None,
 ):
+    if not chi2_mode:
+        chi2_mode = "T2B"
     data, study_metadata = pyreadstat.read_sav(file_path, apply_value_formats=False)
 
     variables_data = study_metadata.variable_value_labels
@@ -642,143 +644,148 @@ def segment_spss(
 
     warning_empty = ""
 
-    for _, job in jobs.iterrows():
-        if job["variables"]:
-            if "," in job["variables"]:
-                variables = [
-                    variable.strip() for variable in job["variables"].split(",")
-                ]
+    for idx, job in jobs.iterrows():
+        scenario_name = job.get('scenario_name', f'job_{idx}')
+        try:
+            if job["variables"]:
+                if "," in job["variables"]:
+                    variables = [
+                        variable.strip() for variable in job["variables"].split(",")
+                    ]
+                else:
+                    variables = [
+                        variable.strip() for variable in job["variables"].split("\n")
+                    ]
             else:
-                variables = [
-                    variable.strip() for variable in job["variables"].split("\n")
-                ]
-        else:
-            variables = survey_data.columns.to_list()
+                variables = survey_data.columns.to_list()
 
-        if job["condition"]:
-            try:
-                filtered_data = survey_data[variables].query(job["condition"])
-            except SyntaxError as e:
-                raise e
-        else:
-            filtered_data = survey_data[variables]
+            if job["condition"]:
+                try:
+                    filtered_data = survey_data[variables].query(job["condition"])
+                except SyntaxError as e:
+                    raise e
+            else:
+                filtered_data = survey_data[variables]
 
 
-        condition = job.get("condition")  # usa .get() por seguridad
+            condition = job.get("condition")  # usa .get() por seguridad
 
-        if condition:
-            condition_vars = re.findall(r'`?([A-Za-z0-9_\.]+)`?', job["condition"])
-            keywords_auxilar = {"and", "or", "not"}
-            condition_vars = [v for v in condition_vars if v not in keywords_auxilar]
-            other_cols = [c for c in filtered_data.columns if c not in condition_vars]
-            all_empty = filtered_data[other_cols].isna().all().all()
-            if filtered_data.empty or all_empty:
+            if condition:
+                condition_vars = re.findall(r'`?([A-Za-z0-9_\.]+)`?', job["condition"])
+                keywords_auxilar = {"and", "or", "not"}
+                condition_vars = [v for v in condition_vars if v not in keywords_auxilar]
+                other_cols = [c for c in filtered_data.columns if c not in condition_vars]
+                all_empty = filtered_data[other_cols].isna().all().all()
+                if filtered_data.empty or all_empty:
+                    warning_empty += f"Conditions produced an empty database for scenario: {job['scenario_name']}\n"
+                    continue
+
+            if filtered_data.empty:
                 warning_empty += f"Conditions produced an empty database for scenario: {job['scenario_name']}\n"
                 continue
 
-        if filtered_data.empty:
-            warning_empty += f"Conditions produced an empty database for scenario: {job['scenario_name']}\n"
-            continue
+            # Write filtered data to a temporary sav file
+            sav_file_name = f"{spss_file.name.split('.')[0].replace('Base ', '')}_{job['scenario_name']}.sav"
+            sav_temp_file = tempfile.NamedTemporaryFile(delete=False)
 
-        # Write filtered data to a temporary sav file
-        sav_file_name = f"{spss_file.name.split('.')[0].replace('Base ', '')}_{job['scenario_name']}.sav"
-        sav_temp_file = tempfile.NamedTemporaryFile(delete=False)
-
-        pyreadstat.write_sav(
-            filtered_data,
-            sav_temp_file.name,
-            column_labels={
-                k: v
-                for k, v in metadata.column_names_to_labels.items()
-                if k in variables
-            },
-            variable_value_labels={
-                k: v
-                for k, v in metadata.variable_value_labels.items()
-                if k in variables
-            },
-        )
-
-        if job["cross_variable"]:
-            correction = False
-            chi2_df = process_chi2(
+            pyreadstat.write_sav(
+                filtered_data,
                 sav_temp_file.name,
-                job["cross_variable"],
-                job["chi2_mode"],
-                inverted_scales_keywords,
-                correction,
-                kpis_list_file,
+                column_labels={
+                    k: v
+                    for k, v in metadata.column_names_to_labels.items()
+                    if k in variables
+                },
+                variable_value_labels={
+                    k: v
+                    for k, v in metadata.variable_value_labels.items()
+                    if k in variables
+                },
             )
 
-            # Create a new workbook object and select the active worksheet
-            chi2_wb.create_sheet(job["scenario_name"])
-            chi2_ws = chi2_wb[job["scenario_name"]]
+            if job["cross_variable"]:
+                correction = False
+                chi2_df = process_chi2(
+                    sav_temp_file.name,
+                    job["cross_variable"],
+                    job["chi2_mode"],
+                    inverted_scales_keywords,
+                    correction,
+                    kpis_list_file,
+                )
 
-            # Write DataFrame content to the worksheet
-            for r in dataframe_to_rows(chi2_df, index=False, header=True):
-                chi2_ws.append(r)
+                # Create a new workbook object and select the active worksheet
+                chi2_wb.create_sheet(job["scenario_name"])
+                chi2_ws = chi2_wb[job["scenario_name"]]
 
-            # Create chart in the worksheet
-            create_chart(chi2_ws, source_chart, chi2_df, "Intención de compra", "E3")
-            create_chart_top10(
-                chi2_ws, source_chart, chi2_df, "Intención de compra", "U3"
-            )
+                # Write DataFrame content to the worksheet
+                for r in dataframe_to_rows(chi2_df, index=False, header=True):
+                    chi2_ws.append(r)
 
-        if job["correlation_variables"]:
-            if "," in job["variables"]:
-                corr_variables = [
-                    variable.strip()
-                    for variable in job["correlation_variables"].split(",")
-                ]
-            else:
-                corr_variables = [
-                    variable.strip()
-                    for variable in job["correlation_variables"].split("\n")
-                ]
+                # Create chart in the worksheet
+                create_chart(chi2_ws, source_chart, chi2_df, "Intención de compra", "E3")
+                create_chart_top10(
+                    chi2_ws, source_chart, chi2_df, "Intención de compra", "U3"
+                )
 
-            correlation_data = get_correlation_data(sav_temp_file.name, corr_variables)
-            correlation_df, p_value_df = process_correlation(correlation_data)
+            if job["correlation_variables"]:
+                if "," in job["variables"]:
+                    corr_variables = [
+                        variable.strip()
+                        for variable in job["correlation_variables"].split(",")
+                    ]
+                else:
+                    corr_variables = [
+                        variable.strip()
+                        for variable in job["correlation_variables"].split("\n")
+                    ]
 
-            correlation_df = correlation_df.rename(
-                columns=metadata.column_names_to_labels,
-                index=metadata.column_names_to_labels,
-            ).reset_index(names="")
+                correlation_data = get_correlation_data(sav_temp_file.name, corr_variables)
+                correlation_df, p_value_df = process_correlation(correlation_data)
 
-            p_value_df = p_value_df.rename(
-                columns=metadata.column_names_to_labels,
-                index=metadata.column_names_to_labels,
-            ).reset_index(names="")
+                correlation_df = correlation_df.rename(
+                    columns=metadata.column_names_to_labels,
+                    index=metadata.column_names_to_labels,
+                ).reset_index(names="")
 
-            # Create a new workbook object and select the active worksheet
-            corr_wb.create_sheet(job["scenario_name"])
-            corr_ws = corr_wb[job["scenario_name"]]
+                p_value_df = p_value_df.rename(
+                    columns=metadata.column_names_to_labels,
+                    index=metadata.column_names_to_labels,
+                ).reset_index(names="")
 
-            # Write DataFrame content to the worksheet
-            for r in dataframe_to_rows(p_value_df, index=False, header=True):
-                corr_ws.append(r)
+                # Create a new workbook object and select the active worksheet
+                corr_wb.create_sheet(job["scenario_name"])
+                corr_ws = corr_wb[job["scenario_name"]]
 
-            format_ws(corr_ws)
+                # Write DataFrame content to the worksheet
+                for r in dataframe_to_rows(p_value_df, index=False, header=True):
+                    corr_ws.append(r)
 
-            start_row = 1
-            for r_idx, r in enumerate(
-                dataframe_to_rows(correlation_df, index=False, header=True),
-                start=start_row,
-            ):
-                for c_idx, value in enumerate(r, start=1):
-                    corr_ws.cell(row=r_idx, column=c_idx, value=value)
+                format_ws(corr_ws)
 
-            # pdf_graph_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                start_row = 1
+                for r_idx, r in enumerate(
+                    dataframe_to_rows(correlation_df, index=False, header=True),
+                    start=start_row,
+                ):
+                    for c_idx, value in enumerate(r, start=1):
+                        corr_ws.cell(row=r_idx, column=c_idx, value=value)
 
-            # graph = generate_graph_analysis(correlation_data)
-            # graph.savefig(pdf_graph_temp_file.name)
+                # pdf_graph_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
 
-            # zip_file.write(pdf_graph_temp_file.name, arcname=f'{job["scenario_name"]}_correlation_statistical_graph.pdf')
+                # graph = generate_graph_analysis(correlation_data)
+                # graph.savefig(pdf_graph_temp_file.name)
 
-        # Add the temporary sav file to the zip file with custom arcname
-        files[sav_file_name] = sav_temp_file.name
+                # zip_file.write(pdf_graph_temp_file.name, arcname=f'{job["scenario_name"]}_correlation_statistical_graph.pdf')
 
-        # Close and delete the temporary sav file
-        sav_temp_file.close()
+            # Add the temporary sav file to the zip file with custom arcname
+            files[sav_file_name] = sav_temp_file.name
+
+            # Close and delete the temporary sav file
+            sav_temp_file.close()
+        except Exception as e:
+            warning_empty += f"Error in {scenario_name}: {str(e)[:100]}\n"
+            continue  # Continúa con siguiente job
 
     if jobs["cross_variable"].any():
         # Save the new Excel file
