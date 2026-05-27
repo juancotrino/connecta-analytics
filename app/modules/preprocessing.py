@@ -1,10 +1,13 @@
 from json import JSONDecoder
+import os
+import random
 import sys
 import re
 import time
+from queue import Empty, Queue
 
 # from concurrent.futures import ThreadPoolExecutor
-from threading import Thread
+from threading import Semaphore, Thread
 
 import numpy as np
 import pandas as pd
@@ -23,9 +26,21 @@ client.setup_logging()
 
 logger = logging.getLogger(__name__)
 # Add console output
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-logger.addHandler(console_handler)
+if not any(
+    isinstance(handler, logging.StreamHandler)
+    and getattr(handler, "stream", None) is sys.stdout
+    for handler in logger.handlers
+):
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    logger.addHandler(console_handler)
+
+
+def _env_flag(name: str, default: str = "false") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+LOG_LLM_IO = _env_flag("PREPROCESSING_LOG_LLM_IO", "true")
 
 
 # Function to expand lists/tuples into columns
@@ -297,9 +312,22 @@ def process_question(
     ui_container,
     results: dict,
 ):
-    ui_container.info(f"Coding question: `{question}`")
+    def notify(level: str, message: str):
+        if ui_container is not None:
+            getattr(ui_container, level)(message)
 
-    response_info = {}
+    notify("info", f"Coding question: `{question}`")
+
+    response_info = {
+        "coding_results": pd.DataFrame(),
+        "status_code": None,
+        "elapsed_time": None,
+        "usage": None,
+        "retries": None,
+    }
+    max_overload_retries = 3
+    overload_retry_count = 0
+    overload_backoff_seconds = 1.0
     question_answer = None
     try:
         question_answer = [
@@ -308,26 +336,14 @@ def process_question(
             if question_answer.split("_")[0] == question
         ][0]
     except Exception as e:
-        ui_container.error(f"Error in format question `{question}`: {e}")
+        notify("error", f"Error in format question `{question}`: {e}")
         logger.exception("Error mapping question `%s` to answer group", question)
-        return {
-            "coding_results": pd.DataFrame(),
-            "status_code": None,
-            "elapsed_time": None,
-            "usage": None,
-            "retries": None,
-            "error": str(e),
-        }
+        response_info["error"] = str(e)
+        return response_info
 
     if answers[question_answer].empty:
-        ui_container.warning(f"No answers to code for question: `{question}`")
-        return {
-            "coding_results": pd.DataFrame(),
-            "status_code": None,
-            "elapsed_time": None,
-            "usage": None,
-            "retries": None,
-        }
+        notify("warning", f"No answers to code for question: `{question}`")
+        return response_info
 
     system_prompt = """
         You are a highly skilled NLP model that classifies open ended survey answers into categories from a provided codebook.
@@ -420,35 +436,56 @@ def process_question(
     )
     timeout = calculate_timeout(len(answers[question_answer]))
 
-    st.info(f"Coding question `{question}`")
-    try:
-        start_time = time.time()
+    start_time = time.time()
+    if LOG_LLM_IO:
+        prompt_preview = user_prompt[:1000]
         logger.info(
             {
                 "event": "llm_prompt",
                 "question_id": question,
-                "prompt": user_prompt,
+                "prompt_preview": prompt_preview,
+                "prompt_size": len(user_prompt),
+                "prompt_truncated": len(user_prompt) > len(prompt_preview),
             }
         )
-        response, retries = model.send(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            timeout=timeout,
-        )
-    except Exception as e:
-        logger.exception("Error in request for question `%s`", question)
 
-        response_info = {
-            "coding_results": pd.DataFrame(),
-            "status_code": None,
-            "elapsed_time": None,
-            "usage": None,
-            "retries": None,
-            "error": str(e),
-        }
+    while True:
+        try:
+            response, transport_retries = model.send(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                timeout=timeout,
+            )
+        except Exception as e:
+            logger.exception("Error in request for question `%s`", question)
+            response_info["error"] = str(e)
+            notify("error", f"Error in request for question `{question}`: {e}")
+            return response_info
 
-        ui_container.error(f"Error in request for question `{question}`: {e}")
-        return response_info
+        response_content_type = response.headers.get("Content-Type", "")
+        response_body = response.text or ""
+        response_body_preview = response_body[:500]
+        is_html_response = "application/json" not in response_content_type.lower()
+        is_overload_drop = "unconditional drop overload" in response_body.lower()
+
+        if is_html_response and is_overload_drop and overload_retry_count < max_overload_retries:
+            overload_retry_count += 1
+            sleep_seconds = overload_backoff_seconds + random.uniform(0, 0.5)
+            logger.warning(
+                "Overload response for question `%s` (retry=%s/%s, status=%s, content_type=%s, sleep=%.2fs)",
+                question,
+                overload_retry_count,
+                max_overload_retries,
+                response.status_code,
+                response_content_type,
+                sleep_seconds,
+            )
+            time.sleep(sleep_seconds)
+            overload_backoff_seconds *= 2
+            continue
+
+        retries = transport_retries + overload_retry_count
+        break
 
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -463,7 +500,15 @@ def process_question(
     response_content_type = response.headers.get("Content-Type", "")
 
     if response.status_code != 200:
-        ui_container.error(
+        logger.error(
+            "Non-200 LLM response for question `%s` (status=%s, content_type=%s, body_preview=%s)",
+            question,
+            response.status_code,
+            response_content_type,
+            response_body_preview,
+        )
+        notify(
+            "error",
             f"Model response unsuccessfull for question: `{question}` with status code {response.status_code}. Body preview: {response_body_preview}"
         )
         response_info["usage"] = None
@@ -475,7 +520,14 @@ def process_question(
         return response_info
 
     if "application/json" not in response_content_type.lower():
-        ui_container.error(
+        logger.error(
+            "Unexpected content type for question `%s` (content_type=%s, body_preview=%s)",
+            question,
+            response_content_type,
+            response_body_preview,
+        )
+        notify(
+            "error",
             f"Unexpected content type for question `{question}`: {response_content_type}"
         )
         response_info["usage"] = None
@@ -493,7 +545,8 @@ def process_question(
             response_content_type,
             response_body_preview,
         )
-        ui_container.error(
+        notify(
+            "error",
             f"Error decoding model response for question `{question}`: {e}"
         )
         response_info["usage"] = None
@@ -511,7 +564,8 @@ def process_question(
             question,
             str(response_json)[:500],
         )
-        ui_container.error(
+        notify(
+            "error",
             f"Unexpected model response schema for question `{question}`: {e}"
         )
         response_info["error"] = f"Unexpected response schema: {e}"
@@ -543,19 +597,61 @@ def process_question(
         response_info["coding_results_raw"] = coding_dict
         # with open(f"coding_dict_raw_{question}.txt", "w") as file:
         #     file.write(coding_dict)
-        ui_container.error(
+        notify(
+            "error",
             f"Error parsing Llama response to JSON for question `{question}`: {e}"
         )
-        ui_container.write(coding_dict)
+        logger.error(
+            "Error parsing coding dict for question `%s` (content_preview=%s)",
+            question,
+            coding_dict[:500],
+        )
         return response_info
 
-    logger.info(
-        {
-            "event": "llm_response",
-            "question_id": question,
-            "response": coding_result,
-        }
-    )
+    expected_keys = set(answers[question_answer]["question_id-Response_ID"].tolist())
+    returned_keys = set(coding_result.keys())
+    matched_keys = expected_keys.intersection(returned_keys)
+    unexpected_keys = returned_keys.difference(expected_keys)
+    missing_keys = expected_keys.difference(returned_keys)
+
+    if not matched_keys:
+        response_info["error"] = "No valid identifiers matched expected survey keys"
+        response_info["coding_results_raw"] = str(coding_result)[:1000]
+        logger.error(
+            "No matching keys for question `%s` (expected_count=%s, returned_count=%s, returned_preview=%s)",
+            question,
+            len(expected_keys),
+            len(returned_keys),
+            str(list(returned_keys)[:10]),
+        )
+        return response_info
+
+    if unexpected_keys or missing_keys:
+        logger.warning(
+            "Partial key match for question `%s` (matched=%s, missing=%s, unexpected=%s)",
+            question,
+            len(matched_keys),
+            len(missing_keys),
+            len(unexpected_keys),
+        )
+        response_info["warning"] = (
+            f"Partial key match: matched={len(matched_keys)}, "
+            f"missing={len(missing_keys)}, unexpected={len(unexpected_keys)}"
+        )
+
+    coding_result = {key: coding_result[key] for key in matched_keys}
+
+    if LOG_LLM_IO:
+        response_preview = str(coding_result)[:1000]
+        logger.info(
+            {
+                "event": "llm_response",
+                "question_id": question,
+                "response_preview": response_preview,
+                "response_size": len(str(coding_result)),
+                "response_truncated": len(str(coding_result)) > len(response_preview),
+            }
+        )
 
     coding_df = pd.DataFrame(
         {
@@ -573,12 +669,12 @@ def process_question(
 
     results[question] = response_info
 
-    ui_container.success(f"Model response successfull for question: `{question}`")
+    notify("success", f"Model response successfull for question: `{question}`")
 
 
 def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
     code_books = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
-    questions = code_books.keys()
+    questions = list(code_books.keys())
 
     db: pd.DataFrame = pyreadstat.read_sav(
         temp_file_name_sav, apply_value_formats=False
@@ -614,25 +710,38 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
     """
 
     model = LLM()
+    max_parallel_questions = max(
+        1, int(os.getenv("PREPROCESSING_MAX_PARALLEL_QUESTIONS", "4"))
+    )
+    question_semaphore = Semaphore(max_parallel_questions)
 
     results = {}
 
     threads = []
-    containers = []
+    completion_queue: Queue = Queue()
+    status_containers = {}
     for question in questions:
-        ui_container = st.empty()  # Create an empty placeholder for each thread
-        containers.append(ui_container)
+        status_containers[question] = st.empty()
+        status_containers[question].info(f"Coding question: `{question}`")
+
+        def run_question(question: str):
+            with question_semaphore:
+                response_info = process_question(
+                    question,
+                    prompt_template,
+                    answers,
+                    code_books,
+                    model,
+                    None,
+                    results,
+                )
+                if isinstance(response_info, dict):
+                    results[question] = response_info
+                completion_queue.put(question)
+
         t = Thread(
-            target=process_question,
-            args=(
-                question,
-                prompt_template,
-                answers,
-                code_books,
-                model,
-                ui_container,
-                results,
-            ),
+            target=run_question,
+            args=(question,),
         )
         add_script_run_ctx(t)  # Necessary for Streamlit to track the thread context
         threads.append(t)
@@ -642,7 +751,46 @@ def preprocessing(temp_file_name_xlsx: str, temp_file_name_sav: str):
         except Exception as e:
             st.error(f"Question {question} generated an exception: {e}")
             raise ValueError(f"Question {question} generated an exception: {e}")
+    completed_questions = set()
+    total_questions = len(questions)
+
+    while len(completed_questions) < total_questions:
+        try:
+            question = completion_queue.get(timeout=0.2)
+        except Empty:
+            continue
+
+        if question in completed_questions:
+            continue
+
+        completed_questions.add(question)
+
+        response_info = results.get(question, {})
+        error = response_info.get("error") if isinstance(response_info, dict) else None
+        warning = response_info.get("warning") if isinstance(response_info, dict) else None
+        coding_results_df = (
+            response_info.get("coding_results")
+            if isinstance(response_info, dict)
+            else pd.DataFrame()
+        )
+        if error:
+            status_containers[question].error(
+                f"Question `{question}` finished with error: {error}"
+            )
+        elif isinstance(coding_results_df, pd.DataFrame) and coding_results_df.empty:
+            status_containers[question].warning(
+                f"Question `{question}` produced no coding rows"
+            )
+        elif warning:
+            status_containers[question].warning(
+                f"Question `{question}` coded with warning: {warning}"
+            )
+        else:
+            status_containers[question].success(
+                f"Question `{question}` coded successfully"
+            )
+
     for t in threads:
-        t.join()  # Wait for all threads to finish before continuing
+        t.join()
 
     return results
