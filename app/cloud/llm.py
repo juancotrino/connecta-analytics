@@ -22,10 +22,11 @@ class LLM:
         self.__credentials, self.__project = google.auth.default()
 
         # Refresh the access token
+        self._refresh_access_token()
+
+    def _refresh_access_token(self) -> None:
         self.__credentials.refresh(Request())
         self.__access_token = self.__credentials.token
-
-        # Prepare headers and data
         self.__headers = {
             "Authorization": f"Bearer {self.__access_token}",
             "Content-Type": "application/json",
@@ -66,16 +67,22 @@ class LLM:
                     self.url, headers=self.__headers, json=data, timeout=timeout
                 )
 
-                # If the request is successful, return the response
                 if response.status_code == 200:
                     return response, retries
-                elif response.status_code == 503:
+                if response.status_code in (429, 503):
                     retries += 1
                     time.sleep(backoff)
                     backoff *= backoff_factor
-                else:
-                    # Handle other status codes if needed
-                    response.raise_for_status()
+                    continue
+
+                if response.status_code in (401, 403):
+                    retries += 1
+                    self._refresh_access_token()
+                    time.sleep(backoff)
+                    backoff *= backoff_factor
+                    continue
+
+                return response, retries
 
             except requests.RequestException as e:
                 retries += 1

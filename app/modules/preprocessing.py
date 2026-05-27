@@ -300,6 +300,7 @@ def process_question(
     ui_container.info(f"Coding question: `{question}`")
 
     response_info = {}
+    question_answer = None
     try:
         question_answer = [
             question_answer
@@ -308,6 +309,15 @@ def process_question(
         ][0]
     except Exception as e:
         ui_container.error(f"Error in format question `{question}`: {e}")
+        logger.exception("Error mapping question `%s` to answer group", question)
+        return {
+            "coding_results": pd.DataFrame(),
+            "status_code": None,
+            "elapsed_time": None,
+            "usage": None,
+            "retries": None,
+            "error": str(e),
+        }
 
     if answers[question_answer].empty:
         ui_container.warning(f"No answers to code for question: `{question}`")
@@ -445,24 +455,68 @@ def process_question(
 
     formatted_time = format_time(elapsed_time)
 
-    response_json = response.json()
-
     response_info["status_code"] = response.status_code
     response_info["retries"] = retries
+    response_info["elapsed_time"] = formatted_time
+
+    response_body_preview = (response.text or "")[:500]
+    response_content_type = response.headers.get("Content-Type", "")
 
     if response.status_code != 200:
         ui_container.error(
-            f"Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}"
+            f"Model response unsuccessfull for question: `{question}` with status code {response.status_code}. Body preview: {response_body_preview}"
         )
-        raise ValueError(
-            f"Model response unsuccessfull for question: `{question}` with status code {response.status_code}. JSON response: {response_json}"
+        response_info["usage"] = None
+        response_info["error"] = (
+            f"Non-200 response: {response.status_code}. "
+            f"content_type={response_content_type}"
         )
+        response_info["coding_results_raw"] = response_body_preview
+        return response_info
 
-    response_info["elapsed_time"] = formatted_time
+    if "application/json" not in response_content_type.lower():
+        ui_container.error(
+            f"Unexpected content type for question `{question}`: {response_content_type}"
+        )
+        response_info["usage"] = None
+        response_info["error"] = f"Unexpected content type: {response_content_type}"
+        response_info["coding_results_raw"] = response_body_preview
+        return response_info
 
-    response_info["usage"] = response_json["usage"]
+    try:
+        response_json = response.json()
+    except Exception as e:
+        logger.exception(
+            "Error decoding JSON response for question `%s` (status=%s, content_type=%s, body_preview=%s)",
+            question,
+            response.status_code,
+            response_content_type,
+            response_body_preview,
+        )
+        ui_container.error(
+            f"Error decoding model response for question `{question}`: {e}"
+        )
+        response_info["usage"] = None
+        response_info["error"] = str(e)
+        response_info["coding_results_raw"] = response_body_preview
+        return response_info
 
-    response_content = response_json["choices"][0]["message"]["content"]
+    response_info["usage"] = response_json.get("usage")
+
+    try:
+        response_content = response_json["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.exception(
+            "Unexpected JSON schema for question `%s` (response_json=%s)",
+            question,
+            str(response_json)[:500],
+        )
+        ui_container.error(
+            f"Unexpected model response schema for question `{question}`: {e}"
+        )
+        response_info["error"] = f"Unexpected response schema: {e}"
+        response_info["coding_results_raw"] = str(response_json)[:1000]
+        return response_info
 
     response_content_cleaned = remove_chain_of_thought(response_content)
 
