@@ -636,6 +636,101 @@ def get_totals_from_pretables(xlsx_file: BytesIO):
     return write_temp_excel(wb_new)
 
 
+def get_totals_from_tables(xlsx_file: BytesIO):
+    temp_file_name_xlsx = get_temp_file(xlsx_file, ".xlsx")
+
+    # Load the existing Excel file
+    wb_existing = load_workbook(temp_file_name_xlsx)
+
+    wb_new = Workbook()
+    default_sheet = wb_new.active
+    wb_new.remove(default_sheet)
+    sheets_dfs = pd.read_excel(temp_file_name_xlsx, sheet_name=None)
+
+    index_totals = 1
+    ws_totals = wb_new.create_sheet(title="TOTALES")
+
+    # Iterate over all sheets
+    for sheet_name, data in sheets_dfs.items():
+        if data.empty:
+            continue
+
+        if not sheet_name.lower().startswith("penal") and not sheet_name.lower().startswith("kpi") and not sheet_name.lower().startswith("indice"):
+            ws_existing = wb_existing[sheet_name]
+            ws_totals.cell(row=1, column=index_totals).value = sheet_name
+
+            for i in range(2,  ws_existing.max_column):
+                        ws_totals.cell(
+                            row=1, column=index_totals + i - 1
+                        ).value = ws_existing.cell(row=2, column=i + 1).value
+
+            redFill = PatternFill(
+                start_color="C80000", end_color="C80000", fill_type="solid"
+            )
+
+            yellowFill = PatternFill(
+                start_color="FFFF00", end_color="FFFF00", fill_type="solid"
+            )
+
+            blueFill = PatternFill(
+                start_color="C5D9F1", end_color="C5D9F1", fill_type="solid"
+            )
+
+            max_col = ws_existing.max_column
+            index_row = 2
+            index_ini = 0
+            for row_actual in range(1, ws_existing.max_row + 1):
+                val_a = ws_existing["A" + str(row_actual)].value
+                val_b = ws_existing["B" + str(row_actual)].value
+                if val_a:
+                    ws_totals.cell(row=index_row, column=index_totals).value = val_a
+                elif val_b == "Total":
+                    if index_ini == 0:
+                        index_ini = row_actual
+                    for i in range(2, max_col):
+                        ws_totals.cell(
+                            row=index_row, column=index_totals + i - 1
+                        ).value = ws_existing.cell(row=row_actual, column=i + 1).value
+                        if ws_existing.cell(row=row_actual, column=i + 1).value is np.nan:
+                            ws_totals.cell(
+                                row=index_row, column=index_totals + i - 1
+                            ).fill = redFill
+                        elif (
+                            not ws_existing.cell(row=row_actual, column=i + 1).value
+                            == ws_existing.cell(row=index_ini, column=i + 1).value
+                        ):
+                            ws_totals.cell(
+                                row=index_row, column=index_totals + i - 1
+                            ).fill = yellowFill
+                    index_row += 1
+
+            index_totals += max_col
+    separators = []
+
+    for col in range(1, ws_totals.max_column + 1):
+        column_letter = get_column_letter(col)
+        if col==1:
+            ws_totals.column_dimensions[column_letter].width = 14
+        elif (
+            ws_totals.cell(row=1, column=col).value is not None
+            and ws_totals.cell(row=1, column=col - 1).value is not None
+        ):
+            ws_totals.column_dimensions[column_letter].width = 3
+        elif (
+            ws_totals.cell(row=1, column=col).value is None
+            and ws_totals.cell(row=1, column=col + 1).value is not None
+        ):
+            ws_totals.column_dimensions[column_letter].width = 4
+            separators.append(col)
+        elif ws_totals.cell(row=1, column=col).value is not None:
+            ws_totals.column_dimensions[column_letter].width = 14
+
+    for col in separators:
+        for i in range(1, ws_totals.max_row + 1):
+            ws_totals.cell(row=i, column=col).fill = blueFill
+
+    return write_temp_excel(wb_new)
+
 # @st.cache_data(show_spinner=False)
 def processing(xlsx_file: BytesIO):
     temp_file_name_xlsx = get_temp_file(xlsx_file, ".xlsx")

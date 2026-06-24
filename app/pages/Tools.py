@@ -3,7 +3,7 @@ import pandas as pd
 
 from app.modules.text_function import questionFinder, genLabels, categoryFinder2
 from app.modules.coder import transform_open_ended, generate_open_ended_db
-from app.modules.processing import get_totals_from_pretables
+from app.modules.processing import get_totals_from_pretables, get_totals_from_tables
 from app.modules.processor import (
     get_comparison_tables,
     get_lc_comparison,
@@ -105,6 +105,22 @@ def main():
         try:
             try_download(
                 "Download totals tables", results_totals, "totals_tables", "xlsx"
+            )
+        except Exception:
+            pass
+
+    with st.expander("Get totals from Tablas:"):
+        tablas_xlsx = st.file_uploader(
+            "Upload `.xlsx` file", type=["xlsx"], key="tablas_for_totals_xlsx"
+        )
+        btn_get_totals_tablas = st.button("Get Totals from Tablas")
+        if btn_get_totals_tablas:
+            with st.spinner("Get totals..."):
+                results_tables_totals = get_totals_from_tables(tablas_xlsx)
+                st.success("Tables totals generate successfully.")
+        try:
+            try_download(
+                "Download totals tables", results_tables_totals, "totals_tables", "xlsx"
             )
         except Exception:
             pass
