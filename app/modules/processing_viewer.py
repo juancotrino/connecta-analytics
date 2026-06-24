@@ -487,6 +487,24 @@ def combine_metadata(
     return reduce(combine_dataframes, metadata_list)
 
 
+def parse_metadata_values(raw_values: str | dict | None) -> dict:
+    if isinstance(raw_values, dict):
+        return raw_values
+    if not isinstance(raw_values, str):
+        return {}
+
+    values_str = raw_values.strip()
+    if not values_str:
+        return {}
+
+    try:
+        parsed_values = ast.literal_eval(values_str)
+    except (ValueError, SyntaxError):
+        return {}
+
+    return parsed_values if isinstance(parsed_values, dict) else {}
+
+
 def filter_df(
     fields: list[DeltaGenerator],
     filters: list[dict],
@@ -515,12 +533,8 @@ def filter_df(
             options_str = metadata_df[metadata_df.index == filter_variable].loc[
                 filter_variable, "values"
             ]
-            if options_str:
-                try:
-                    options = eval(options_str)
-                    mirrored_options = {v: k for k, v in options.items()}
-                except Exception:
-                    options = []
+            options = parse_metadata_values(options_str)
+            mirrored_options = {v: k for k, v in options.items()}
 
             options_cleaned = {
                 value: option
@@ -569,16 +583,19 @@ def transform_variable(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
 ) -> pd.Series:
-    mapping: dict = eval(metadata_df.loc[question_code]["values"])
-    if len(mapping) == 1 and not next(iter(mapping.values())):
+    mapping = parse_metadata_values(metadata_df.loc[question_code, "values"])
+    source_series = db[db.columns[db.columns.str.contains(question_code)][0]]
+
+    if not mapping or (len(mapping) == 1 and not next(iter(mapping.values()))):
         return (
-            db[db.columns[db.columns.str.contains(question_code)][0]]
-            .astype(int)
+            source_series
             .fillna(0)
+            .astype(str)
+            .str.strip()
         )
     else:
         return (
-            db[db.columns[db.columns.str.contains(question_code)][0]]
+            source_series
             .map(mapping)
             .fillna(0)
             .astype(str)
@@ -592,7 +609,9 @@ def transform_cross_variable(
     db: pd.DataFrame,
     metadata_df: pd.DataFrame,
 ) -> pd.Series:
-    mapping: dict = eval(metadata_df.loc[cross_question_code]["values"])
+    mapping = parse_metadata_values(metadata_df.loc[cross_question_code, "values"])
+    if not mapping:
+        return db[cross_question_code].rename(cross_question_label).fillna(0)
     return db[cross_question_code].map(mapping).rename(cross_question_label).fillna(0)
 
 
@@ -604,19 +623,35 @@ def reorder_contingency_table(
     selected_question: str,
 ) -> pd.DataFrame:
     group = selected_question.split(" | ")[0]
-    column_mapping: dict = eval(metadata_df.loc[cross_question_code]["values"])
-    new_columns = [
-        column_name.strip()
-        for column_name in column_mapping.values()
-        if column_name in df.columns
-    ]
+    column_mapping = parse_metadata_values(metadata_df.loc[cross_question_code, "values"])
+    new_columns = []
+    normalized_df_columns = {str(col).strip(): col for col in df.columns}
+
+    if column_mapping:
+        for column_name in column_mapping.values():
+            normalized_name = str(column_name).strip()
+            if normalized_name in normalized_df_columns:
+                new_columns.append(normalized_df_columns[normalized_name])
+    else:
+        new_columns = [
+            col for col in df.columns if str(col).strip().lower() != "all"
+        ]
+
     if "All" in df.columns:
         new_columns = ["All"] + new_columns
 
+    if not new_columns:
+        return df.dropna(how="all") if group == "FILTERS" else df
+
     reordered_df = df[new_columns]
 
-    index_mapping: dict = eval(metadata_df.loc[question_code]["values"])
-    index_mapping = {key: value.strip() for key, value in index_mapping.items()}
+    index_mapping = parse_metadata_values(metadata_df.loc[question_code, "values"])
+    index_mapping = {
+        key: str(value).strip() for key, value in index_mapping.items() if value is not None
+    }
+
+    if not index_mapping:
+        return reordered_df.dropna(how="all") if group == "FILTERS" else reordered_df
 
     if len(index_mapping) == 1 and not next(iter(index_mapping.values())):
         reordered_df = (
@@ -952,9 +987,6 @@ def build_cross_contingency_table(
 
         contingency_table_count = pd.concat(sub_contingency_tables_count, axis=1)
 
-        index_mapping: dict = eval(metadata_df.loc[question_code]["values"])
-        index_mapping = {key: value.strip() for key, value in index_mapping.items()}
-
         new_column_tuples = []
 
         for j, col_name in enumerate(contingency_table_count.columns):
@@ -1070,8 +1102,9 @@ def append_summary_rows(
 ) -> pd.DataFrame:
     # Only operate on numeric columns for calculations
     numeric_df = df.select_dtypes(include=[np.number])
-    value_mapping = eval(metadata_df.loc[sub_cross_question_code, "values"])
-    value_mapping = {int(k): v for k, v in value_mapping.items()}
+    value_mapping = parse_metadata_values(metadata_df.loc[sub_cross_question_code, "values"])
+    if value_mapping:
+        value_mapping = {int(k): v for k, v in value_mapping.items()}
 
     # Prepare row labels (adapt for index type)
     stats_labels = question_type_config["properties"]
@@ -1085,9 +1118,12 @@ def append_summary_rows(
         if value == "All":
             filtered_db = db.copy()
         else:
-            value_code = [
-                code for code, label in value_mapping.items() if label == value
-            ][0]
+            if value_mapping:
+                value_code = [
+                    code for code, label in value_mapping.items() if label == value
+                ][0]
+            else:
+                value_code = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
             filtered_db = db[db[sub_cross_question_code] == value_code].reset_index(
                 drop=True
             )
@@ -1465,7 +1501,7 @@ def remap_references(
         reference["label"]: reference["id"] for reference in current_references
     }
 
-    metadata_mapping = eval(metadata_df.loc["REF.1", "values"])
+    metadata_mapping = parse_metadata_values(metadata_df.loc["REF.1", "values"])
 
     unregistered_references = [
         reference
@@ -1498,15 +1534,55 @@ def remap_references(
 
 
 def reorder_by_references(
-    dfs: list[pd.DataFrame], reference_ids: list[str], metadata_df: pd.DataFrame
+    dfs: list[pd.DataFrame],
+    reference_ids: list[str | int | float],
+    metadata_df: pd.DataFrame,
 ) -> list[pd.DataFrame]:
     if not reference_ids:
         return dfs
 
     reordered_dfs = []
 
-    references_mapping = eval(metadata_df.loc["REF.1", "values"])
-    reference_names = [references_mapping[id_] for id_ in reference_ids]
+    references_mapping = parse_metadata_values(metadata_df.loc["REF.1", "values"])
+
+    def get_reference_name(reference_id: str | int | float) -> str | None:
+        if reference_id in references_mapping:
+            return references_mapping[reference_id]
+
+        str_id = str(reference_id)
+        if str_id in references_mapping:
+            return references_mapping[str_id]
+
+        try:
+            float_id = float(reference_id)
+            if float_id in references_mapping:
+                return references_mapping[float_id]
+            int_id = int(float_id)
+            if int_id in references_mapping:
+                return references_mapping[int_id]
+            if str(float_id) in references_mapping:
+                return references_mapping[str(float_id)]
+            if str(int_id) in references_mapping:
+                return references_mapping[str(int_id)]
+        except (TypeError, ValueError):
+            pass
+
+        return None
+
+    missing_references = []
+    reference_names = []
+    for reference_id in reference_ids:
+        reference_name = get_reference_name(reference_id)
+        if reference_name is None:
+            missing_references.append(reference_id)
+            continue
+        reference_names.append(reference_name)
+
+    if missing_references:
+        st.warning(
+            "Some selected references are not present in this study and were ignored: "
+            + ", ".join(str(reference_id) for reference_id in missing_references)
+        )
 
     for df in dfs:
         # Get the current MultiIndex
