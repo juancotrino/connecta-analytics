@@ -1537,6 +1537,7 @@ def reorder_by_references(
     dfs: list[pd.DataFrame],
     reference_ids: list[str | int | float],
     metadata_df: pd.DataFrame,
+    show_missing_warning: bool = True,
 ) -> list[pd.DataFrame]:
     if not reference_ids:
         return dfs
@@ -1578,7 +1579,7 @@ def reorder_by_references(
             continue
         reference_names.append(reference_name)
 
-    if missing_references:
+    if missing_references and show_missing_warning:
         st.warning(
             "Some selected references are not present in this study and were ignored: "
             + ", ".join(str(reference_id) for reference_id in missing_references)
@@ -1639,6 +1640,36 @@ def build_statistical_significance_df(
 
     question_tables_count = []
 
+    missing_reference_ids: list[str | int | float] = []
+    if references:
+        references_mapping = parse_metadata_values(metadata_df.loc["REF.1", "values"])
+        for reference_id in references:
+            has_reference = (
+                reference_id in references_mapping
+                or str(reference_id) in references_mapping
+            )
+            if not has_reference:
+                try:
+                    float_id = float(reference_id)
+                    int_id = int(float_id)
+                    has_reference = (
+                        float_id in references_mapping
+                        or int_id in references_mapping
+                        or str(float_id) in references_mapping
+                        or str(int_id) in references_mapping
+                    )
+                except (TypeError, ValueError):
+                    has_reference = False
+
+            if not has_reference:
+                missing_reference_ids.append(reference_id)
+
+        if missing_reference_ids:
+            st.warning(
+                "Some selected references are not present in this study and were ignored: "
+                + ", ".join(str(reference_id) for reference_id in missing_reference_ids)
+            )
+
     for selected_question, (question_label, question_codes) in zip(
         selected_questions, selected_questions_codes.items()
     ):
@@ -1660,7 +1691,10 @@ def build_statistical_significance_df(
                 )
 
                 contingency_tables_count = reorder_by_references(
-                    contingency_tables_count, references, metadata_df
+                    contingency_tables_count,
+                    references,
+                    metadata_df,
+                    show_missing_warning=False,
                 )
 
                 question_composed_count_df = pd.concat(contingency_tables_count, axis=1)
