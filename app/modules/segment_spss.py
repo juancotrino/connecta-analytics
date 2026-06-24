@@ -771,6 +771,60 @@ def segment_spss(
                     for c_idx, value in enumerate(r, start=1):
                         corr_ws.cell(row=r_idx, column=c_idx, value=value)
 
+                if kpis_list_file is not None:
+                    file_xlsx_kpis_list = get_temp_file(kpis_list_file)
+                    kpis_df_questions = pd.read_excel(
+                        file_xlsx_kpis_list,
+                        usecols="B,C,D",
+                        names=["names_kpis", "number_question_kpi", "number_question2_kpi"],
+                    ).dropna(subset=["names_kpis"])
+                    kpis_df_questions = kpis_df_questions.applymap(
+                        lambda x: x.strip() if isinstance(x, str) else x
+                    )
+                    # Para la columna 2
+                    kpis_df_questions[kpis_df_questions.columns[1]] = kpis_df_questions[kpis_df_questions.columns[1]].apply(
+                        lambda x: f"{x.upper()}." if isinstance(x, str) and len(x.strip().split()) == 1 and not x.endswith('.') else x
+                    )
+
+                    # Para la columna 3
+                    kpis_df_questions[kpis_df_questions.columns[2]] = kpis_df_questions[kpis_df_questions.columns[2]].apply(
+                        lambda x: f"{x.upper()}." if isinstance(x, str) and len(x.strip().split()) == 1 and not x.endswith('.') else x
+                    )
+                    kpis_dict={}
+                    for _, row in kpis_df_questions.iterrows():
+                        kpi = row["names_kpis"]
+                        question = row["number_question_kpi"]
+                        question2 = row["number_question2_kpi"]
+                        # Verificar si está vacío o NaN
+                        if not pd.isna(question) and not (isinstance(question, str) and question.strip() == ""):
+                            kpis_dict[question]=kpi
+
+                        if not pd.isna(question2) and not (isinstance(question2, str) and question2.strip() == ""):
+                            kpis_dict[question2]=kpi
+
+                    def reemplazar_si_kpi(texto: str) -> str:
+                        if not isinstance(texto, str) or not texto.strip():
+                            return texto
+
+                        palabras = texto.strip().split()
+                        primera = palabras[0]
+
+                        if primera in kpis_dict:
+                            return (
+                                " ".join(palabras[2:])    # si el valor del diccionario es MULTI
+                                if kpis_dict[primera] == "MULTI"
+                                else kpis_dict[primera]    # si es cualquier otro valor
+                            )
+                        return texto                         # si no está, dejo igual
+
+                    # Primera fila completa
+                    for cell in corr_ws[1]:
+                        cell.value = reemplazar_si_kpi(cell.value)
+
+                    # Primera columna completa
+                    for cell in corr_ws.iter_cols(min_col=1, max_col=1):
+                        for c in cell:
+                            c.value = reemplazar_si_kpi(c.value)
                 # pdf_graph_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
 
                 # graph = generate_graph_analysis(correlation_data)
