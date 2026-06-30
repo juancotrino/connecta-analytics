@@ -1478,14 +1478,12 @@ def append_general_total_row(
     final_df = df_percentage
 
     if not general_total_rows.empty:
-        general_total_rows.index = pd.MultiIndex.from_tuples(
-            [
-                ("TOTAL",) * general_total_rows.index.nlevels
-                for _ in range(len(general_total_rows))
-            ],
-            names=general_total_rows.index.names,
+        general_total_row = general_total_rows.iloc[[0]]
+        general_total_row.index = pd.MultiIndex.from_tuples(
+            [("TOTAL",) * general_total_row.index.nlevels],
+            names=general_total_row.index.names,
         )
-        final_df = pd.concat([general_total_rows.iloc[[0]], df_percentage])
+        final_df = pd.concat([general_total_row, df_percentage])
 
     return final_df
 
