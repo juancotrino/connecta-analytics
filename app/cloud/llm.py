@@ -43,6 +43,8 @@ class LLM:
         max_retries: int = 5,
         backoff_factor: int = 2,
     ):
+        retry_status_codes = {408, 425, 429, 500, 502, 503, 504}
+
         data = {
             "model": self.model,
             "stream": False,
@@ -69,7 +71,8 @@ class LLM:
 
                 if response.status_code == 200:
                     return response, retries
-                if response.status_code in (429, 503):
+
+                if response.status_code in retry_status_codes:
                     retries += 1
                     time.sleep(backoff)
                     backoff *= backoff_factor

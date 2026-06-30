@@ -1,4 +1,5 @@
 from json import JSONDecoder
+import difflib
 import os
 import random
 import sys
@@ -303,6 +304,58 @@ def remove_chain_of_thought(text: str) -> str:
     return cleaned.strip()
 
 
+def fallback_nearest_code_mapping(
+    question_answer_df: pd.DataFrame,
+    code_book_df: pd.DataFrame,
+) -> dict[str, list[int]]:
+    coded: dict[str, list[int]] = {}
+
+    if question_answer_df.empty or code_book_df.empty:
+        return coded
+
+    code_lookup = {
+        str(row["code_text"]).strip().lower(): int(row["code_id"])
+        for _, row in code_book_df.iterrows()
+        if pd.notna(row["code_text"]) and pd.notna(row["code_id"])
+    }
+
+    if not code_lookup:
+        return coded
+
+    code_texts = list(code_lookup.keys())
+
+    for _, row in question_answer_df.iterrows():
+        question_response_id = row.get("question_id-Response_ID")
+        answer = str(row.get("answer", "") or "").strip().lower()
+
+        if not question_response_id:
+            continue
+
+        if not answer:
+            coded[question_response_id] = []
+            continue
+
+        match = difflib.get_close_matches(answer, code_texts, n=1, cutoff=0.65)
+        if not match:
+            tokens = [token for token in re.split(r"\W+", answer) if len(token) >= 4]
+            token_match = None
+            for token in tokens:
+                token_match = next(
+                    (text for text in code_texts if token in text or text in token),
+                    None,
+                )
+                if token_match:
+                    break
+            match = [token_match] if token_match else []
+
+        if match:
+            coded[question_response_id] = [code_lookup[match[0]]]
+        else:
+            coded[question_response_id] = []
+
+    return coded
+
+
 def process_question(
     question: str,
     prompt_template: str,
@@ -325,7 +378,9 @@ def process_question(
         "usage": None,
         "retries": None,
     }
-    max_overload_retries = 3
+    max_overload_retries = max(
+        0, int(os.getenv("PREPROCESSING_UPSTREAM_RETRIES", "1"))
+    )
     overload_retry_count = 0
     overload_backoff_seconds = 1.0
     question_answer = None
@@ -466,13 +521,27 @@ def process_question(
         response_body = response.text or ""
         response_body_preview = response_body[:500]
         is_html_response = "application/json" not in response_content_type.lower()
-        is_overload_drop = "unconditional drop overload" in response_body.lower()
+        response_body_lower = response_body.lower()
+        is_upstream_transient = any(
+            marker in response_body_lower
+            for marker in (
+                "unconditional drop overload",
+                "no healthy upstream",
+                "upstream connect error",
+                "upstream request timeout",
+                "temporarily unavailable",
+            )
+        )
 
-        if is_html_response and is_overload_drop and overload_retry_count < max_overload_retries:
+        if (
+            is_html_response
+            and is_upstream_transient
+            and overload_retry_count < max_overload_retries
+        ):
             overload_retry_count += 1
             sleep_seconds = overload_backoff_seconds + random.uniform(0, 0.5)
             logger.warning(
-                "Overload response for question `%s` (retry=%s/%s, status=%s, content_type=%s, sleep=%.2fs)",
+                "Transient upstream response for question `%s` (retry=%s/%s, status=%s, content_type=%s, sleep=%.2fs)",
                 question,
                 overload_retry_count,
                 max_overload_retries,
@@ -519,60 +588,103 @@ def process_question(
         response_info["coding_results_raw"] = response_body_preview
         return response_info
 
-    if "application/json" not in response_content_type.lower():
-        logger.error(
-            "Unexpected content type for question `%s` (content_type=%s, body_preview=%s)",
+    response_info["usage"] = None
+    response_json = None
+    response_content = None
+    raw_response_body = response.text or ""
+
+    if "application/json" in response_content_type.lower():
+        try:
+            response_json = response.json()
+            response_info["usage"] = response_json.get("usage")
+            response_content = response_json["choices"][0]["message"]["content"]
+        except Exception:
+            logger.warning(
+                "JSON response could not be decoded with expected schema for question `%s`; trying raw-body fallback",
+                question,
+            )
+    else:
+        logger.warning(
+            "Unexpected content type for question `%s` (content_type=%s); trying raw-body fallback",
             question,
             response_content_type,
-            response_body_preview,
         )
-        notify(
-            "error",
-            f"Unexpected content type for question `{question}`: {response_content_type}"
-        )
-        response_info["usage"] = None
-        response_info["error"] = f"Unexpected content type: {response_content_type}"
-        response_info["coding_results_raw"] = response_body_preview
-        return response_info
 
-    try:
-        response_json = response.json()
-    except Exception as e:
-        logger.exception(
-            "Error decoding JSON response for question `%s` (status=%s, content_type=%s, body_preview=%s)",
-            question,
-            response.status_code,
-            response_content_type,
-            response_body_preview,
-        )
-        notify(
-            "error",
-            f"Error decoding model response for question `{question}`: {e}"
-        )
-        response_info["usage"] = None
-        response_info["error"] = str(e)
-        response_info["coding_results_raw"] = response_body_preview
-        return response_info
-
-    response_info["usage"] = response_json.get("usage")
-
-    try:
-        response_content = response_json["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.exception(
-            "Unexpected JSON schema for question `%s` (response_json=%s)",
-            question,
-            str(response_json)[:500],
-        )
-        notify(
-            "error",
-            f"Unexpected model response schema for question `{question}`: {e}"
-        )
-        response_info["error"] = f"Unexpected response schema: {e}"
-        response_info["coding_results_raw"] = str(response_json)[:1000]
-        return response_info
+    if response_content is None:
+        try:
+            extracted_objects = extract_json_string(raw_response_body)
+            if extracted_objects:
+                first_object = extracted_objects[0]
+                if (
+                    isinstance(first_object, dict)
+                    and "choices" in first_object
+                    and first_object["choices"]
+                ):
+                    response_info["usage"] = first_object.get("usage")
+                    response_content = first_object["choices"][0]["message"]["content"]
+                else:
+                    response_content = str(first_object)
+            else:
+                response_content = raw_response_body
+        except Exception as e:
+            logger.exception(
+                "Error extracting fallback response body for question `%s`",
+                question,
+            )
+            notify(
+                "error",
+                f"Error decoding model response for question `{question}`: {e}"
+            )
+            response_info["error"] = str(e)
+            response_info["coding_results_raw"] = response_body_preview
+            return response_info
 
     response_content_cleaned = remove_chain_of_thought(response_content)
+
+    if "no healthy upstream" in response_content_cleaned.lower():
+        if max_overload_retries > 0:
+            response_info["error"] = "Transient upstream response: no healthy upstream"
+            response_info["coding_results_raw"] = response_content_cleaned[:500]
+            logger.error(
+                "Upstream returned no healthy upstream after retries for question `%s`",
+                question,
+            )
+            return response_info
+
+        fallback_codes = fallback_nearest_code_mapping(
+            answers[question_answer], code_books[question]
+        )
+        fallback_df = pd.DataFrame(
+            {
+                "question_id-Response_ID": fallback_codes.keys(),
+                "codes": fallback_codes.values(),
+            }
+        )
+        fallback_df = fallback_df[fallback_df["codes"].map(bool)].reset_index(drop=True)
+
+        if fallback_df.empty:
+            response_info["error"] = "Fallback local coding produced no confident matches"
+            response_info["coding_results_raw"] = response_content_cleaned[:500]
+            logger.error(
+                "Fallback local coding failed for question `%s` after upstream no healthy upstream",
+                question,
+            )
+            return response_info
+
+        response_info["warning"] = (
+            "Used local fallback coding due to upstream no healthy upstream"
+        )
+        response_info["coding_results"] = fallback_df
+        logger.warning(
+            "Applied local fallback coding for question `%s` (rows=%s)",
+            question,
+            len(fallback_df),
+        )
+        notify(
+            "warning",
+            f"Question `{question}` coded with local fallback due to transient upstream issue",
+        )
+        return response_info
 
     coding_dict = (
         response_content_cleaned.replace("json", "")
