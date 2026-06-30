@@ -3,6 +3,7 @@ import ast
 import pandas as pd
 
 import streamlit as st
+import traceback
 
 from app.modules.processing_viewer import (
     get_categories,
@@ -299,3 +300,4 @@ def main():
 
         except Exception as e:
             st.error(f"Error rendering table: {str(e)}")
+            st.error(f"```\n{traceback.format_exc()}\n```")

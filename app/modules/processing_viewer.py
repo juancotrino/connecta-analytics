@@ -1488,6 +1488,39 @@ def append_general_total_row(
     return final_df
 
 
+def deduplicate_multiindex_rows(df: pd.DataFrame) -> pd.DataFrame:
+    if df.index.is_unique:
+        return df
+
+    if isinstance(df.index, pd.MultiIndex):
+        nlevels = df.index.nlevels
+        unique_order = list(dict.fromkeys(df.index.tolist()))
+        deduped_df = df.groupby(level=list(range(nlevels)), sort=False).first()
+        return deduped_df.reindex(unique_order, axis=0)
+
+    return df[~df.index.duplicated(keep="first")]
+
+
+def deduplicate_multiindex_columns(df: pd.DataFrame) -> pd.DataFrame:
+    if df.columns.is_unique:
+        return df
+
+    if isinstance(df.columns, pd.MultiIndex):
+        nlevels = df.columns.nlevels
+        unique_order = list(dict.fromkeys(df.columns.tolist()))
+        deduped_t = df.T.groupby(level=list(range(nlevels)), sort=False).first()
+        deduped_df = deduped_t.T
+        return deduped_df.reindex(unique_order, axis=1)
+
+    return df.loc[:, ~df.columns.duplicated(keep="first")]
+
+
+def ensure_unique_axes(df: pd.DataFrame) -> pd.DataFrame:
+    df = deduplicate_multiindex_rows(df)
+    df = deduplicate_multiindex_columns(df)
+    return df
+
+
 def remap_references(
     study: str,
     db: pd.DataFrame,
@@ -1760,6 +1793,10 @@ def build_statistical_significance_df(
                 question_table_count = question_count_with_visit[0].copy()
                 if not all_columns_same:
                     for df in question_count_with_visit[1:]:
+                        question_table_count = deduplicate_multiindex_rows(
+                            question_table_count
+                        )
+                        df = deduplicate_multiindex_rows(df)
                         index_order = question_table_count.index.tolist()
                         question_table_count = question_table_count.merge(
                             df,
@@ -1768,11 +1805,16 @@ def build_statistical_significance_df(
                             right_index=True,
                             sort=False,
                         )
-                        question_table_count = question_table_count.reindex(
-                            index_order, axis=0
+                        question_table_count = deduplicate_multiindex_rows(
+                            question_table_count
                         )
+                        question_table_count = question_table_count.reindex(index_order, axis=0)
                 else:
                     for df in question_count_with_visit[1:]:
+                        question_table_count = deduplicate_multiindex_rows(
+                            question_table_count
+                        )
+                        df = deduplicate_multiindex_rows(df)
                         question_table_count = question_table_count.combine_first(df)
             else:
                 question_table_count = pd.concat(question_count_with_visit, axis=1)
@@ -1830,15 +1872,18 @@ def build_statistical_significance_df(
             final_tables.append(question_table_count)
 
     final_table_count = pd.concat(final_tables).fillna(0)
+    final_table_count = ensure_unique_axes(final_table_count)
 
     final_table_count.index.names = ["Group", "Question", "Options"]
 
     final_table_percentage = get_percentage_df(final_table_count)
+    final_table_percentage = ensure_unique_axes(final_table_percentage)
 
     concatenate_statistical_significance(
         final_table_count,
         final_table_percentage,
     )
+    final_table_percentage = ensure_unique_axes(final_table_percentage)
 
     if view_type == "Grouped":
         # Drop all rows that are stats in the last level of the index
@@ -1847,8 +1892,10 @@ def build_statistical_significance_df(
         final_table_percentage = append_general_total_row(
             final_table_count, final_table_percentage
         )
+        final_table_percentage = ensure_unique_axes(final_table_percentage)
 
     final_table_percentage = add_letter_level_per_group(final_table_percentage)
+    final_table_percentage = ensure_unique_axes(final_table_percentage)
 
     return final_table_percentage
 
