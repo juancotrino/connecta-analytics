@@ -107,6 +107,13 @@ class LLM:
         backoff_factor: int = 2,
     ):
         retry_status_codes = {408, 425, 429, 500, 502, 503, 504}
+        transient_upstream_markers = (
+            "no healthy upstream",
+            "unconditional drop overload",
+            "upstream connect error",
+            "upstream request timeout",
+            "temporarily unavailable",
+        )
 
         data = {
             "model": model,
@@ -131,6 +138,22 @@ class LLM:
                 response = requests.post(
                     url, headers=self.__headers, json=data, timeout=timeout
                 )
+
+                response_content_type = response.headers.get("Content-Type", "").lower()
+                response_body = (response.text or "").lower()
+
+                is_transient_html_200 = (
+                    response.status_code == 200
+                    and "application/json" not in response_content_type
+                    and any(marker in response_body for marker in transient_upstream_markers)
+                )
+                if is_transient_html_200:
+                    retries += 1
+                    if retries >= max_retries:
+                        break
+                    time.sleep(backoff)
+                    backoff *= backoff_factor
+                    continue
 
                 if response.status_code == 200:
                     return response, retries
