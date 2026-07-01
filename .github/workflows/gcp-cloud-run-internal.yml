@@ -134,6 +134,9 @@ jobs:
             LLM_ENDPOINT=LLM_ENDPOINT:latest
             LLM_PROJECT_ID=LLM_PROJECT_ID:latest
             LLM_REGION=LLM_REGION:latest
+            LLM_MODEL_FALLBACK=LLM_MODEL_FALLBACK:latest
+            LLM_ENDPOINT_FALLBACK=LLM_ENDPOINT_FALLBACK:latest
+            LLM_REGION_FALLBACK=LLM_REGION_FALLBACK:latest
           # env_vars: |
           # #   NODE_ENV=production
           # #   TOKEN_EXPIRE=6400

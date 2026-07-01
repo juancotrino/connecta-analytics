@@ -16,13 +16,31 @@ class LLM:
         region: str = os.getenv("LLM_REGION"),
     ) -> None:
         self.model = model
-        self.url = f"https://{endpoint}/v1/projects/{project_id}/locations/{region}/endpoints/openapi/chat/completions"
+        self.url = self._build_url(endpoint, project_id, region)
+
+        self.fallback_model = os.getenv("LLM_MODEL_FALLBACK")
+        self.fallback_endpoint = os.getenv("LLM_ENDPOINT_FALLBACK")
+        self.fallback_region = os.getenv("LLM_REGION_FALLBACK")
+        self.fallback_url = None
+        if self.fallback_model and self.fallback_endpoint and self.fallback_region:
+            self.fallback_url = self._build_url(
+                self.fallback_endpoint,
+                project_id,
+                self.fallback_region,
+            )
 
         # Obtain default credentials
         self.__credentials, self.__project = google.auth.default()
 
         # Refresh the access token
         self._refresh_access_token()
+
+    @staticmethod
+    def _build_url(endpoint: str, project_id: str, region: str) -> str:
+        return (
+            f"https://{endpoint}/v1/projects/{project_id}"
+            f"/locations/{region}/endpoints/openapi/chat/completions"
+        )
 
     def _refresh_access_token(self) -> None:
         self.__credentials.refresh(Request())
@@ -43,10 +61,55 @@ class LLM:
         max_retries: int = 5,
         backoff_factor: int = 2,
     ):
+        try:
+            response, retries = self._send_with_config(
+                model=self.model,
+                url=self.url,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                timeout=timeout,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            )
+            return response, retries, "principal", self.model
+        except requests.RequestException:
+            if not self.fallback_url:
+                raise
+
+            response, retries = self._send_with_config(
+                model=self.fallback_model,
+                url=self.fallback_url,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                timeout=timeout,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            )
+            return response, retries, "fallback", self.fallback_model
+
+    def _send_with_config(
+        self,
+        model: str,
+        url: str,
+        system_prompt: str,
+        user_prompt: str,
+        timeout: int | float,
+        temperature: float = 0,
+        top_k: int = 10,
+        top_p: float = 0.1,
+        max_retries: int = 5,
+        backoff_factor: int = 2,
+    ):
         retry_status_codes = {408, 425, 429, 500, 502, 503, 504}
 
         data = {
-            "model": self.model,
+            "model": model,
             "stream": False,
             "parameters": {
                 "temperature": temperature,
@@ -66,7 +129,7 @@ class LLM:
         while retries < max_retries:
             try:
                 response = requests.post(
-                    self.url, headers=self.__headers, json=data, timeout=timeout
+                    url, headers=self.__headers, json=data, timeout=timeout
                 )
 
                 if response.status_code == 200:

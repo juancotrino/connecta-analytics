@@ -112,7 +112,13 @@ def main():
                         logs_df = pd.DataFrame.from_dict(
                             results,
                             orient="index",
-                            columns=["status_code", "elapsed_time", "usage", "retries"],
+                            columns=[
+                                "status_code",
+                                "elapsed_time",
+                                "usage",
+                                "retries",
+                                "model",
+                            ],
                         )
 
                         st.dataframe(logs_df)

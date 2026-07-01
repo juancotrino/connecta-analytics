@@ -5,6 +5,7 @@ import random
 import sys
 import re
 import time
+from pprint import pformat
 from queue import Empty, Queue
 
 # from concurrent.futures import ThreadPoolExecutor
@@ -377,6 +378,7 @@ def process_question(
         "elapsed_time": None,
         "usage": None,
         "retries": None,
+        "model": None,
     }
     max_overload_retries = max(
         0, int(os.getenv("PREPROCESSING_UPSTREAM_RETRIES", "1"))
@@ -479,21 +481,25 @@ def process_question(
         Return ONLY the Python dictionary and NOTHING else.
     """
 
+    survey_data_payload = {
+        row["question_id-Response_ID"]: row["answer"]
+        for _, row in answers[question_answer].iterrows()
+    }
+    codebook_payload = {
+        row["code_id"]: row["code_text"]
+        for _, row in code_books[question].iterrows()
+    }
+
     user_prompt = prompt_template.format(
-        survey_data={
-            row["question_id-Response_ID"]: row["answer"]
-            for _, row in answers[question_answer].iterrows()
-        },
-        codebook={
-            row["code_id"]: row["code_text"]
-            for _, row in code_books[question].iterrows()
-        },
+        survey_data=survey_data_payload,
+        codebook=codebook_payload,
     )
     timeout = calculate_timeout(len(answers[question_answer]))
 
     start_time = time.time()
     if LOG_LLM_IO:
-        prompt_preview = user_prompt[:1000]
+        log_full_prompt = question == "F13"
+        prompt_preview = user_prompt if log_full_prompt else user_prompt[:1000]
         logger.info(
             {
                 "event": "llm_prompt",
@@ -501,16 +507,24 @@ def process_question(
                 "prompt_preview": prompt_preview,
                 "prompt_size": len(user_prompt),
                 "prompt_truncated": len(user_prompt) > len(prompt_preview),
+                "prompt_full_logged": log_full_prompt,
             }
         )
+        if log_full_prompt:
+            pretty_prompt = prompt_template.format(
+                survey_data=pformat(survey_data_payload, width=100, sort_dicts=False),
+                codebook=pformat(codebook_payload, width=100, sort_dicts=False),
+            )
+            logger.info("Pretty prompt for question `%s`:\n%s", question, pretty_prompt)
 
     while True:
         try:
-            response, transport_retries = model.send(
+            response, transport_retries, model_source, model_used = model.send(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 timeout=timeout,
             )
+            response_info["model"] = f"{model_source}:{model_used}"
         except Exception as e:
             logger.exception("Error in request for question `%s`", question)
             response_info["error"] = str(e)
