@@ -5,7 +5,6 @@ import random
 import sys
 import re
 import time
-from pprint import pformat
 from queue import Empty, Queue
 
 # from concurrent.futures import ThreadPoolExecutor
@@ -498,8 +497,7 @@ def process_question(
 
     start_time = time.time()
     if LOG_LLM_IO:
-        log_full_prompt = question == "F13"
-        prompt_preview = user_prompt if log_full_prompt else user_prompt[:1000]
+        prompt_preview = user_prompt[:1000]
         logger.info(
             {
                 "event": "llm_prompt",
@@ -507,15 +505,8 @@ def process_question(
                 "prompt_preview": prompt_preview,
                 "prompt_size": len(user_prompt),
                 "prompt_truncated": len(user_prompt) > len(prompt_preview),
-                "prompt_full_logged": log_full_prompt,
             }
         )
-        if log_full_prompt:
-            pretty_prompt = prompt_template.format(
-                survey_data=pformat(survey_data_payload, width=100, sort_dicts=False),
-                codebook=pformat(codebook_payload, width=100, sort_dicts=False),
-            )
-            logger.info("Pretty prompt for question `%s`:\n%s", question, pretty_prompt)
 
     while True:
         try:
