@@ -1474,7 +1474,9 @@ def append_general_total_row(
     df_count: pd.DataFrame, df_percentage: pd.DataFrame
 ) -> pd.DataFrame:
     total_rows = df_count[df_count.index.get_level_values(-1) == "Total"]
-    general_total_rows = total_rows[(total_rows != 0).all(axis=1)]
+    # Keep rows that have at least one non-zero value.
+    # Requiring every value to be non-zero is too strict and can hide TOTAL.
+    general_total_rows = total_rows[total_rows.fillna(0).ne(0).any(axis=1)]
     final_df = df_percentage
 
     if not general_total_rows.empty:
