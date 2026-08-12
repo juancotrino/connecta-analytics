@@ -3,6 +3,35 @@ import itertools
 import numpy as np
 import pandas as pd
 
+import streamlit as st
+
+from firebase_admin import firestore
+
+
+@st.cache_data(show_spinner=False)
+def get_business_countries() -> list[str]:
+    db = firestore.client()
+    document = db.collection("settings").document("business_data").get()
+    if document.exists:
+        return document.to_dict().get("countries", [])
+    return []
+
+
+@st.cache_data(show_spinner=False)
+def get_field_supervisors() -> list[dict]:
+    db = firestore.client()
+    document = db.collection("settings").document("business_data").get()
+    if document.exists:
+        return document.to_dict().get("field_supervisors", [])
+    return []
+
+
+def save_field_supervisors(supervisors: list[dict]) -> None:
+    db = firestore.client()
+    db.collection("settings").document("business_data").update(
+        {"field_supervisors": supervisors}
+    )
+
 
 def check_percentage_total(
     variables: dict[str, pd.DataFrame], variable_type: str = "independent"

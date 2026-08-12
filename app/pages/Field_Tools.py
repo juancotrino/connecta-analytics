@@ -1,4 +1,5 @@
 import itertools
+import time
 
 import numpy as np
 import pandas as pd
@@ -6,14 +7,80 @@ import pandas as pd
 import streamlit as st
 
 from app.modules.utils import try_download, write_temp_excel
-from app.modules.field_quotas import (
+from app.modules.field_tools import (
     check_percentage_total,
     get_expanded_variable_pollsters,
     get_expanded_surveys,
+    get_business_countries,
+    get_field_supervisors,
+    save_field_supervisors,
 )
 
 
 def main():
+    with st.expander("Field Quotas"):
+        render_field_quotas()
+
+    with st.expander("Supervisors Management"):
+        render_supervisors()
+
+
+def render_supervisors():
+    st.markdown("""
+    This tool manages field supervisors data.
+    """)
+    columns = ["country", "supervisor_name", "phone_number", "active"]
+    if "field_supervisors_df" not in st.session_state:
+        st.session_state.field_supervisors_df = pd.DataFrame(
+            get_field_supervisors(), columns=columns
+        )
+    if "field_supervisors_editor_version" not in st.session_state:
+        st.session_state.field_supervisors_editor_version = 0
+    editor_key = (
+        f"supervisors_editor_{st.session_state.field_supervisors_editor_version}"
+    )
+    with st.form(
+        f"field_supervisors_form_{st.session_state.field_supervisors_editor_version}"
+    ):
+        edited_df = st.data_editor(
+            st.session_state.field_supervisors_df,
+            num_rows="dynamic",
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "country": st.column_config.SelectboxColumn(
+                    "Country",
+                    options=get_business_countries(),
+                    required=True,
+                ),
+                "supervisor_name": st.column_config.TextColumn(
+                    "Supervisor Name", required=True
+                ),
+                "phone_number": st.column_config.TextColumn(
+                    "Phone Number (with country code)", required=True
+                ),
+                "active": st.column_config.CheckboxColumn("Active", default=True),
+            },
+            key=editor_key,
+        )
+        submitted = st.form_submit_button("Save supervisors", type="primary")
+
+    if submitted:
+        supervisors = edited_df.dropna(subset=["country", "supervisor_name"]).to_dict(
+            orient="records"
+        )
+        save_field_supervisors(supervisors)
+        st.session_state.field_supervisors_df = pd.DataFrame(
+            supervisors, columns=columns
+        )
+        st.session_state.field_supervisors_editor_version += 1
+        get_field_supervisors.clear()
+        st.success("Supervisors saved successfully.")
+        time.sleep(2)
+        st.rerun()
+
+
+def render_field_quotas():
     st.markdown("""
     This tool helps to generate Field Quotas given different variables and values.
     """)
