@@ -124,6 +124,9 @@ jobs:
             SITE_URL=SITE_URL:latest
             CLIENT_ID=CLIENT_ID:latest
             CLIENT_SECRET=CLIENT_SECRET:latest
+            ENTRA_TENANT_ID=ENTRA_TENANT_ID:latest
+            CLIENT_CERT_THUMBPRINT=CLIENT_CERT_THUMBPRINT:latest
+            CLIENT_CERT_PRIVATE_KEY=CLIENT_CERT_PRIVATE_KEY:latest
             BIGQUERY_SCHEMA_ID=BIGQUERY_SCHEMA_ID:latest
             GCP_PROJECT_ID=GCP_PROJECT_ID:latest
             GCP_REGION=GCP_REGION:latest
