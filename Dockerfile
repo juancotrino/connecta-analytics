@@ -1,15 +1,13 @@
 # app/Dockerfile
 
-FROM python:3.11.1-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
-    # build-essential \
-    # curl \
-    # software-properties-common \
-    git
-    # && rm -rf /var/lib/apt/lists/*
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 
 RUN git clone -b dev https://github.com/juancotrino/connecta-analytics.git .
@@ -18,10 +16,10 @@ RUN git clone -b dev https://github.com/juancotrino/connecta-analytics.git .
 
 RUN pip install -r requirements.txt
 
-ENV PORT 8080
+ENV PORT=8080
 
 EXPOSE ${PORT}
 
 HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health
 
-ENTRYPOINT streamlit run main.py --server.port=${PORT} --server.address=0.0.0.0
+ENTRYPOINT ["sh", "-c", "exec streamlit run main.py --server.port=${PORT} --server.address=0.0.0.0"]
