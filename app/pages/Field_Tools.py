@@ -30,9 +30,16 @@ def render_supervisors():
     This tool manages field supervisors data.
     """)
     columns = ["country", "supervisor_name", "phone_number", "active"]
+    country_map = get_business_countries()
+    country_names_by_code = {code: name for name, code in country_map.items()}
     if "field_supervisors_df" not in st.session_state:
         st.session_state.field_supervisors_df = pd.DataFrame(
             get_field_supervisors(), columns=columns
+        )
+        st.session_state.field_supervisors_df["country"] = (
+            st.session_state.field_supervisors_df["country"]
+            .map(country_names_by_code)
+            .fillna(st.session_state.field_supervisors_df["country"])
         )
         st.session_state.field_supervisors_df["phone_number"] = (
             st.session_state.field_supervisors_df["phone_number"]
@@ -55,14 +62,14 @@ def render_supervisors():
             column_config={
                 "country": st.column_config.SelectboxColumn(
                     "Country",
-                    options=get_business_countries(),
+                    options=list(country_map),
                     required=True,
                 ),
                 "supervisor_name": st.column_config.TextColumn(
                     "Supervisor Name", required=True
                 ),
                 "phone_number": st.column_config.TextColumn(
-                    "Phone Number (with country code)", required=True
+                    "Phone Number (country code optional)", required=True
                 ),
                 "active": st.column_config.CheckboxColumn("Active", default=True),
             },
@@ -72,12 +79,21 @@ def render_supervisors():
 
     if submitted:
         edited_df["phone_number"] = edited_df["phone_number"].fillna("").astype(str)
-        supervisors = edited_df.dropna(subset=["country", "supervisor_name"]).to_dict(
-            orient="records"
-        )
+        supervisors_df = edited_df.dropna(
+            subset=["country", "supervisor_name"]
+        ).copy()
+        supervisors_df["country"] = supervisors_df["country"].map(country_map)
+        if supervisors_df["country"].isna().any():
+            st.error("Every supervisor must have a valid country selected.")
+            return
+
+        supervisors = supervisors_df.to_dict(orient="records")
         save_field_supervisors(supervisors)
         st.session_state.field_supervisors_df = pd.DataFrame(
             supervisors, columns=columns
+        )
+        st.session_state.field_supervisors_df["country"] = (
+            st.session_state.field_supervisors_df["country"].map(country_names_by_code)
         )
         st.session_state.field_supervisors_editor_version += 1
         get_field_supervisors.clear()

@@ -7,14 +7,47 @@ import streamlit as st
 
 from firebase_admin import firestore
 
+from app.modules.utils import get_countries
+
+
+COUNTRY_NAME_ALIASES = {"Brasil": "Brazil"}
+COUNTRY_CODE_FALLBACKS = {
+    "Costa Rica": "CR",
+    "Colombia": "CO",
+    "Ecuador": "EC",
+    "Mexico": "MX",
+    "Peru": "PE",
+    "Brasil": "BR",
+    "Chile": "CL",
+    "Panama": "PA",
+    "Guatemala": "GT",
+    "Dominican Republic": "DO",
+    "Nicaragua": "NI",
+}
+
 
 @st.cache_data(show_spinner=False)
-def get_business_countries() -> list[str]:
+def get_business_countries() -> dict[str, str]:
     db = firestore.client()
     document = db.collection("settings").document("business_data").get()
-    if document.exists:
-        return document.to_dict().get("countries", [])
-    return []
+    if not document.exists:
+        return {}
+
+    country_names = document.to_dict().get("countries", [])
+    country_codes = get_countries()
+    return {
+        country_name: country_codes.get(
+            country_name,
+            country_codes.get(
+                COUNTRY_NAME_ALIASES.get(country_name, ""),
+                COUNTRY_CODE_FALLBACKS.get(country_name),
+            ),
+        )
+        for country_name in country_names
+        if country_codes.get(country_name)
+        or country_codes.get(COUNTRY_NAME_ALIASES.get(country_name, ""))
+        or COUNTRY_CODE_FALLBACKS.get(country_name)
+    }
 
 
 @st.cache_data(show_spinner=False)
