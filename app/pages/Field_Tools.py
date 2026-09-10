@@ -34,6 +34,11 @@ def render_supervisors():
         st.session_state.field_supervisors_df = pd.DataFrame(
             get_field_supervisors(), columns=columns
         )
+        st.session_state.field_supervisors_df["phone_number"] = (
+            st.session_state.field_supervisors_df["phone_number"]
+            .fillna("")
+            .astype(str)
+        )
     if "field_supervisors_editor_version" not in st.session_state:
         st.session_state.field_supervisors_editor_version = 0
     editor_key = (
@@ -66,6 +71,7 @@ def render_supervisors():
         submitted = st.form_submit_button("Save supervisors", type="primary")
 
     if submitted:
+        edited_df["phone_number"] = edited_df["phone_number"].fillna("").astype(str)
         supervisors = edited_df.dropna(subset=["country", "supervisor_name"]).to_dict(
             orient="records"
         )
