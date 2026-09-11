@@ -12,6 +12,7 @@ from streamlit.delta_generator import DeltaGenerator
 from email_validator import EmailNotValidError, validate_email
 from firebase_admin import auth, firestore
 from app.modules.business_definition import get_business_data
+from app.logger import logger
 
 POST_REQUEST_URL_BASE = "https://identitytoolkit.googleapis.com/v1/accounts:"
 
@@ -115,7 +116,7 @@ class Authenticator:
         return None
 
     def authenticate_user(
-        self, email: str, password: str, require_email_verification: bool = True
+        self, email: str, password: str, require_email_verification: bool = False
     ) -> Optional[Dict[str, Union[str, bool, int]]]:
         """Authenticate user with Firebase Authentication REST API."""
         url = f"{self.post_request_url_base}signInWithPassword?key={self.firebase_api_key}"
@@ -147,13 +148,6 @@ class Authenticator:
                 login_response["idToken"], clock_skew_seconds=10
             )
             user = auth.get_user(decoded_token["uid"])
-
-            if not user.email_verified:
-                st.session_state["authentication_status"] = False
-                st.session_state["login_error_message"] = (
-                    "Please verify your e-mail address."
-                )
-                return None
 
             self._update_session_state_after_login(user)
             return user
@@ -379,8 +373,14 @@ class Authenticator:
         """Creates a Streamlit widget for user registration.
 
         Password strength is validated using entropy bits (the power of the password alphabet).
-        Upon registration, a validation link is sent to the user's email address.
+        Admin-created accounts are immediately enabled without email verification.
         """
+
+        def show_registration_error(message: str) -> None:
+            st.session_state["login_error_message"] = message
+            st.session_state["success_message"] = None
+            st.error(message)
+
         user_type = st.radio("User type", options=["Internal", "External"], index=None)
 
         if not user_type:
@@ -411,7 +411,7 @@ class Authenticator:
             roles = st.multiselect(
                 "Roles",
                 options=active_roles,
-                default="connecta-viewer" if user_type == "Connecta" else None,
+                default=["connecta-viewer"] if user_type == "Connecta" else None,
             )
 
             register_button = st.form_submit_button(label="Submit")
@@ -421,31 +421,33 @@ class Authenticator:
         # Below are some checks to ensure proper and secure registration
 
         if password != confirm_password:
-            st.session_state["login_error_message"] = "Passwords do not match"
-            st.session_state["success_message"] = None
+            logger.warning("User registration validation failed: passwords differ")
+            show_registration_error("Passwords do not match")
             return None
 
         if not name:
-            st.session_state["login_error_message"] = "Please enter your name"
-            st.session_state["success_message"] = None
+            logger.warning("User registration validation failed: name is empty")
+            show_registration_error("Please enter your name")
             return None
         if "@" not in email and isinstance(self.preauthorized, str):
             email = f"{email}@{self.preauthorized}"
 
         if self.preauthorized and not email.endswith(self.preauthorized):
-            st.session_state["login_error_message"] = "Domain not allowed"
-            st.session_state["success_message"] = None
+            logger.warning("User registration validation failed: domain not allowed")
+            show_registration_error("Domain not allowed")
             return None
 
         if not roles:
-            st.session_state["login_error_message"] = "Please select at least one role"
-            st.session_state["success_message"] = None
+            logger.warning("User registration validation failed: no roles selected")
+            show_registration_error("Please select at least one role")
             return None
         try:
             validate_email(email, check_deliverability=True)
         except EmailNotValidError as e:
-            st.session_state["login_error_message"] = str(e)
-            st.session_state["success_message"] = None
+            logger.warning(
+                "User registration e-mail validation failed: %s", type(e).__name__
+            )
+            show_registration_error(str(e))
             return None
 
         # Calculate password strength using entropy bits (the power of its alphabet)
@@ -454,16 +456,16 @@ class Authenticator:
         # https://en.wikipedia.org/wiki/Password_strength#Entropy_as_a_measure_of_password_strength
         alphabet_chars = len(set(password))
         strength = int(len(password) * math.log2(alphabet_chars) * 1.5)
-        
+
         # Always show password strength progress bar
         st.progress(min(100, strength) / 100)  # Cap at 100% for display
-        
+
         # Only show error for weak passwords
         if strength < 50:
-            st.session_state["login_error_message"] = (
+            logger.warning("User registration validation failed: password too weak")
+            show_registration_error(
                 "Password is too weak. Please choose a stronger password."
             )
-            st.session_state["success_message"] = None
             return None
 
         if (
@@ -477,30 +479,17 @@ class Authenticator:
             email=email,
             password=password,
             display_name=name,
-            email_verified=False,
+            email_verified=True,
             disabled=False,
         )
+        logger.info("Firebase user created during admin registration")
 
         self.assign_user_metadata(user.uid, roles, company)
+        logger.info("User metadata assigned during admin registration")
 
-        # Having registered the user, send them a verification e-mail
-        token = self.authenticate_user(
-            email, password, require_email_verification=False
-        )["idToken"]
-        url = f"{POST_REQUEST_URL_BASE}sendOobCode?key={self.firebase_api_key}"
-        payload = {"requestType": "VERIFY_EMAIL", "idToken": token}
-        response = self.post_request(url, json=payload)
-        if response.status_code != 200:
-            st.session_state["login_error_message"] = (
-                f"Error sending verification email: {self._parse_error_message(response)}"
-            )
-            st.session_state["success_message"] = None
-            return None
-        st.session_state["success_message"] = (
-            "Your account has been created successfully. To complete the registration process, "
-            "please verify your email address by clicking on the link we have sent to your inbox."
-        )
+        st.session_state["success_message"] = "User account created successfully."
         st.session_state["login_error_message"] = None
+        st.success(st.session_state["success_message"])
         return st.balloons()
 
     def assign_user_metadata(self, uid: str, roles: list[str], company: str):

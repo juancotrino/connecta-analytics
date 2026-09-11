@@ -1,6 +1,5 @@
 import os
 import importlib
-import logging
 from typing import Optional, List
 from dotenv import load_dotenv
 
@@ -18,12 +17,7 @@ from app.modules.authenticator import (
     get_page_roles,
 )
 from app.modules.utils import get_authorized_pages_names
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from app.logger import logger
 
 # Constants
 PAGE_TITLE = "Analytics Interface"
@@ -150,7 +144,11 @@ class App:
                 # User is authenticated
                 _ = self.authenticator.login_panel  # Displays logout and account config
                 self.hide_unauthorized_pages()
-                if os.getenv("K_SERVICE", "").endswith("connecta-analytics-app-legacy"):
+                is_local_development = not os.getenv("K_SERVICE")
+                is_legacy_cloud_run = os.getenv("K_SERVICE", "").endswith(
+                    "connecta-analytics-app-legacy"
+                )
+                if is_local_development or is_legacy_cloud_run:
                     self.render_admin_panel()
                 self.render_pages()
                 footer()
