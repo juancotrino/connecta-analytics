@@ -13,6 +13,7 @@ from app.modules.field_tools import (
     get_business_countries,
     get_field_supervisors,
     save_field_supervisors,
+    check_base_xlsx,
 )
 
 
@@ -22,6 +23,28 @@ def main():
 
     with st.expander("Supervisors Management"):
         render_supervisors()
+
+    with st.expander("Dataset Base Checker"):
+        st.markdown("#### Base:")
+        uploaded_base_check_xlsx = st.file_uploader(
+            "Upload `.xlsx` file", type=["xlsx"], key="base_check_xlsx"
+        )
+        check_button = st.button("Check Base")
+        if (
+            check_button
+            and uploaded_base_check_xlsx
+        ):
+            with st.spinner("Checking the Base...."):
+                results_check_base = check_base_xlsx(uploaded_base_check_xlsx)
+                st.success("Base Checked successfully.")
+        try:
+            try_download(
+                "Download checked base", results_check_base, "checked_base" + uploaded_base_check_xlsx.name, "xlsx"
+            )
+        except Exception:
+            pass
+
+
 
 
 def render_supervisors():
