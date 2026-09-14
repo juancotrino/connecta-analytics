@@ -276,7 +276,11 @@ def check_base_xlsx(xlsx_file: BytesIO):
     wb_new = Workbook()
     default_sheet = wb_new.active
     wb_new.remove(default_sheet)
-    ws_base = wb_existing.worksheets[0]
+    ws_base = (
+        wb_existing["Datos sin procesar"]
+        if "Datos sin procesar" in wb_existing.sheetnames
+        else wb_existing.worksheets[0]
+    )
     ws_check = wb_new.create_sheet(title="Check Base")
 
     redFill = PatternFill(start_color="C80000", end_color="C80000", fill_type="solid")
