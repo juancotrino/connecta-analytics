@@ -2425,7 +2425,26 @@ def getVarsForPlantilla(spss_file: BytesIO):
                 textPlantilla += str(len(list(set(data[var].dropna())))) + "\t/--"
                 ws_plantilla.cell(row=row_num, column=5).value = "/--"
         try:
-            labelval1=dict_values[var]
+            if re.search("^[FPS].*A.*[1-90]", var):
+                group_multi = re.search(".*A", var).group()
+                group_vars = [
+                    v for v in list_vars if re.search("^" + group_multi, v)
+                ]
+                combined_counts = (
+                    data[group_vars].apply(pd.Series.value_counts).sum(axis=1)
+                )
+                labelval1 = {}
+                for val, label in dict_values[var].items():
+                    count = int(combined_counts.get(val, 0))
+                    count_str = f" ({count})" if count > 0 else ""
+                    labelval1[val] = f"{label}{count_str}"
+            else:
+                counts = data[var].value_counts()
+                labelval1 = {}
+                for val, label in dict_values[var].items():
+                    count = counts.get(val, 0)
+                    count_str = f" ({count})" if count > 0 else ""
+                    labelval1[val] = f"{label}{count_str}"
         except:
             labelval1="None"
         label_base1=dict_labels[var]
